@@ -1,0 +1,49 @@
+name: perspec
+version: 0.1.0.0
+github: ad-si/perspec
+license-file: license
+author: Adrian Sieber
+maintainer: mail@adriansieber.com
+copyright: Adrian Sieber
+
+extra-source-files:
+  - readme.md
+  - changelog.md
+
+synopsis: Scan documents and books with as little hardware as possible.
+category: Scan
+
+description: |
+  Please see the readme on GitHub at <https://github.com/ad-si/perspec#readme>
+
+dependencies:
+  - base >= 4.7 && < 5
+  - gloss
+  - gloss-juicy
+  - protolude
+  - text
+
+library:
+  source-dirs: source
+
+executables:
+  perspec:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - perspec
+
+tests:
+  perspec-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - perspec
