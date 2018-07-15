@@ -18,8 +18,10 @@ description: |
 
 dependencies:
   - base >= 4.7 && < 5
+  - filepath
   - gloss
   - gloss-juicy
+  - process
   - protolude
   - text
 

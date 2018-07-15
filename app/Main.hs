@@ -1,22 +1,59 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+
 module Main where
 
-import Graphics.Gloss
-import Graphics.Gloss.Juicy
-import Graphics.Gloss.Interface.Pure.Game as Gl
-import System.Environment
-import Protolude as P
-import Data.Text as T
+import Data.Either
 import Data.List as DL
+import Data.Text as T
+import Graphics.Gloss
+import Graphics.Gloss.Interface.IO.Game as Gl
+import Graphics.Gloss.Juicy
+import Protolude as P
+import System.FilePath
+import System.Process
 
 
 type Corner = Point
 
+type CornersTup = (Corner, Corner, Corner, Corner)
+
+
+-- | Projection map from corner to corner
+type ProjMap =
+  ( (Corner, Corner)
+  , (Corner, Corner)
+  , (Corner, Corner)
+  , (Corner, Corner)
+  )
+
+
 -- | State of app (list of corners is reversed to order of addition)
-data AppState = AppState [Corner] [Picture]
+data AppState = AppState
+  { corners :: [Corner]
+  , layers :: [Picture]
+  , imgViewWidth :: Int
+  , imgViewHeight :: Int
+  , imgWidth :: Int
+  , imgHeight :: Int
+  , inputPath :: FilePath
+  , outputPath :: FilePath
+  }
   deriving Show
+
+
+initialState :: AppState
+initialState = AppState
+  { corners = []
+  , layers = []
+  , imgViewWidth = 640
+  , imgViewHeight = 320
+  , imgWidth = 0
+  , imgHeight = 0
+  , inputPath = ""
+  , outputPath = ""
+  }
 
 
 load :: FilePath -> IO Picture
@@ -28,47 +65,55 @@ load filePath = do
       putText "Error: Image couldn't be loaded"
       pure Blank
     Just picture -> pure picture
-    -- display
-    --   (InWindow filePath (width, height) )
-    --   black
-    --   picture
 
 
-startApp :: FilePath -> Picture -> IO ()
-startApp filePath pic = do
+startApp :: FilePath -> FilePath -> Int -> Int -> Picture -> IO ()
+startApp inPath outPath imgWdth imgHgt pic = do
   let
-    width = 640
-    height = 320
     initialX = 800
-    initalY = 100
-    initalState = AppState [] [pic]
+    initialY = 100
+    ticksPerSecond = 10
+    stateWithImage = initialState
+      { layers = [pic]
+      , imgWidth = imgWdth
+      , imgHeight = imgHgt
+      , inputPath = inPath
+      , outputPath = outPath
+      }
+    window = InWindow
+      inPath
+      ((imgViewWidth stateWithImage), (imgViewHeight stateWithImage))
+      (initialX, initialY)
 
   putText "Starting the app …"
 
-  play
-    (InWindow filePath (width, height) (initialX, initalY))
+  playIO
+    window
     black
-    10
-    initalState
+    ticksPerSecond
+    stateWithImage
     makePicture
     handleEvent
     stepWorld
 
 
-stepWorld :: Float -> AppState -> AppState
-stepWorld _ = identity
+stepWorld :: Float -> AppState -> IO AppState
+stepWorld _ =
+  pure . identity
 
 
 -- | Render the app state to a picture.
-makePicture :: AppState -> Picture
-makePicture (AppState corners pics) =
+makePicture :: AppState -> IO Picture
+makePicture appState =
   let
     radius = 6
     thickness = 4
     drawCorner (x, y) =
       Translate x y (color green $ ThickCircle radius thickness)
   in
-    Pictures $ pics <> (fmap drawCorner corners)
+    pure $
+    Pictures $
+    (layers appState) <> (fmap drawCorner (corners appState))
 
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
@@ -99,26 +144,131 @@ getIndexClosest points point =
 
 
 addCorner :: AppState -> Corner -> AppState
-addCorner (AppState corners pics) newCorner =
+addCorner appState newCorner =
   let
+    theCorners = corners appState
     newCorners =
-      if (P.length corners) < 4
-      then newCorner : corners
+      if (P.length theCorners) < 4
+      then newCorner : theCorners
       else replaceElemAtIndex
-        (getIndexClosest corners newCorner)
+        (getIndexClosest theCorners newCorner)
         newCorner
-        corners
+        theCorners
   in
-    AppState newCorners pics
+    appState {corners = newCorners}
 
 
-handleEvent :: Event -> AppState -> AppState
+-- TODO: Use correct algorithm as described in the readme
+getTargetShape :: CornersTup -> (Float, Float)
+getTargetShape (topLeft, topRight, btmLeft, btmRight) =
+  let
+    topEdgeLength    = calcDistance topLeft topRight
+    bottomEdgeLength = calcDistance btmRight btmLeft
+    width            = max topEdgeLength bottomEdgeLength
+
+    leftEdgeLength   = calcDistance topLeft btmRight
+    rightEdgeLength  = calcDistance topRight btmLeft
+    height           = max leftEdgeLength rightEdgeLength
+  in
+    (width, height)
+
+
+toQuadTuple :: [a] -> Either Text (a, a, a, a)
+toQuadTuple [tl, tr, br, bl] = Right (tl, tr, br, bl)
+toQuadTuple _                = Left "The list must contain 4 values"
+
+
+-- | Assuming coordinate system starts top left
+-- | 'getProjectionMap clickShape targetShape'
+getProjectionMap :: CornersTup -> (Float, Float) -> ProjMap
+getProjectionMap (tl, tr, br, bl) (wdth, hgt) =
+  ( (tl, (0,    0))
+  , (tr, (wdth, 0))
+  , (br, (wdth, hgt))
+  , (bl, (0,    hgt))
+  )
+
+
+-- | Accomodate ImageMagick's counter-clockwise direction
+toCounterClock :: (a, a, a, a) -> (a, a, a, a)
+toCounterClock (tl, tr, br, bl) = (tl, bl, br, tr)
+
+
+-- | Fix weird gloss coordinate system
+originTopLeft :: Int -> Int -> [Point] -> [Point]
+originTopLeft width height = fmap
+  (\(x, y) ->
+    ( x + ((fromIntegral width) / 2.0)
+    , - (y - ((fromIntegral height) / 2.0))
+    )
+  )
+
+
+getCorners :: AppState -> [Point]
+getCorners appState =
+  originTopLeft
+    (imgWidth appState)
+    (imgHeight appState)
+    (P.reverse $ corners appState)
+
+
+handleEvent :: Event -> AppState -> IO AppState
 handleEvent event appState =
   case event of
     EventKey (MouseButton LeftButton) Gl.Down _ point ->
-      addCorner appState point
+      pure $ addCorner appState point
+
+    EventKey (SpecialKey KeyEnter) Gl.Down _ _ -> do
+      let
+        cornersTrans = getCorners appState
+        cornerTuple = fromRight
+          ((0,0), (0,0), (0,0), (0,0))
+          (toQuadTuple cornersTrans)
+        targetShape = getTargetShape cornerTuple
+        projectionMap =
+          getProjectionMap cornerTuple targetShape
+        convertArgs = getConvertArgs
+          (inputPath appState)
+          (outputPath appState)
+          (toCounterClock projectionMap)
+          targetShape
+
+      putText $ "Target shape: " <> (show targetShape)
+      putText $ "Marked corners: " <> (show cornerTuple)
+      putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
+
+      correctAndWrite convertArgs
+
+      putText $ "✅ Successfully stored fixed image at \""
+        <> (T.pack $ outputPath appState) <> "\""
+
+      exitSuccess
+
     _ ->
-      appState
+      pure $ appState
+
+
+-- FIXME: Don't rely on show implementation
+showProjectionMap :: ProjMap -> Text
+showProjectionMap pMap = pMap
+  & show
+  & T.replace "),(" " "
+  & T.replace "(" ""
+  & T.replace ")" ""
+
+
+getConvertArgs :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> [Text]
+getConvertArgs inPath outPath projMap shape =
+  [ (T.pack inPath)
+  , "-distort", "Perspective", showProjectionMap projMap
+  , "-crop", (show $ fst shape) <> "x" <> (show $ snd shape) <> "+0+0"
+  , (T.pack outPath)
+  ]
+
+
+correctAndWrite :: [Text] -> IO ()
+correctAndWrite args =
+  callProcess "convert" (fmap T.unpack args)
 
 
 -- | Displays uncompressed 24/32 bit BMP images.
@@ -128,8 +278,14 @@ main = do
 
   case args of
     [filePath] -> do
-      image <- load filePath
-      startApp filePath image
+      let outName = (takeBaseName filePath) <> "-fixed"
+
+      image@(Bitmap imgWdth imgHgt _ _) <- load filePath
+      putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
+      startApp
+        filePath
+        (replaceBaseName filePath outName)
+        imgWdth imgHgt image
     _ ->
       putText $ T.unlines
         [ "usage: bitmap <file.bmp>"
