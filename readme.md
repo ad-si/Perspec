@@ -23,3 +23,15 @@ convert \
   -crop 63x66+0+0 \
   images/example-fixed.jpg
 ```
+
+
+## TODO
+
+- [ ] "Skip" button
+- [ ] "Reset" button
+- [ ] Label corner markers
+- [ ] Rescale image on viewport change
+- [ ] Handle JPEG rotation
+- [ ] Zoom view for corners
+- [ ] Drag'n'Drop for corner markers
+- [ ] "Convert to Grayscale" button
