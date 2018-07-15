@@ -31,9 +31,17 @@ executables:
     main: Main.hs
     source-dirs: app
     ghc-options:
+      - -Wall
+      - -Wcompat
+      - -Wincomplete-record-updates
+      - -Wincomplete-uni-patterns
+      - -Wredundant-constraints
+      - -fno-warn-orphans
+
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
+
     dependencies:
       - perspec
 
