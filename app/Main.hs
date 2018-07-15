@@ -39,6 +39,7 @@ data AppState = AppState
   , imgHeight :: Int
   , inputPath :: FilePath
   , outputPath :: FilePath
+  , scaleFactor :: Float
   }
   deriving Show
 
@@ -47,12 +48,13 @@ initialState :: AppState
 initialState = AppState
   { corners = []
   , layers = []
-  , imgViewWidth = 640
-  , imgViewHeight = 320
+  , imgViewWidth = 1280
+  , imgViewHeight = 960
   , imgWidth = 0
   , imgHeight = 0
   , inputPath = ""
   , outputPath = ""
+  , scaleFactor = 1
   }
 
 
@@ -73,16 +75,22 @@ startApp inPath outPath imgWdth imgHgt pic = do
     initialX = 800
     initialY = 100
     ticksPerSecond = 10
+    maxWidth = imgViewWidth stateWithImage
+    maxHeight = imgViewHeight stateWithImage
+    scaleFactorX = (fromIntegral maxWidth) / (fromIntegral imgWdth)
+    scaleFactorY = (fromIntegral maxHeight) / (fromIntegral imgHgt)
+    scaleFac = min scaleFactorX scaleFactorY
     stateWithImage = initialState
-      { layers = [pic]
-      , imgWidth = imgWdth
-      , imgHeight = imgHgt
+      { layers = [Scale scaleFac scaleFac pic]
+      , imgWidth = round $ scaleFac * (fromIntegral imgWdth)
+      , imgHeight = round $ scaleFac * (fromIntegral imgHgt)
       , inputPath = inPath
       , outputPath = outPath
+      , scaleFactor = scaleFac
       }
     window = InWindow
       inPath
-      ((imgViewWidth stateWithImage), (imgViewHeight stateWithImage))
+      (maxWidth, maxHeight)
       (initialX, initialY)
 
   putText "Starting the app …"
@@ -204,9 +212,14 @@ originTopLeft width height = fmap
   )
 
 
+scalePoints :: Float -> [Point] -> [Point]
+scalePoints scaleFac = fmap $
+  \(x, y) -> (x / scaleFac, y / scaleFac)
+
+
 getCorners :: AppState -> [Point]
 getCorners appState =
-  originTopLeft
+  scalePoints (scaleFactor appState) $ originTopLeft
     (imgWidth appState)
     (imgHeight appState)
     (P.reverse $ corners appState)
@@ -285,7 +298,9 @@ main = do
       startApp
         filePath
         (replaceBaseName filePath outName)
-        imgWdth imgHgt image
+        imgWdth
+        imgHgt
+        image
     _ ->
       putText $ T.unlines
         [ "usage: bitmap <file.bmp>"
