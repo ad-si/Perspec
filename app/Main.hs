@@ -9,6 +9,7 @@ import Graphics.Gloss.Interface.Pure.Game as Gl
 import System.Environment
 import Protolude as P
 import Data.Text as T
+import Data.List as DL
 
 
 type Corner = Point
@@ -70,9 +71,45 @@ makePicture (AppState corners pics) =
     Pictures $ pics <> (fmap drawCorner corners)
 
 
+replaceElemAtIndex :: Int -> a -> [a] -> [a]
+replaceElemAtIndex theIndex newElem (x:xs) =
+  if theIndex == 0
+  then newElem : xs
+  else x : replaceElemAtIndex (theIndex - 1) newElem xs
+replaceElemAtIndex _ _ [] = []
+
+
+calcDistance :: Point -> Point -> Float
+calcDistance (x1 , y1) (x2 , y2) =
+  let
+    xDelta = x1 - x2
+    yDelta = y1 - y2
+  in
+    sqrt (xDelta * xDelta + yDelta * yDelta)
+
+
+-- | Get index of closest point
+getIndexClosest :: [Point] -> Point -> Int
+getIndexClosest points point =
+  let
+    distances = fmap (calcDistance point) points
+    minDistance = DL.minimum distances
+  in
+    fromMaybe 0 (elemIndex minDistance distances)
+
+
 addCorner :: AppState -> Corner -> AppState
-addCorner (AppState corners pics) corner =
-  AppState (corner : corners) pics
+addCorner (AppState corners pics) newCorner =
+  let
+    newCorners =
+      if (P.length corners) < 4
+      then newCorner : corners
+      else replaceElemAtIndex
+        (getIndexClosest corners newCorner)
+        newCorner
+        corners
+  in
+    AppState newCorners pics
 
 
 handleEvent :: Event -> AppState -> AppState
