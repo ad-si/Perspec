@@ -33,7 +33,11 @@ Perspect automatically interpolates missing parts by using the closes pixel.
 (https://www.imagemagick.org/Usage/misc/#edge)
 
 
-## TODO
+
+## Development
+
+
+### TODO
 
 - [ ] "Skip" button
 - [ ] "Reset" button
@@ -45,3 +49,21 @@ Perspect automatically interpolates missing parts by using the closes pixel.
 - [ ] "Convert to Grayscale" button
 - [ ] Add support for custom output size (e.g. A4)
 - [ ] Draw lines between corners to simplify guessing of clipped corners
+
+
+### Benchmarking
+
+Use the `-bench` flag to benchmark Imagemagick operations.
+For example:
+
+```sh
+convert \
+  doc.jpg \
+  -bench 50 \
+  -virtual-pixel black \
+  -define distort:viewport=1191x598+0+0 \
+  -distort Perspective \
+    '277,181 0,0 214,776 0,598 1405,723 1191,598 1256,175 1191,0' \
+  +repage \
+  doc-fixed.jpg
+```

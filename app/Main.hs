@@ -283,9 +283,10 @@ getConvertArgs inPath outPath projMap shape =
   -- https://www.imagemagick.org/Usage/distorts/#area_vs_super
   -- , "-filter", "point"
 
-  -- TODO: Add flag to support this
-  -- Prevent interpolation of unused pixels
-  -- , "-virtual-pixel", "black"
+  -- Prevent interpolation of unused pixels and avoid adding alhpa channel
+  , "-virtual-pixel", "black"
+
+  -- TODO: Add flag to support switching
   -- , "-virtual-pixel", "Edge" -- default
   -- , "-virtual-pixel", "Dither"
   -- , "-virtual-pixel", "Random"
