@@ -25,6 +25,14 @@ convert \
 ```
 
 
+## Manual
+
+### Interpolation of Missing Parts
+
+Perspect automatically interpolates missing parts by using the closes pixel.
+(https://www.imagemagick.org/Usage/misc/#edge)
+
+
 ## TODO
 
 - [ ] "Skip" button
@@ -35,3 +43,5 @@ convert \
 - [ ] Zoom view for corners
 - [ ] Drag'n'Drop for corner markers
 - [ ] "Convert to Grayscale" button
+- [ ] Add support for custom output size (e.g. A4)
+- [ ] Draw lines between corners to simplify guessing of clipped corners

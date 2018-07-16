@@ -29,6 +29,11 @@ type ProjMap =
   )
 
 
+data ConversionMode
+  = CallConversion
+  | SpawnConversion
+
+
 -- | State of app (list of corners is reversed to order of addition)
 data AppState = AppState
   { corners :: [Corner]
@@ -270,18 +275,42 @@ showProjectionMap pMap = pMap
 getConvertArgs :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> [Text]
 getConvertArgs inPath outPath projMap shape =
   [ (T.pack inPath)
+  , "-define", "distort:viewport="
+      <> (show $ fst shape) <> "x" <> (show $ snd shape) <> "+0+0"
+
+  -- TODO: Add flag to support this
+  -- Use interpolated lookup instead of area resampling
+  -- https://www.imagemagick.org/Usage/distorts/#area_vs_super
+  -- , "-filter", "point"
+
+  -- TODO: Add flag to support this
+  -- Prevent interpolation of unused pixels
+  -- , "-virtual-pixel", "black"
+  -- , "-virtual-pixel", "Edge" -- default
+  -- , "-virtual-pixel", "Dither"
+  -- , "-virtual-pixel", "Random"
+  -- TODO: Implement more sophisticated one upstream in Imagemagick
+
   , "-distort", "Perspective", showProjectionMap projMap
-  , "-crop", (show $ fst shape) <> "x" <> (show $ snd shape) <> "+0+0"
+  , "+repage"
   , (T.pack outPath)
   ]
 
 
 correctAndWrite :: [Text] -> IO ()
 correctAndWrite args = do
-  -- TODO: Add flag to switch between them
-  -- callProcess "convert" (fmap T.unpack args)
-  _ <- spawnProcess "convert" (fmap T.unpack args)
-  putText $ "✅ Successfully initiated conversion"
+  -- TODO: Add CLI flag to switch between them
+  let conversionMode = CallConversion
+
+  case conversionMode of
+    CallConversion -> do
+      callProcess "convert" (fmap T.unpack args)
+      putText $ "✅ Successfully saved converted image"
+
+    SpawnConversion -> do
+      _ <- spawnProcess "convert" (fmap T.unpack args)
+      putText $ "✅ Successfully initiated conversion"
+
   pure ()
 
 
