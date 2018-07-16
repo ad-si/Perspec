@@ -301,15 +301,17 @@ getConvertArgs inPath outPath projMap shape =
 correctAndWrite :: [Text] -> IO ()
 correctAndWrite args = do
   -- TODO: Add CLI flag to switch between them
-  let conversionMode = CallConversion
+  let
+    conversionMode = CallConversion
+    convertBin = "/usr/local/bin/convert"
 
   case conversionMode of
     CallConversion -> do
-      callProcess "convert" (fmap T.unpack args)
+      callProcess convertBin (fmap T.unpack args)
       putText $ "✅ Successfully saved converted image"
 
     SpawnConversion -> do
-      _ <- spawnProcess "convert" (fmap T.unpack args)
+      _ <- spawnProcess convertBin (fmap T.unpack args)
       putText $ "✅ Successfully initiated conversion"
 
   pure ()
