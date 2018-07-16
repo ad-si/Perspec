@@ -252,9 +252,6 @@ handleEvent event appState =
 
       correctAndWrite convertArgs
 
-      putText $ "✅ Successfully stored fixed image at \""
-        <> (T.pack $ outputPath appState) <> "\""
-
       exitSuccess
 
     _ ->
@@ -280,29 +277,37 @@ getConvertArgs inPath outPath projMap shape =
 
 
 correctAndWrite :: [Text] -> IO ()
-correctAndWrite args =
-  callProcess "convert" (fmap T.unpack args)
+correctAndWrite args = do
+  -- TODO: Add flag to switch between them
+  -- callProcess "convert" (fmap T.unpack args)
+  _ <- spawnProcess "convert" (fmap T.unpack args)
+  putText $ "✅ Successfully initiated conversion"
+  pure ()
 
 
--- | Displays uncompressed 24/32 bit BMP images.
+loadAndStart :: FilePath -> IO ()
+loadAndStart filePath = do
+  let outName = (takeBaseName filePath) <> "-fixed"
+
+  image@(Bitmap imgWdth imgHgt _ _) <- load filePath
+  putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
+  startApp
+    filePath
+    (replaceBaseName filePath outName)
+    imgWdth
+    imgHgt
+    image
+
+
+helpMessage :: Text
+helpMessage =
+  T.unlines [ "Usage: perspec <image> [image…]" ]
+
+
 main :: IO ()
 main = do
   args <- getArgs
 
   case args of
-    [filePath] -> do
-      let outName = (takeBaseName filePath) <> "-fixed"
-
-      image@(Bitmap imgWdth imgHgt _ _) <- load filePath
-      putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
-      startApp
-        filePath
-        (replaceBaseName filePath outName)
-        imgWdth
-        imgHgt
-        image
-    _ ->
-      putText $ T.unlines
-        [ "usage: bitmap <file.bmp>"
-        , "  file.bmp should be a 24 or 32-bit uncompressed BMP file"
-        ]
+    [filePath] -> loadAndStart filePath
+    _          -> putText helpMessage
