@@ -67,3 +67,12 @@ convert \
   +repage \
   doc-fixed.jpg
 ```
+
+
+### Generate Icons
+
+With https://gist.github.com/zlbruce/883605a635df8d5964bab11ed75e46ad:
+
+```sh
+svg2icns icon.svg
+```

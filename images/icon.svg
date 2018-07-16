@@ -1,0 +1,52 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  version="1.1"
+  viewBox="0 0 25 25"
+  height="512"
+  width="512"
+>
+  <g>
+    <path
+      id="frame"
+      d="M 4,3 22,5 22,20 4,22 z"
+      style="
+        fill: none;
+        stroke: #002211;
+        stroke-width: 2;
+      "
+    />
+
+    <g
+      class="circles"
+      style="fill: #02c100"
+    >
+      <ellipse
+        id="top-left"
+        transform="translate(4,3) rotate(5)"
+        rx="3.8"
+        ry="2.8"
+      />
+
+      <ellipse
+        id="top-right"
+        transform="translate(22,5) rotate(5)"
+        rx="2.8"
+        ry="2.2"
+      />
+
+      <ellipse
+        id="bottom-left"
+        transform="translate(4,22) rotate(-5)"
+        rx="3.8"
+        ry="2.8"
+      />
+
+      <ellipse
+        id="bottom-right"
+        transform="translate(22,20) rotate(-5)"
+        rx="2.8"
+        ry="2.2"
+      />
+    </g>
+  </g>
+</svg>
