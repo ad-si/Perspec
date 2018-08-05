@@ -93,7 +93,7 @@ startApp inPath outPath imgWdth imgHgt pic = do
 
     stateWithImage = initialState
       { corners = originTopLeft (-imgWScaled) imgHScaled $
-          scalePoints (1 / scaleFac)
+          scalePoints (1 / scaleFac) $ P.reverse
             [ (wdthFrac * distance, hgtFrac * distance)
             , (wdthFrac * (1 - distance), hgtFrac * distance)
             , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
