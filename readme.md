@@ -29,8 +29,31 @@ convert \
 
 ### Interpolation of Missing Parts
 
-Perspect automatically interpolates missing parts by using the closes pixel.
+Perspect automatically interpolates missing parts by using the closest pixel.
 (https://www.imagemagick.org/Usage/misc/#edge)
+
+
+### Workflow
+
+1. Take images
+1. Convert all to grayscale
+    ```sh
+    mogrify -colorspace gray *.jpg
+    ```
+1. Rotate all to portrait mode:
+    ```sh
+    mogrify -auto-orient -rotate "90>" *.jpg
+    ```
+1. Use `number-files-{even,odd,reversed}` commands to fix order and names
+1. Use Perspec to crop images
+1. Normalize dynamic range:
+    ```sh
+    mogrify -normalize *.jpg
+    ```
+1. Convert to black and white:
+    ```sh
+    mogrify -auto-threshold otsu *.jpg
+    ```
 
 
 ## Development
@@ -44,6 +67,7 @@ Perspect automatically interpolates missing parts by using the closes pixel.
 - [ ] Label corner markers
 - [ ] Rescale image on viewport change
 - [ ] Handle JPEG rotation
+- [ ] Manual rotation buttons
 - [ ] Zoom view for corners
 - [ ] Drag'n'Drop for corner markers
 - [ ] "Convert to Grayscale" button
@@ -54,6 +78,7 @@ Perspect automatically interpolates missing parts by using the closes pixel.
   - https://blog.schdbr.de/imagemagic-osx-static-relocatable-build
   - https://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=13145&hilit=static+Mac&sid=dc6ddd4cd1629cf7935e21e9b473b400&start=15
 - [ ] Better error if wrong file format is dropped (images/error-message.jpg)
+
 
 ### Benchmarking
 
