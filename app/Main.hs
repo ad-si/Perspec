@@ -37,7 +37,7 @@ data ConversionMode
 -- | State of app (list of corners is reversed to order of addition)
 data AppState = AppState
   { corners :: [Corner]
-  , layers :: [Picture]
+  , image :: Picture
   , imgViewWidth :: Int
   , imgViewHeight :: Int
   , imgWidth :: Int
@@ -52,7 +52,7 @@ data AppState = AppState
 initialState :: AppState
 initialState = AppState
   { corners = []
-  , layers = []
+  , image = Blank
   , imgViewWidth = 1280
   , imgViewHeight = 960
   , imgWidth = 0
@@ -99,7 +99,7 @@ startApp inPath outPath imgWdth imgHgt pic = do
             , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
             , (wdthFrac * distance, hgtFrac * (1 - distance))
             ]
-      , layers = [Scale scaleFac scaleFac pic]
+      , image = Scale scaleFac scaleFac pic
       , imgWidth = imgWScaled
       , imgHeight = imgHScaled
       , inputPath = inPath
@@ -140,10 +140,10 @@ makePicture appState =
     drawEdges points =
       color (makeColor 0.2 1 0.5 0.4) $ Polygon points
   in
-    pure $ Pictures $
-      (layers appState)
-      <> (fmap drawCorner $ corners appState)
-      <> [drawEdges $ corners appState]
+    pure $ Pictures $ (
+      (image appState) :
+      (drawEdges $ corners appState) :
+      (fmap drawCorner $ corners appState))
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
 replaceElemAtIndex theIndex newElem (x:xs) =
@@ -342,14 +342,14 @@ loadAndStart :: FilePath -> IO ()
 loadAndStart filePath = do
   let outName = (takeBaseName filePath) <> "-fixed"
 
-  image@(Bitmap imgWdth imgHgt _ _) <- load filePath
+  picture@(Bitmap imgWdth imgHgt _ _) <- load filePath
   putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
   startApp
     filePath
     (replaceBaseName filePath outName)
     imgWdth
     imgHgt
-    image
+    picture
 
 
 helpMessage :: Text
