@@ -123,11 +123,13 @@ makePicture appState =
     thickness = 4
     drawCorner (x, y) =
       Translate x y (color green $ ThickCircle radius thickness)
+    drawEdges points =
+      color (makeColor 0.2 1 0.5 0.4) $ Polygon points
   in
-    pure $
-    Pictures $
-    (layers appState) <> (fmap drawCorner (corners appState))
-
+    pure $ Pictures $
+      (layers appState)
+      <> (fmap drawCorner $ corners appState)
+      <> [drawEdges $ corners appState]
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
 replaceElemAtIndex theIndex newElem (x:xs) =
@@ -300,11 +302,13 @@ getConvertArgs inPath outPath projMap shape =
 
 correctAndWrite :: [Text] -> IO ()
 correctAndWrite args = do
-  -- TODO: Add CLI flag to switch between them
   let
     conversionMode = CallConversion
-    convertBin = "/usr/local/bin/convert"
+    -- TODO: Add CLI flag to automatically use local during build
+    convertBin = "convert"  -- global
+    -- convertBin = "./convert"  -- local
 
+  -- TODO: Add CLI flag to switch between them
   case conversionMode of
     CallConversion -> do
       callProcess convertBin (fmap T.unpack args)
