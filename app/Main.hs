@@ -261,6 +261,9 @@ handleEvent event appState =
 
       exitSuccess
 
+    EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
+      pure $ appState { corners = [] }
+
     _ ->
       pure $ appState
 
@@ -285,7 +288,7 @@ getConvertArgs inPath outPath projMap shape =
   -- https://www.imagemagick.org/Usage/distorts/#area_vs_super
   -- , "-filter", "point"
 
-  -- Prevent interpolation of unused pixels and avoid adding alhpa channel
+  -- Prevent interpolation of unused pixels and avoid adding alpha channel
   , "-virtual-pixel", "black"
 
   -- TODO: Add flag to support switching
