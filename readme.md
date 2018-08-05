@@ -33,7 +33,6 @@ Perspect automatically interpolates missing parts by using the closes pixel.
 (https://www.imagemagick.org/Usage/misc/#edge)
 
 
-
 ## Development
 
 
@@ -41,6 +40,7 @@ Perspect automatically interpolates missing parts by using the closes pixel.
 
 - [ ] "Skip" button
 - [ ] "Reset" button
+- [ ] "Submit" button
 - [ ] Label corner markers
 - [ ] Rescale image on viewport change
 - [ ] Handle JPEG rotation
@@ -49,7 +49,11 @@ Perspect automatically interpolates missing parts by using the closes pixel.
 - [ ] "Convert to Grayscale" button
 - [ ] Add support for custom output size (e.g. A4)
 - [ ] Draw lines between corners to simplify guessing of clipped corners
-
+- [ ] Bundle Imagemagick
+  - https://stackoverflow.com/q/16007654/1850340
+  - https://blog.schdbr.de/imagemagic-osx-static-relocatable-build
+  - https://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=13145&hilit=static+Mac&sid=dc6ddd4cd1629cf7935e21e9b473b400&start=15
+- [ ] Better error if wrong file format is dropped (images/error-message.jpg)
 
 ### Benchmarking
 
@@ -71,7 +75,7 @@ convert \
 
 ### Generate Icons
 
-With https://gist.github.com/zlbruce/883605a635df8d5964bab11ed75e46ad:
+With <https://gist.github.com/zlbruce/883605a635df8d5964bab11ed75e46ad:>
 
 ```sh
 svg2icns icon.svg
@@ -79,6 +83,24 @@ svg2icns icon.svg
 
 
 ### Generate App
+
+Include Imagemagick by following the guide
+<https://blog.schdbr.de/imagemagic-osx-static-relocatable-build>.
+
+```sh
+brew install imagemagick \
+  --without-modules \
+  --without-freetype \
+  --without-libtiff \
+  --with-zero-configuration
+cp /usr/local/bin/convert app-aux-files/convert
+chmod 755 app-aux-files/convert
+```
+
+Set `convertBin = "./convert"` in `app/Main.hs` and build
+the core binary with `stack install`.
+
+Finally run the make build script:
 
 ```sh
 make Perspec.app
