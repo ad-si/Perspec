@@ -82,17 +82,31 @@ startApp inPath outPath imgWdth imgHgt pic = do
     ticksPerSecond = 10
     maxWidth = imgViewWidth stateWithImage
     maxHeight = imgViewHeight stateWithImage
-    scaleFactorX = (fromIntegral maxWidth) / (fromIntegral imgWdth)
-    scaleFactorY = (fromIntegral maxHeight) / (fromIntegral imgHgt)
+    wdthFrac = fromIntegral imgWdth
+    hgtFrac = fromIntegral imgHgt
+    scaleFactorX = (fromIntegral maxWidth) / wdthFrac
+    scaleFactorY = (fromIntegral maxHeight) / hgtFrac
     scaleFac = min scaleFactorX scaleFactorY
+    imgWScaled = round $ scaleFac * (fromIntegral imgWdth)
+    imgHScaled = round $ scaleFac * (fromIntegral imgHgt)
+    distance = 0.1
+
     stateWithImage = initialState
-      { layers = [Scale scaleFac scaleFac pic]
-      , imgWidth = round $ scaleFac * (fromIntegral imgWdth)
-      , imgHeight = round $ scaleFac * (fromIntegral imgHgt)
+      { corners = originTopLeft (-imgWScaled) imgHScaled $
+          scalePoints (1 / scaleFac)
+            [ (wdthFrac * distance, hgtFrac * distance)
+            , (wdthFrac * (1 - distance), hgtFrac * distance)
+            , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
+            , (wdthFrac * distance, hgtFrac * (1 - distance))
+            ]
+      , layers = [Scale scaleFac scaleFac pic]
+      , imgWidth = imgWScaled
+      , imgHeight = imgHScaled
       , inputPath = inPath
       , outputPath = outPath
       , scaleFactor = scaleFac
       }
+
     window = InWindow
       inPath
       (maxWidth, maxHeight)
@@ -308,8 +322,8 @@ correctAndWrite args = do
   let
     conversionMode = CallConversion
     -- TODO: Add CLI flag to automatically use local during build
-    convertBin = "convert"  -- global
-    -- convertBin = "./convert"  -- local
+    -- convertBin = "convert"  -- global
+    convertBin = "./convert"  -- local
 
   -- TODO: Add CLI flag to switch between them
   case conversionMode of
