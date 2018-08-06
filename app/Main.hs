@@ -193,11 +193,11 @@ getTargetShape (topLeft, topRight, btmRight, btmLeft) =
   let
     topEdgeLength    = calcDistance topLeft topRight
     bottomEdgeLength = calcDistance btmLeft btmRight
-    width            = max topEdgeLength bottomEdgeLength
+    width            = (topEdgeLength + bottomEdgeLength) / 2
 
     leftEdgeLength   = calcDistance topLeft btmLeft
     rightEdgeLength  = calcDistance topRight btmRight
-    height           = max leftEdgeLength rightEdgeLength
+    height           = (leftEdgeLength + rightEdgeLength) / 2
   in
     (width, height)
 
