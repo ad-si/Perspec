@@ -15,7 +15,7 @@ Original | In Progress | Corrected
 Uses ImageMagick under the hood.
 Once the corners are marked, the correction is equivalent to:
 
-```bash
+```sh
 convert \
   images/example.jpg \
   -distort Perspective \
@@ -36,24 +36,56 @@ Perspect automatically interpolates missing parts by using the closest pixel.
 ### Workflow
 
 1. Take images
-1. Convert all to grayscale
+    1. Use camera app wich lets you lock rotation (e.g. [OpenCamera]).
+      Otherwise check out the guide below to fix rotation.
+
+1. Convert all to grayscale:
     ```sh
-    mogrify -colorspace gray *.jpg
+    mogrify -verbose -colorspace gray ./*.jpg
     ```
-1. Rotate all to portrait mode:
-    ```sh
-    mogrify -auto-orient -rotate "90>" *.jpg
-    ```
+1. Verify that
+    - All pages were captured
+    - Images are sharp enough
+    - Images have a high contrast
+    - Images have correct orientation
 1. Use `number-files-{even,odd,reversed}` commands to fix order and names
 1. Use Perspec to crop images
 1. Normalize dynamic range:
     ```sh
-    mogrify -normalize *.jpg
+    mogrify -verbose -normalize ./*.jpg
     ```
 1. Convert to black and white:
     ```sh
-    mogrify -auto-threshold otsu *.jpg
+    #! /usr/bin/env bash
+
+    find . -iname "*.jpg" | \
+    while read -r file
+    do
+      convert \
+        -verbose \
+        "$file" \
+        \( +clone -blur 0x60 -brightness-contrast 40 \) \
+        -compose minus \
+        -composite \
+        -negate \
+        -auto-threshold otsu \
+        "$(basename "$file" ".jpg")".png
+    done
     ```
+
+[OpenCamera]:
+  https://play.google.com/store/apps/details?id=net.sourceforge.opencamera
+
+
+In order to rotate all photos to portrait mode you can use
+either
+```sh
+mogrify -verbose -auto-orient -rotate "90>" ./*.jpg
+```
+or
+```sh
+mogrify -verbose -auto-orient -rotate "-90>" ./*.jpg
+```
 
 
 ## Development
