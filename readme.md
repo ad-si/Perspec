@@ -38,27 +38,28 @@ Perspect automatically interpolates missing parts by using the closest pixel.
 1. Take images
     1. Use camera app wich lets you lock rotation (e.g. [OpenCamera]).
       Otherwise check out the guide below to fix rotation.
-
-1. Convert all to grayscale:
-    ```sh
-    mogrify -verbose -colorspace gray ./*.jpg
-    ```
+1. Use `number-files-{even,odd,reversed}` commands to fix order and names
 1. Verify that
-    - All pages were captured
+    - All pages were captured and have the correct filename
     - Images are sharp enough
     - Images have a high contrast
     - Images have correct orientation
-1. Use `number-files-{even,odd,reversed}` commands to fix order and names
+1. Convert images to lossless format, apply rotations
+  and convert them to grayscale.
+  Attention: Exclude the covers!
+    ```sh
+    mogrify -verbose -format png -auto-orient -colorspace gray ./*.jpg
+    ```
 1. Use Perspec to crop images
 1. Normalize dynamic range:
     ```sh
-    mogrify -verbose -normalize ./*.jpg
+    mogrify -verbose -normalize ./*.png
     ```
 1. Convert to black and white:
     ```sh
     #! /usr/bin/env bash
 
-    find . -iname "*.jpg" | \
+    find . -iname "*.png" | \
     while read -r file
     do
       convert \
@@ -69,7 +70,7 @@ Perspect automatically interpolates missing parts by using the closest pixel.
         -composite \
         -negate \
         -auto-threshold otsu \
-        "$(basename "$file" ".jpg")".png
+        "$(basename "$file" ".png")"-fixed.png
     done
     ```
 
