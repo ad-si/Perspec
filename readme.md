@@ -163,3 +163,9 @@ Finally run the make build script:
 ```sh
 make Perspec.app
 ```
+
+
+## Related
+
+Check out https://github.com/adius/awesome-scanning for an extensive list
+of related projects.
