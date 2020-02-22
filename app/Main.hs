@@ -342,8 +342,12 @@ loadAndStart :: FilePath -> IO ()
 loadAndStart filePath = do
   let outName = (takeBaseName filePath) <> "-fixed"
 
-  picture@(Bitmap imgWdth imgHgt _ _) <- load filePath
+  picture@(Bitmap bitmapData) <- load filePath
+
+  let (imgWdth, imgHgt) = bitmapSize bitmapData
+
   putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
+
   startApp
     filePath
     (replaceBaseName filePath outName)

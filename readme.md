@@ -24,6 +24,8 @@ convert \
   images/example-fixed.jpg
 ```
 
+The app bundle is created with [Platypus](https://sveinbjorn.org/platypus).
+
 
 ## Manual
 

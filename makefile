@@ -17,5 +17,5 @@ Perspec.app: ~/.local/bin/perspec
 		$@
 
 
-~/.local/bin/perspec:
+~/.local/bin/perspec: app source
 	stack install
