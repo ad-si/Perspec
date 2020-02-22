@@ -169,5 +169,5 @@ make Perspec.app
 
 ## Related
 
-Check out https://github.com/adius/awesome-scanning for an extensive list
-of related projects.
+Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning) 
+for an extensive list of related projects.
