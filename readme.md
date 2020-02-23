@@ -12,7 +12,11 @@ Original | In Progress | Corrected
 [mark]: images/doc-marking.jpg
 [fix]: images/doc-fixed.jpg
 
-Uses ImageMagick under the hood.
+Uses ImageMagick's `convert` command under the hood.
+Check out its
+[installation instructions](https://imagemagick.org/script/download.php)
+to make it available on your system.
+
 Once the corners are marked, the correction is equivalent to:
 
 ```sh
@@ -169,5 +173,5 @@ make Perspec.app
 
 ## Related
 
-Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning) 
+Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning)
 for an extensive list of related projects.

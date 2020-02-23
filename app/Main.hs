@@ -322,8 +322,8 @@ correctAndWrite args = do
   let
     conversionMode = CallConversion
     -- TODO: Add CLI flag to automatically use local during build
-    -- convertBin = "convert"  -- global
-    convertBin = "./convert"  -- local
+    convertBin = "convert"  -- global
+    -- convertBin = "./convert"  -- local
 
   -- TODO: Add CLI flag to switch between them
   case conversionMode of
