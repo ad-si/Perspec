@@ -1,7 +1,7 @@
 # Perspec
 
 App and workflow to perspectively correct images.
-For example whiteboards, document scans or facades.
+For example whiteboards, document scans, or facades.
 
 
 Original | In Progress | Corrected
@@ -12,23 +12,39 @@ Original | In Progress | Corrected
 [mark]: images/doc-marking.jpg
 [fix]: images/doc-fixed.jpg
 
+
+## Installation
+
 Uses ImageMagick's `convert` command under the hood.
 Check out its
 [installation instructions](https://imagemagick.org/script/download.php)
 to make it available on your system.
 
-Once the corners are marked, the correction is equivalent to:
+
+### Prebuilt
+
+#### MacOS
+
+Get the latest `Perspec.app` bundle from
+[the releases page](https://github.com/ad-si/Perspec/releases).
+
+The app bundle is created from the shell command
+with [Platypus](https://sveinbjorn.org/platypus).
+
+
+### From Source
+
+Build it from source with Haskell's
+[stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).
 
 ```sh
-convert \
-  images/example.jpg \
-  -distort Perspective \
-    '8,35 0,0 27,73 0,66 90,72 63,66 67,10 63,0' \
-  -crop 63x66+0+0 \
-  images/example-fixed.jpg
+git clone https://github.com/ad-si/Perspec
+cd Perspec
+stack install
 ```
 
-The app bundle is created with [Platypus](https://sveinbjorn.org/platypus).
+This makes the `perspec` command available on your path,
+which you can then use to open the app with `perspec image.jpg`
 
 
 ## Manual
@@ -95,8 +111,21 @@ mogrify -verbose -auto-orient -rotate "-90>" ./*.jpg
 ```
 
 
-## Development
+### Underlying Imagemagick Commands
 
+Once the corners are marked, the correction is equivalent to:
+
+```sh
+convert \
+  images/example.jpg \
+  -distort Perspective \
+    '8,35 0,0 27,73 0,66 90,72 63,66 67,10 63,0' \
+  -crop 63x66+0+0 \
+  images/example-fixed.jpg
+```
+
+
+## Development
 
 ### TODO
 
