@@ -18,6 +18,7 @@ description: |
 
 dependencies:
   - base >= 4.7 && < 5
+  - directory
   - filepath
   - gloss
   - gloss-juicy

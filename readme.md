@@ -15,12 +15,6 @@ Original | In Progress | Corrected
 
 ## Installation
 
-Uses ImageMagick's `convert` command under the hood.
-Check out its
-[installation instructions](https://imagemagick.org/script/download.php)
-to make it available on your system.
-
-
 ### Prebuilt
 
 #### MacOS
@@ -33,6 +27,11 @@ with [Platypus](https://sveinbjorn.org/platypus).
 
 
 ### From Source
+
+Uses ImageMagick's `convert` command under the hood.
+Check out its
+[installation instructions](https://imagemagick.org/script/download.php)
+to make it available on your system.
 
 Build it from source with Haskell's
 [stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).

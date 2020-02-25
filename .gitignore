@@ -1,4 +1,5 @@
-.stack-work/
-perspec.cabal
-*~
-Perspec.app
+/.stack-work
+/imagemagick
+/imagemagick.tar.gz
+/Perspec.app
+/perspec.cabal

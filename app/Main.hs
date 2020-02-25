@@ -11,6 +11,8 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game as Gl
 import Graphics.Gloss.Juicy
 import Protolude as P
+import System.Directory
+import System.Environment
 import System.FilePath
 import System.Process
 
@@ -321,9 +323,12 @@ correctAndWrite :: [Text] -> IO ()
 correctAndWrite args = do
   let
     conversionMode = CallConversion
-    -- TODO: Add CLI flag to automatically use local during build
-    convertBin = "convert"  -- global
-    -- convertBin = "./convert"  -- local
+    convertBin = "./imagemagick/bin/convert"
+
+  currentDir <- getCurrentDirectory
+
+  setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
+  setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
 
   -- TODO: Add CLI flag to switch between them
   case conversionMode of
