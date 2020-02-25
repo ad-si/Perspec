@@ -5,6 +5,7 @@
   <img
     src="./images/icon.svg"
     alt="Icon"
+    height="56px"
     style="
       display: inline-block !important;
       height: 3.5rem;
