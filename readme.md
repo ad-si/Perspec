@@ -1,4 +1,20 @@
-# Perspec
+<h1 style="
+  display: inline-block !important;
+  font-size: 3rem;
+">
+  <img
+    src="./images/icon.svg"
+    alt="Icon"
+    style="
+      display: inline-block !important;
+      height: 3.5rem;
+      margin-right: 1rem;
+    "
+  />
+  <span style="position: relative; bottom: 0.7rem;">
+    Perspec
+  </span>
+</h1>
 
 App and workflow to perspectively correct images.
 For example whiteboards, document scans, or facades.
