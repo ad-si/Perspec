@@ -36,7 +36,13 @@ Original | In Progress | Corrected
 
 #### MacOS
 
-Get the latest `Perspec.app` bundle from
+Install it via my [Homebrew](https://brew.sh) tap:
+
+```sh
+brew cask install ad-si/tap/perspec
+```
+
+You can also get this (and previous) versions from
 [the releases page](https://github.com/ad-si/Perspec/releases).
 
 The app bundle is created from the shell command
