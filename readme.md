@@ -162,11 +162,8 @@ convert \
 - [ ] Drag'n'Drop for corner markers
 - [ ] "Convert to Grayscale" button
 - [ ] Add support for custom output size (e.g. A4)
-- [ ] Draw lines between corners to simplify guessing of clipped corners
-- [ ] Bundle Imagemagick
-  - https://stackoverflow.com/q/16007654/1850340
-  - https://blog.schdbr.de/imagemagic-osx-static-relocatable-build
-  - https://www.imagemagick.org/discourse-server/viewtopic.php?f=1&t=13145&hilit=static+Mac&sid=dc6ddd4cd1629cf7935e21e9b473b400&start=15
+- [x] Draw lines between corners to simplify guessing of clipped corners
+- [x] Bundle Imagemagick
 - [ ] Better error if wrong file format is dropped (images/error-message.jpg)
 
 
