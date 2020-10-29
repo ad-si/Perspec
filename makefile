@@ -18,15 +18,24 @@ Perspec.app: ~/.local/bin/perspec imagemagick
 
 
 imagemagick:
-	rm -f imagemagick.tar.gz
 	curl \
-		https://imagemagick.org/download/binaries/ImageMagick-x86_64-apple-darwin19.2.0.tar.gz \
+		https://imagemagick.org/download/binaries/ImageMagick-x86_64-apple-darwin19.6.0.tar.gz \
 		-o imagemagick.tar.gz
 	tar -xf imagemagick.tar.gz
 
 	rm -rf imagemagick
-	mv ImageMagick-7.0.9 imagemagick
+	mv ImageMagick-7.* imagemagick
 
 
 ~/.local/bin/perspec: app source
 	stack install
+
+
+.PHONY: clean
+clean:
+	-rm -rf \
+		~/.local/bin/perspec \
+		.stack-work \
+		imagemagick \
+		imagemagick.tar.gz \
+		Perspec.app \
