@@ -12,25 +12,12 @@ packages:
   original:
     hackage: gloss-juicy-0.2.3
 - completed:
-    subdir: gloss
-    name: gloss
-    version: 1.13.1.2
-    git: https://github.com/lancelet/gloss.git
+    hackage: gloss-1.13.2.1@sha256:273d02d30e1896932d45424dab6022a16986c0ed3eef6937776b5f40854ce51c,4075
     pantry-tree:
-      size: 3919
-      sha256: fa38fa0a665ddc4b546b22c48e5e9515feb0f57fffad2494f72a4341951a6ef7
-    commit: 4df890e4b764a53f2cb32e38e95aa4d515f80651
+      size: 3807
+      sha256: 1bcac9962bad9412bfb3c3a694fcdaae7097ee4071b03fc1dc5ab6047baad01b
   original:
-    subdir: gloss
-    git: https://github.com/lancelet/gloss.git
-    commit: 4df890e4b764a53f2cb32e38e95aa4d515f80651
-- completed:
-    hackage: GLFW-b-1.4.8.4@sha256:b35242b401ac3235753f2bdfdfd07981f531e1d0457928caafb1db3801df40bc,2284
-    pantry-tree:
-      size: 482
-      sha256: 8100262bac57570cc0d33cee874a6a1bcfcffdad224bbf6eea33c0032fd9fa52
-  original:
-    hackage: GLFW-b-1.4.8.4@sha256:b35242b401ac3235753f2bdfdfd07981f531e1d0457928caafb1db3801df40bc,2284
+    hackage: gloss-1.13.2.1
 snapshots:
 - completed:
     size: 524996

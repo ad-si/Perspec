@@ -5,11 +5,7 @@ packages:
 
 extra-deps:
   - gloss-juicy-0.2.3
-  - git: https://github.com/lancelet/gloss.git
-    commit: 4df890e4b764a53f2cb32e38e95aa4d515f80651
-    subdirs:
-      - gloss
-  - GLFW-b-1.4.8.4@sha256:b35242b401ac3235753f2bdfdfd07981f531e1d0457928caafb1db3801df40bc,2284
+  - gloss-1.13.2.1
 
 flags:
   gloss:
