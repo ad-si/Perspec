@@ -11,3 +11,5 @@ flags:
   gloss:
     GLFW: true
     GLUT: false
+
+allow-newer: true
