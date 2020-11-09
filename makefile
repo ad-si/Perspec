@@ -31,6 +31,12 @@ imagemagick:
 	stack install
 
 
+.PHONY: install
+install: Perspec.app
+	rm -rf /Applications/Perspec.app
+	cp -R Perspec.app /Applications/Perspec.app
+
+
 .PHONY: clean
 clean:
 	-rm -rf \

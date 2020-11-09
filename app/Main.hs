@@ -40,10 +40,16 @@ data ConversionMode
 data AppState = AppState
   { corners :: [Corner]
   , image :: Picture
+
   , imgViewWidth :: Int
   , imgViewHeight :: Int
-  , imgWidth :: Int
-  , imgHeight :: Int
+
+  , imgWidthOrig :: Int
+  , imgHeightOrig :: Int
+
+  , imgWidthTrgt :: Int
+  , imgHeightTrgt :: Int
+
   , inputPath :: FilePath
   , outputPath :: FilePath
   , scaleFactor :: Float
@@ -55,10 +61,16 @@ initialState :: AppState
 initialState = AppState
   { corners = []
   , image = Blank
+
   , imgViewWidth = 1280
   , imgViewHeight = 960
-  , imgWidth = 0
-  , imgHeight = 0
+
+  , imgWidthOrig = 0
+  , imgHeightOrig = 0
+
+  , imgWidthTrgt = 0
+  , imgHeightTrgt = 0
+
   , inputPath = ""
   , outputPath = ""
   , scaleFactor = 1
@@ -76,42 +88,59 @@ load filePath = do
     Just picture -> pure picture
 
 
+calculateSizes :: AppState -> AppState
+calculateSizes appState =
+  let
+    widthFrac = fromIntegral $ appState&imgWidthOrig
+    heightFrac = fromIntegral $ appState&imgHeightOrig
+    scaleFactorX = (fromIntegral $ appState&imgViewWidth) / widthFrac
+    scaleFactorY = (fromIntegral $ appState&imgViewHeight) / heightFrac
+    scaleFactor = min scaleFactorX scaleFactorY
+    imgWidthTrgt = round $ scaleFactor * widthFrac
+    imgHeightTrgt = round $ scaleFactor * heightFrac
+  in
+    appState
+      { imgWidthTrgt
+      , imgHeightTrgt
+      , scaleFactor
+      , corners = originTopLeft (-imgWidthTrgt) (imgHeightTrgt) $
+          scalePoints (1 / scaleFactor) (getCorners appState)
+      }
+
+
 startApp :: FilePath -> FilePath -> Int -> Int -> Picture -> IO ()
 startApp inPath outPath imgWdth imgHgt pic = do
   let
-    initialX = 800
+    initialX = 100
     initialY = 100
     ticksPerSecond = 10
-    maxWidth = imgViewWidth stateWithImage
-    maxHeight = imgViewHeight stateWithImage
-    wdthFrac = fromIntegral imgWdth
-    hgtFrac = fromIntegral imgHgt
-    scaleFactorX = (fromIntegral maxWidth) / wdthFrac
-    scaleFactorY = (fromIntegral maxHeight) / hgtFrac
-    scaleFac = min scaleFactorX scaleFactorY
-    imgWScaled = round $ scaleFac * (fromIntegral imgWdth)
-    imgHScaled = round $ scaleFac * (fromIntegral imgHgt)
     distance = 0.1
 
-    stateWithImage = initialState
-      { corners = originTopLeft (-imgWScaled) imgHScaled $
-          scalePoints (1 / scaleFac) $ P.reverse
+    stateWithSizes = calculateSizes $ initialState
+      { imgWidthOrig = imgWdth
+      , imgHeightOrig = imgHgt
+      , image = pic
+      , inputPath = inPath
+      , outputPath = outPath
+      }
+
+  let
+    wdthFrac = fromIntegral $ stateWithSizes&imgWidthOrig
+    hgtFrac = fromIntegral $ stateWithSizes&imgHeightOrig
+
+    stateWithImage = stateWithSizes
+      { corners = originTopLeft (-(stateWithSizes&imgWidthTrgt)) (stateWithSizes&imgHeightTrgt) $
+          scalePoints (1 / (stateWithSizes&scaleFactor)) $ P.reverse
             [ (wdthFrac * distance, hgtFrac * distance)
             , (wdthFrac * (1 - distance), hgtFrac * distance)
             , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
             , (wdthFrac * distance, hgtFrac * (1 - distance))
             ]
-      , image = Scale scaleFac scaleFac pic
-      , imgWidth = imgWScaled
-      , imgHeight = imgHScaled
-      , inputPath = inPath
-      , outputPath = outPath
-      , scaleFactor = scaleFac
       }
 
     window = InWindow
       inPath
-      (maxWidth, maxHeight)
+      (stateWithImage&imgViewWidth, stateWithImage&imgViewHeight)
       (initialX, initialY)
 
   putText "Starting the app …"
@@ -143,9 +172,10 @@ makePicture appState =
       color (makeColor 0.2 1 0.5 0.4) $ Polygon points
   in
     pure $ Pictures $ (
-      (image appState) :
-      (drawEdges $ corners appState) :
-      (fmap drawCorner $ corners appState))
+      (Scale (appState&scaleFactor) (appState&scaleFactor) (appState&image)) :
+      (drawEdges $ appState&corners ) :
+      (fmap drawCorner $ appState&corners)
+      )
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
 replaceElemAtIndex theIndex newElem (x:xs) =
@@ -243,8 +273,8 @@ scalePoints scaleFac = fmap $
 getCorners :: AppState -> [Point]
 getCorners appState =
   scalePoints (scaleFactor appState) $ originTopLeft
-    (imgWidth appState)
-    (imgHeight appState)
+    (appState&imgWidthTrgt)
+    (appState&imgHeightTrgt)
     (P.reverse $ corners appState)
 
 
@@ -279,6 +309,12 @@ handleEvent event appState =
 
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState { corners = [] }
+
+    EventResize (windowWidth, windowHeight) -> do
+      pure $ calculateSizes $ appState
+        { imgViewWidth = windowWidth
+        , imgViewHeight = windowHeight
+        }
 
     _ ->
       pure $ appState

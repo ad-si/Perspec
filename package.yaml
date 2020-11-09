@@ -26,6 +26,11 @@ dependencies:
   - protolude
   - text
 
+default-extensions:
+  - RecordWildCards
+  - NamedFieldPuns
+
+
 library:
   source-dirs: source
 
