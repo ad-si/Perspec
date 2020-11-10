@@ -21,7 +21,7 @@ App and workflow to perspectively correct images.
 For example whiteboards, document scans, or facades.
 
 
-## Workflow
+## App Workflow
 
 Step | Description                          | Result
 -----|--------------------------------------|--------
@@ -67,22 +67,19 @@ chmod +x \
 
 ### From Source
 
-Uses ImageMagick's `convert` command under the hood.
-Check out its
-[installation instructions](https://imagemagick.org/script/download.php)
-to make it available on your system.
-
 Build it from source with Haskell's
 [stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).
 
 ```sh
 git clone https://github.com/ad-si/Perspec
 cd Perspec
-stack install
+make install
 ```
 
-This makes the `perspec` command available on your path,
-which you can then use to open the app with `perspec image.jpg`
+This copies the `Perspec.app` to your `/Applications` directory
+and makes the `perspec` command available on your path.
+You can then either drop images on the app window,
+or use it via the CLI like `perspec image.jpg`
 
 
 ## Manual
@@ -93,7 +90,7 @@ Perspect automatically interpolates missing parts by using the closest pixel.
 (https://www.imagemagick.org/Usage/misc/#edge)
 
 
-### Workflow
+### Photo Digitalization Workflow
 
 1. Take images
     1. Use camera app wich lets you lock rotation (e.g. [OpenCamera]).
@@ -154,6 +151,7 @@ The core is written in [Haskell](https://haskell.org),
 for the perspective transformation it uses ImageMagick,
 and the app bundle is created with [Platypus](https://sveinbjorn.org/platypus).
 
+
 #### Underlying Imagemagick Commands
 
 Once the corners are marked, the correction is equivalent to:
@@ -212,31 +210,6 @@ With <https://gist.github.com/zlbruce/883605a635df8d5964bab11ed75e46ad:>
 
 ```sh
 svg2icns icon.svg
-```
-
-
-### Generate App
-
-Include Imagemagick by following the guide
-<https://blog.schdbr.de/imagemagic-osx-static-relocatable-build>.
-
-```sh
-brew install imagemagick \
-  --without-modules \
-  --without-freetype \
-  --without-libtiff \
-  --with-zero-configuration
-cp /usr/local/bin/convert app-aux-files/convert
-chmod 755 app-aux-files/convert
-```
-
-Set `convertBin = "./convert"` in `app/Main.hs` and build
-the core binary with `stack install`.
-
-Finally run the make build script:
-
-```sh
-make Perspec.app
 ```
 
 
