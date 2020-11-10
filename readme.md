@@ -45,8 +45,15 @@ brew cask install ad-si/tap/perspec
 You can also get this (and previous) versions from
 [the releases page](https://github.com/ad-si/Perspec/releases).
 
-The app bundle is created from the shell command
-with [Platypus](https://sveinbjorn.org/platypus).
+The current nightly version can be downloaded from
+https://github.com/ad-si/Perspec/actions.
+However, it's necessary to fix the file permissions after download:
+
+```sh
+chmod +x \
+  ./Perspec.app/Contents/MacOS/Perspec \
+  ./Perspec.app/Contents/Resources/{perspec,script,imagemagick/bin/convert}
+```
 
 
 ### From Source
@@ -132,8 +139,13 @@ or
 mogrify -verbose -auto-orient -rotate "-90>" ./*.jpg
 ```
 
+### Technology
 
-### Underlying Imagemagick Commands
+The core is written in [Haskell](https://haskell.org),
+for the perspective transformation it uses ImageMagick,
+and the app bundle is created with [Platypus](https://sveinbjorn.org/platypus).
+
+#### Underlying Imagemagick Commands
 
 Once the corners are marked, the correction is equivalent to:
 
@@ -155,7 +167,7 @@ convert \
 - [ ] "Reset" button
 - [ ] "Submit" button
 - [ ] Label corner markers
-- [ ] Rescale image on viewport change
+- [x] Rescale image on viewport change
 - [ ] Handle JPEG rotation
 - [ ] Manual rotation buttons
 - [ ] Zoom view for corners
