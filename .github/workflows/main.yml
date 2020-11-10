@@ -38,11 +38,11 @@ jobs:
       - name: Install Platypus
         run: brew install platypus
 
-      - name: Install Perspec App
-        run: make install
+      - name: Build Perspec App
+        run: make Perspec.app
 
       - name: Upload MacOS Release
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v2
         with:
           path: Perspec.app
-          name: perspec-app_macos_x86_64.zip
+          name: perspec-app_macos_x86_64
