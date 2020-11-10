@@ -41,8 +41,11 @@ jobs:
       - name: Build Perspec App
         run: make Perspec.app
 
+      - name: Move App to Artifact Directory
+        run: mkdir artifact && mv Perspec.app artifact
+
       - name: Upload MacOS Release
         uses: actions/upload-artifact@v2
         with:
-          path: Perspec.app
+          path: artifact
           name: perspec-app_macos_x86_64
