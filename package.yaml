@@ -29,7 +29,8 @@ dependencies:
 default-extensions:
   - RecordWildCards
   - NamedFieldPuns
-
+  - NoImplicitPrelude
+  - OverloadedStrings
 
 library:
   source-dirs: source

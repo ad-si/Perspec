@@ -1,7 +1,3 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-
-
 module Main where
 
 import Data.Either
@@ -77,15 +73,30 @@ initialState = AppState
   }
 
 
-load :: FilePath -> IO Picture
-load filePath = do
+loadImage :: FilePath -> IO (Either Text Picture)
+loadImage filePath = do
   picMaybe <- loadJuicy filePath
+
+  let
+    allowedExtensions =
+      [ "jpeg"
+      , "jpg"
+      , "png"
+      , "bmp"
+      , "gif"
+      , "hdr"
+      ]
+    fileExtension = takeExtension filePath
 
   case picMaybe of
     Nothing -> do
-      putText "Error: Image couldn't be loaded"
-      pure Blank
-    Just picture -> pure picture
+      if elem fileExtension allowedExtensions
+      then pure $ Left "Error: Image couldn't be loaded"
+      else pure $ Left $ "Error: File extension \""
+                          <> T.pack fileExtension
+                          <> "\" is not supported"
+
+    Just picture -> pure $ Right picture
 
 
 calculateSizes :: AppState -> AppState
@@ -170,10 +181,18 @@ makePicture appState =
       Translate x y (color green $ ThickCircle radius thickness)
     drawEdges points =
       color (makeColor 0.2 1 0.5 0.4) $ Polygon points
+    -- drawButton buttonWidth buttonHeight =
+    --   Translate
+    --     (((fromIntegral $ appState&imgViewWidth) / 2.0) - ((fromIntegral $ buttonWidth) / 2.0))
+    --     (((fromIntegral $ appState&imgViewHeight) / 2.0) - ((fromIntegral $ buttonHeight) * 1.5))
+    --     $ color red $ rectangleSolid
+    --       (fromIntegral $ buttonWidth)
+    --       (fromIntegral $ buttonHeight)
   in
     pure $ Pictures $ (
       (Scale (appState&scaleFactor) (appState&scaleFactor) (appState&image)) :
       (drawEdges $ appState&corners ) :
+      -- drawButton 200 100 :
       (fmap drawCorner $ appState&corners)
       )
 
@@ -383,18 +402,25 @@ loadAndStart :: FilePath -> IO ()
 loadAndStart filePath = do
   let outName = (takeBaseName filePath) <> "-fixed"
 
-  picture@(Bitmap bitmapData) <- load filePath
+  pictureEither <- loadImage filePath
 
-  let (imgWdth, imgHgt) = bitmapSize bitmapData
+  case pictureEither of
+    Left error -> putText error
 
-  putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
+    Right picture@(Bitmap bitmapData) -> do
+      let (imgWdth, imgHgt) = bitmapSize bitmapData
 
-  startApp
-    filePath
-    (replaceBaseName filePath outName)
-    imgWdth
-    imgHgt
-    picture
+      putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
+
+      startApp
+        filePath
+        (replaceBaseName filePath outName)
+        imgWdth
+        imgHgt
+        picture
+
+    Right _ -> putText "Error: This case should not be possible"
+
 
 
 helpMessage :: Text

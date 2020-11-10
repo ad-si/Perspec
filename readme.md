@@ -183,7 +183,7 @@ convert \
 - [ ] Add support for custom output size (e.g. A4)
 - [x] Draw lines between corners to simplify guessing of clipped corners
 - [x] Bundle Imagemagick
-- [ ] Better error if wrong file format is dropped (images/error-message.jpg)
+- [x] Better error if wrong file format is dropped (images/error-message.jpg)
 
 
 ### Benchmarking
