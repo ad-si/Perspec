@@ -3,25 +3,26 @@ name: Haskell Stack CI
 on: [push]
 
 jobs:
-  linux:
-    runs-on: ubuntu-18.04
-    steps:
-      - uses: actions/checkout@v2
+  # FIXME: Not working because installation of GLFW fails
+  # linux:
+  #   runs-on: ubuntu-18.04
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - name: Setup Stack
-        uses: actions/setup-haskell@v1.1
-        with:
-          enable-stack: true
-          stack-no-global: true
+  #     - name: Setup Stack
+  #       uses: actions/setup-haskell@v1.1
+  #       with:
+  #         enable-stack: true
+  #         stack-no-global: true
 
-      - name: Install Perspec CLI tool
-        run: stack install
+  #     - name: Install Perspec CLI tool
+  #       run: stack install
 
-      - name: Upload Linux Release
-        uses: actions/upload-artifact@v1
-        with:
-          path: /home/runner/.local/bin/perspec
-          name: perspec_linux_x86_64.zip
+  #     - name: Upload Linux Release
+  #       uses: actions/upload-artifact@v1
+  #       with:
+  #         path: /home/runner/.local/bin/perspec
+  #         name: perspec_linux_x86_64.zip
 
   macos:
     runs-on: macos-latest
@@ -33,6 +34,9 @@ jobs:
         with:
           enable-stack: true
           stack-no-global: true
+
+      - name: Install Platypus
+        run: brew install platypus
 
       - name: Install Perspec App
         run: make install
