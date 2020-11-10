@@ -21,13 +21,22 @@ App and workflow to perspectively correct images.
 For example whiteboards, document scans, or facades.
 
 
-Original | In Progress | Corrected
----------|-------------|----------
-![Original image][doc] | ![Image correction][mark] | ![Corrected image][fix]
+## Workflow
+
+Step | Description                          | Result
+-----|--------------------------------------|--------
+1    | Take a photo                         | ![Original image][doc]
+2    | Open Perspec                         | ![Opened Perspec App][open]
+3    | Drop the image file onto the window  | ![Dropped image][dropped]
+4    | Mark the corners by clicking on them | ![Marked corners][corners]
+5    | Press enter                          | ![Corrected image][fixed]
 
 [doc]: images/doc.jpg
 [mark]: images/doc-marking.jpg
-[fix]: images/doc-fixed.jpg
+[open]: images/perspec_opened.png
+[dropped]: images/perspec_image_dropped.png
+[corners]: images/perspec_marked_corners.png
+[fixed]: images/doc-fixed.jpg
 
 
 ## Installation
