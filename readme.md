@@ -90,6 +90,19 @@ Perspect automatically interpolates missing parts by using the closest pixel.
 (https://www.imagemagick.org/Usage/misc/#edge)
 
 
+### Usage via CLI
+
+It's also possible to directly invoke Perspec via the CLI like so:
+
+```sh
+/Applications/Perspec.app/Contents/Resources/perspec path/to/image.jpeg
+```
+
+You can also pass several images and they will all be opened
+one after another.
+This is very useful for batch correcting a large set of images.
+
+
 ### Photo Digitalization Workflow
 
 1. Take images
