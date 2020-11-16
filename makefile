@@ -19,7 +19,7 @@ Perspec.app: ~/.local/bin/perspec imagemagick
 
 imagemagick:
 	curl \
-		https://imagemagick.org/download/binaries/ImageMagick-x86_64-apple-darwin19.6.0.tar.gz \
+		https://imagemagick.org/download/binaries/ImageMagick-x86_64-apple-darwin20.1.0.tar.gz \
 		-o imagemagick.tar.gz
 	tar -xf imagemagick.tar.gz
 
