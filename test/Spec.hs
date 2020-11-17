@@ -1,2 +1,4 @@
+import Protolude as P
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = putText "Test suite not yet implemented"

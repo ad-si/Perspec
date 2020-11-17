@@ -1,4 +1,4 @@
-resolver: lts-14.27
+resolver: lts-16.22
 
 packages:
   - .
@@ -6,6 +6,7 @@ packages:
 extra-deps:
   - gloss-juicy-0.2.3
   - gloss-1.13.2.1
+  - hsexif-0.6.1.8
 
 flags:
   gloss:

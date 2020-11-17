@@ -18,9 +18,16 @@ packages:
       sha256: 1bcac9962bad9412bfb3c3a694fcdaae7097ee4071b03fc1dc5ab6047baad01b
   original:
     hackage: gloss-1.13.2.1
+- completed:
+    hackage: hsexif-0.6.1.8@sha256:8c213fc9a6ab0c959e68e5be736b19cb157739f784e24d63a0824dfb02687d76,2275
+    pantry-tree:
+      size: 1120
+      sha256: 0ce5093c9d5e41218e6fc01efe068213e6b297f27e1abbafc9918f82b660b864
+  original:
+    hackage: hsexif-0.6.1.8
 snapshots:
 - completed:
-    size: 524996
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/27.yaml
-    sha256: 7ea31a280c56bf36ff591a7397cc384d0dff622e7f9e4225b47d8980f019a0f0
-  original: lts-14.27
+    size: 532414
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/22.yaml
+    sha256: e483fb88549fc0f454c190979bf35ac91c7aceff2c0e71e7d8edd11842d772d8
+  original: lts-16.22
