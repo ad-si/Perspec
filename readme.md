@@ -188,7 +188,7 @@ convert \
 - [ ] "Submit" button
 - [ ] Label corner markers
 - [x] Rescale image on viewport change
-- [ ] Handle JPEG rotation
+- [x] Handle JPEG rotation
 - [ ] Manual rotation buttons
 - [ ] Zoom view for corners
 - [ ] Drag'n'Drop for corner markers

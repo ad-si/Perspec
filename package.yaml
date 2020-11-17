@@ -22,15 +22,17 @@ dependencies:
   - filepath
   - gloss
   - gloss-juicy
+  - hsexif
   - process
   - protolude
   - text
 
 default-extensions:
-  - RecordWildCards
+  - LambdaCase
   - NamedFieldPuns
   - NoImplicitPrelude
   - OverloadedStrings
+  - RecordWildCards
 
 library:
   source-dirs: source

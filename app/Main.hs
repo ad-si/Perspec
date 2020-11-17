@@ -11,6 +11,7 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import System.Process
+import Graphics.HsExif
 
 
 type Corner = Point
@@ -25,6 +26,16 @@ type ProjMap =
   , (Corner, Corner)
   , (Corner, Corner)
   )
+
+
+-- | Not used at the moment
+-- rotateProjMap :: Float -> ProjMap -> ProjMap
+-- rotateProjMap rotation pMap@((f1,t1), (f2,t2), (f3,t3), (f4,t4)) =
+--   case rotation of
+--     -90 -> ((f1,t4), (f2,t1), (f3,t2), (f4,t3))
+--     90  -> ((f1,t2), (f1,t3), (f1,t4), (f1,t1))
+--     180 -> ((f1,t3), (f1,t4), (f1,t1), (f1,t2))
+--     _   -> pMap
 
 
 data ConversionMode
@@ -45,6 +56,8 @@ data AppState = AppState
 
   , imgWidthTrgt :: Int
   , imgHeightTrgt :: Int
+
+  , rotation :: Float
 
   , inputPath :: FilePath
   , outputPath :: FilePath
@@ -67,13 +80,15 @@ initialState = AppState
   , imgWidthTrgt = 0
   , imgHeightTrgt = 0
 
+  , rotation = 0
+
   , inputPath = ""
   , outputPath = ""
   , scaleFactor = 1
   }
 
 
-loadImage :: FilePath -> IO (Either Text Picture)
+loadImage :: FilePath -> IO (Either Text (Picture, Map ExifTag ExifValue))
 loadImage filePath = do
   picMaybe <- loadJuicy filePath
 
@@ -96,7 +111,12 @@ loadImage filePath = do
                           <> T.pack fileExtension
                           <> "\" is not supported"
 
-    Just picture -> pure $ Right picture
+    Just picture -> do
+      exifMapEither <- parseFileExif filePath
+
+      case exifMapEither of
+        Left _ -> pure $ Right (picture, mempty)
+        Right exifMap -> pure $ Right (picture, exifMap)
 
 
 calculateSizes :: AppState -> AppState
@@ -119,8 +139,8 @@ calculateSizes appState =
       }
 
 
-startApp :: FilePath -> FilePath -> Int -> Int -> Picture -> IO ()
-startApp inPath outPath imgWdth imgHgt pic = do
+startApp :: FilePath -> FilePath -> Int -> Int -> Float -> Picture -> IO ()
+startApp inPath outPath imgWdth imgHgt rota pic = do
   let
     initialX = 100
     initialY = 100
@@ -130,6 +150,7 @@ startApp inPath outPath imgWdth imgHgt pic = do
     stateWithSizes = calculateSizes $ initialState
       { imgWidthOrig = imgWdth
       , imgHeightOrig = imgHgt
+      , rotation = rota
       , image = pic
       , inputPath = inPath
       , outputPath = outPath
@@ -140,13 +161,15 @@ startApp inPath outPath imgWdth imgHgt pic = do
     hgtFrac = fromIntegral $ stateWithSizes&imgHeightOrig
 
     stateWithImage = stateWithSizes
-      { corners = originTopLeft (-(stateWithSizes&imgWidthTrgt)) (stateWithSizes&imgHeightTrgt) $
-          scalePoints (1 / (stateWithSizes&scaleFactor)) $ P.reverse
-            [ (wdthFrac * distance, hgtFrac * distance)
-            , (wdthFrac * (1 - distance), hgtFrac * distance)
-            , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
-            , (wdthFrac * distance, hgtFrac * (1 - distance))
-            ]
+      { corners = originTopLeft
+          (-(stateWithSizes&imgWidthTrgt))
+          (stateWithSizes&imgHeightTrgt) $
+            scalePoints (1 / (stateWithSizes&scaleFactor)) $ P.reverse
+              [ (wdthFrac * distance, hgtFrac * distance)
+              , (wdthFrac * (1 - distance), hgtFrac * distance)
+              , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
+              , (wdthFrac * distance, hgtFrac * (1 - distance))
+              ]
       }
 
     window = InWindow
@@ -183,8 +206,10 @@ makePicture appState =
       color (makeColor 0.2 1 0.5 0.4) $ Polygon points
     -- drawButton buttonWidth buttonHeight =
     --   Translate
-    --     (((fromIntegral $ appState&imgViewWidth) / 2.0) - ((fromIntegral $ buttonWidth) / 2.0))
-    --     (((fromIntegral $ appState&imgViewHeight) / 2.0) - ((fromIntegral $ buttonHeight) * 1.5))
+    --     (((fromIntegral $ appState&imgViewWidth) / 2.0)
+    --       - ((fromIntegral $ buttonWidth) / 2.0))
+    --     (((fromIntegral $ appState&imgViewHeight) / 2.0)
+    --       - ((fromIntegral $ buttonHeight) * 1.5))
     --     $ color red $ rectangleSolid
     --       (fromIntegral $ buttonWidth)
     --       (fromIntegral $ buttonHeight)
@@ -269,7 +294,7 @@ getProjectionMap (tl, tr, br, bl) (wdth, hgt) =
   )
 
 
--- | Accomodate ImageMagick's counter-clockwise direction
+-- | Accommodate ImageMagick's counter-clockwise direction
 toCounterClock :: (a, a, a, a) -> (a, a, a, a)
 toCounterClock (tl, tr, br, bl) = (tl, bl, br, tr)
 
@@ -310,16 +335,19 @@ handleEvent event appState =
           ((0,0), (0,0), (0,0), (0,0))
           (toQuadTuple cornersTrans)
         targetShape = getTargetShape cornerTuple
-        projectionMap =
+        projectionMapNorm = toCounterClock $
           getProjectionMap cornerTuple targetShape
-        convertArgs = getConvertArgs
-          (inputPath appState)
-          (outputPath appState)
-          (toCounterClock projectionMap)
-          targetShape
 
       putText $ "Target shape: " <> (show targetShape)
       putText $ "Marked corners: " <> (show cornerTuple)
+
+      let
+        convertArgs = getConvertArgs
+          (inputPath appState)
+          (outputPath appState)
+          projectionMapNorm
+          targetShape
+
       putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
 
       correctAndWrite convertArgs
@@ -350,7 +378,8 @@ showProjectionMap pMap = pMap
 
 getConvertArgs :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> [Text]
 getConvertArgs inPath outPath projMap shape =
-  [ (T.pack inPath)
+  traceShow (inPath, outPath, projMap, shape) [ (T.pack inPath)
+  , "-auto-orient"
   , "-define", "distort:viewport="
       <> (show $ fst shape) <> "x" <> (show $ snd shape) <> "+0+0"
 
@@ -398,29 +427,52 @@ correctAndWrite args = do
   pure ()
 
 
+imgOrientToRot :: ImageOrientation -> Float
+imgOrientToRot = \case
+  Rotation MinusNinety            -> -90
+  Normal                          -> 0
+  Rotation Ninety                 -> 90
+  Rotation HundredAndEighty       -> 180
+
+  -- TODO: Also apply mirroring to image
+  MirrorRotation MinusNinety      -> -90
+  Mirror                          -> 0
+  MirrorRotation Ninety           -> 90
+  MirrorRotation HundredAndEighty -> 180
+
+
 loadAndStart :: FilePath -> IO ()
 loadAndStart filePath = do
   let outName = (takeBaseName filePath) <> "-fixed"
 
-  pictureEither <- loadImage filePath
+  pictureExifMapEither <- loadImage filePath
 
-  case pictureEither of
+  case pictureExifMapEither of
     Left error -> putText error
 
-    Right picture@(Bitmap bitmapData) -> do
-      let (imgWdth, imgHgt) = bitmapSize bitmapData
+    Right (picture@(Bitmap bitmapData), exifMap) -> do
+      let
+        imgOrient = fromMaybe Normal $ getOrientation exifMap
+        rotation = imgOrientToRot imgOrient
+        sizeTuple = bitmapSize bitmapData
+        (imgWdth, imgHgt) = case rotation of
+                              90  -> swap $ sizeTuple
+                              -90 -> swap $ sizeTuple
+                              _   -> sizeTuple
 
       putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
+      putStrLn $ "with orientation " <> (show imgOrient :: Text)
 
       startApp
         filePath
         (replaceBaseName filePath outName)
         imgWdth
         imgHgt
-        picture
+        rotation
+        (Rotate (-rotation) picture)
 
-    Right _ -> putText "Error: This case should not be possible"
-
+    Right _ -> putText $ "Error: Loaded file is not a Bitmap image. "
+                      <> "This error should not be possible."
 
 
 helpMessage :: Text
