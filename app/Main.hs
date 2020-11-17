@@ -79,12 +79,12 @@ loadImage filePath = do
 
   let
     allowedExtensions =
-      [ "jpeg"
-      , "jpg"
-      , "png"
-      , "bmp"
-      , "gif"
-      , "hdr"
+      [ ".jpeg"
+      , ".jpg"
+      , ".png"
+      , ".bmp"
+      , ".gif"
+      , ".hdr"
       ]
     fileExtension = takeExtension filePath
 
