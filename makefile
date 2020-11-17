@@ -3,7 +3,7 @@ Perspec.app: ~/.local/bin/perspec imagemagick
 		--name Perspec \
 		--app-icon images/icon.icns \
 		--interface-type 'Text Window' \
-		--app-version 0.1.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
+		--app-version 0.1.3.0-$$(date -u "+%Y-%m-%dT%H:%M") \
 		--author "Adrian Sieber" \
 		--bundled-file ~/.local/bin/perspec \
 		--bundled-file app-aux-files/Credits.html \
