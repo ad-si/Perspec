@@ -27,8 +27,16 @@ imagemagick:
 	mv ImageMagick-7.* imagemagick
 
 
-~/.local/bin/perspec: app source
+~/.local/bin/perspec: app source images/banner.bmp
 	stack install
+
+
+.PHONY: perspec
+perspec: ~/.local/bin/perspec
+
+
+images/banner.bmp: images/banner.png
+	convert $< $@
 
 
 .PHONY: install

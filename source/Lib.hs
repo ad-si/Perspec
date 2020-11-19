@@ -2,6 +2,9 @@ module Lib where
 
 import Protolude as P
 
+import Codec.BMP
+import qualified Data.ByteString.Lazy as BL
+import Data.FileEmbed
 import Data.List as DL
 import Data.Text as T
 import Graphics.Gloss
@@ -15,6 +18,17 @@ import System.Process
 import Graphics.HsExif
 
 import Types
+
+
+ticksPerSecond :: Int
+ticksPerSecond = 10
+
+bannerTime :: Float
+bannerTime = 8  -- seconds
+
+bannerImage :: Picture
+bannerImage = fromRight mempty $ bitmapOfBMP
+                <$> (parseBMP $ BL.fromStrict $(embedFile "images/banner.bmp"))
 
 
 loadImage :: FilePath -> IO (Either Text (Picture, Map ExifTag ExifValue))
@@ -73,9 +87,7 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
   (screenWidth, screenHeight) <- getScreenSize
 
   let
-    ticksPerSecond = 10
     distance = 0.1
-
     stateWithSizes = calculateSizes $ initialState
       { imgWidthOrig = imgWdth
       , imgHeightOrig = imgHgt
@@ -83,6 +95,7 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
       , image = pic
       , inputPath = inPath
       , outputPath = outPath
+      , bannerIsVisible = not $ initialState&isRegistered
       }
 
   let
@@ -102,12 +115,17 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
       }
 
     initialX =
-      ((fromIntegral screenWidth :: Float) / 2) - ((fromIntegral $ stateWithSizes&imgViewWidth) / 2)
+      ((fromIntegral screenWidth :: Float) / 2)
+      - ((fromIntegral $ stateWithSizes&imgViewWidth) / 2)
     initialY =
-      ((fromIntegral screenHeight :: Float) / 2) - ((fromIntegral $ stateWithSizes&imgViewHeight) / 2)
+      ((fromIntegral screenHeight :: Float) / 2)
+      - ((fromIntegral $ stateWithSizes&imgViewHeight) / 2)
 
     window = InWindow
-      inPath
+      ("Perspec - " <> inPath
+        <> if stateWithSizes&isRegistered
+            then mempty
+            else " - ⚠️ NOT REGISTERED")
       (stateWithImage&imgViewWidth, stateWithImage&imgViewHeight)
       (round initialX, round initialY)
 
@@ -124,8 +142,13 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
 
 
 stepWorld :: Float -> AppState -> IO AppState
-stepWorld _ =
-  pure . identity
+stepWorld _ appState =
+  if
+    (not $ appState&isRegistered)
+    && ((fromIntegral $ appState&tickCounter)
+            < (bannerTime * fromIntegral ticksPerSecond))
+  then pure appState { tickCounter = (appState&tickCounter) + 1 }
+  else pure appState { bannerIsVisible = False }
 
 
 -- | Render the app state to a picture.
@@ -148,12 +171,35 @@ makePicture appState =
     --       (fromIntegral $ buttonWidth)
     --       (fromIntegral $ buttonHeight)
   in
-    pure $ Pictures $ (
-      (Scale (appState&scaleFactor) (appState&scaleFactor) (appState&image)) :
-      (drawEdges $ appState&corners ) :
-      -- drawButton 200 100 :
-      (fmap drawCorner $ appState&corners)
-      )
+    pure $ Pictures
+      $ (
+          (Scale
+            (appState&scaleFactor)
+            (appState&scaleFactor)
+            (appState&image)
+          ) :
+          (drawEdges $ appState&corners ) :
+          -- drawButton 200 100 :
+          []
+        )
+      <> (fmap drawCorner $ appState&corners)
+      <>  [ if appState&bannerIsVisible
+              then Scale 0.5 0.5 bannerImage
+              else mempty
+          , if appState&bannerIsVisible
+              then Translate 300 (-250)
+                    $ Scale 0.2 0.2
+                    $ ThickArc
+                        0  -- Start angle
+                        -- End angle
+                        (((fromIntegral $ appState&tickCounter)
+                          / (bannerTime * fromIntegral ticksPerSecond)) * 360)
+                        50  -- Radius
+                        100  -- Thickness
+                      -- $
+                      --     -
+              else mempty
+          ]
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
 replaceElemAtIndex theIndex newElem (x:xs) =

@@ -36,7 +36,9 @@ data ConversionMode
 
 -- | State of app (list of corners is reversed to order of addition)
 data AppState = AppState
-  { corners :: [Corner]
+  { tickCounter :: Int
+
+  , corners :: [Corner]
   , image :: Picture
 
   , imgViewWidth :: Int
@@ -53,13 +55,18 @@ data AppState = AppState
   , inputPath :: FilePath
   , outputPath :: FilePath
   , scaleFactor :: Float
+
+  , isRegistered :: Bool
+  , bannerIsVisible :: Bool
   }
   deriving Show
 
 
 initialState :: AppState
 initialState = AppState
-  { corners = []
+  { tickCounter = 0
+
+  , corners = []
   , image = Blank
 
   , imgViewWidth = 1280
@@ -76,4 +83,7 @@ initialState = AppState
   , inputPath = ""
   , outputPath = ""
   , scaleFactor = 1
+
+  , isRegistered = False
+  , bannerIsVisible = False
   }

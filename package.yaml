@@ -18,7 +18,10 @@ description: |
 
 dependencies:
   - base >= 4.7 && < 5
+  - bmp
+  - bytestring
   - directory
+  - file-embed
   - filepath
   - gloss
   - gloss-juicy
@@ -33,6 +36,8 @@ default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings
   - RecordWildCards
+  - ScopedTypeVariables
+  - TemplateHaskell
 
 ghc-options:
   - -Wall
