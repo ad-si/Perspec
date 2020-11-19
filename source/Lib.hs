@@ -5,6 +5,7 @@ import Protolude as P
 import Data.List as DL
 import Data.Text as T
 import Graphics.Gloss
+import Graphics.Gloss.Interface.Environment
 import Graphics.Gloss.Interface.IO.Game as Gl
 import Graphics.Gloss.Juicy
 import System.Directory
@@ -69,9 +70,9 @@ calculateSizes appState =
 
 startApp :: FilePath -> FilePath -> Int -> Int -> Float -> Picture -> IO ()
 startApp inPath outPath imgWdth imgHgt rota pic = do
+  (screenWidth, screenHeight) <- getScreenSize
+
   let
-    initialX = 100
-    initialY = 100
     ticksPerSecond = 10
     distance = 0.1
 
@@ -100,10 +101,15 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
               ]
       }
 
+    initialX =
+      ((fromIntegral screenWidth :: Float) / 2) - ((fromIntegral $ stateWithSizes&imgViewWidth) / 2)
+    initialY =
+      ((fromIntegral screenHeight :: Float) / 2) - ((fromIntegral $ stateWithSizes&imgViewHeight) / 2)
+
     window = InWindow
       inPath
       (stateWithImage&imgViewWidth, stateWithImage&imgViewHeight)
-      (initialX, initialY)
+      (round initialX, round initialY)
 
   putText "Starting the app …"
 
