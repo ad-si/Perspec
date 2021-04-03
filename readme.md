@@ -48,7 +48,7 @@ Step | Description                          | Result
 Install it via my [Homebrew](https://brew.sh) tap:
 
 ```sh
-brew cask install ad-si/tap/perspec
+brew install --cask ad-si/tap/perspec
 ```
 
 You can also get this (and previous) versions from
