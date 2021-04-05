@@ -3,3 +3,5 @@
 /imagemagick.tar.gz
 /Perspec.app
 /perspec.cabal
+/images/*.bmp
+/images/*-fixed.*

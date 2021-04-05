@@ -18,7 +18,10 @@ description: |
 
 dependencies:
   - base >= 4.7 && < 5
+  - bmp
+  - bytestring
   - directory
+  - file-embed
   - filepath
   - gloss
   - gloss-juicy
@@ -33,6 +36,16 @@ default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings
   - RecordWildCards
+  - ScopedTypeVariables
+  - TemplateHaskell
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wredundant-constraints
+  - -fno-warn-orphans
 
 library:
   source-dirs: source
@@ -42,17 +55,9 @@ executables:
     main: Main.hs
     source-dirs: app
     ghc-options:
-      - -Wall
-      - -Wcompat
-      - -Wincomplete-record-updates
-      - -Wincomplete-uni-patterns
-      - -Wredundant-constraints
-      - -fno-warn-orphans
-
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
-
     dependencies:
       - perspec
 
@@ -60,9 +65,5 @@ tests:
   perspec-test:
     main: Spec.hs
     source-dirs: test
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
     dependencies:
       - perspec

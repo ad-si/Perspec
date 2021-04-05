@@ -201,6 +201,7 @@ convert \
 - [x] Draw lines between corners to simplify guessing of clipped corners
 - [x] Bundle Imagemagick
 - [x] Better error if wrong file format is dropped (images/error-message.jpg)
+- [x] Center Perspec window on screen
 
 
 ### Benchmarking

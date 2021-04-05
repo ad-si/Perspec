@@ -18,17 +18,25 @@ Perspec.app: ~/.local/bin/perspec imagemagick
 
 
 imagemagick:
-	curl \
-		https://imagemagick.org/download/binaries/ImageMagick-x86_64-apple-darwin20.1.0.tar.gz \
+	curl -L \
+		https://download.imagemagick.org/ImageMagick/download/binaries/ImageMagick-x86_64-apple-darwin20.1.0.tar.gz \
 		-o imagemagick.tar.gz
-	tar -xf imagemagick.tar.gz
+	tar -xzf imagemagick.tar.gz
 
 	rm -rf imagemagick
 	mv ImageMagick-7.* imagemagick
 
 
-~/.local/bin/perspec: app source
+~/.local/bin/perspec: app source images/banner.bmp
 	stack install
+
+
+.PHONY: perspec
+perspec: ~/.local/bin/perspec
+
+
+images/banner.bmp: images/banner.png
+	convert $< $@
 
 
 .PHONY: install
