@@ -70,6 +70,10 @@ chmod +x \
 Build it from source with Haskell's
 [stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).
 
+Platypus, with 
+[command line tools enabled](https://github.com/sveinbjornt/Platypus/blob/master/Documentation/Documentation.md#show-shell-command)
+, is required to build from source.
+
 ```sh
 git clone https://github.com/ad-si/Perspec
 cd Perspec
