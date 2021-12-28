@@ -41,6 +41,11 @@ data RenameMode
   deriving (Show)
 
 
+data SortOrder
+  = Ascending
+  | Descending
+
+
 -- | State of app (list of corners is reversed to order of addition)
 data AppState = AppState
   { tickCounter :: Int

@@ -1,6 +1,7 @@
 module Rename where
 
 import Protolude as P
+import Protolude.Error (error)
 
 import Algorithms.NaturalSort as NaturalSort
 import Data.Text (pack, unpack)
@@ -9,24 +10,41 @@ import System.FilePath (takeExtension)
 import Types
 
 
-mapWithIndex :: Int -> RenameMode -> (a -> Int -> b) -> [a] -> [b]
-mapWithIndex startNum renameMode function elements =
+mapWithIndex :: Int -> RenameMode -> SortOrder -> (a -> Int -> b) -> [a] -> [b]
+mapWithIndex startNum renameMode sortOrder function elements =
   let
-    realStartNum = case renameMode of
-      Sequential -> startNum
-      Even -> ((startNum - 1) .|. 1) + 1
-      Odd -> startNum .|. 1
+    realStartNum =
+      case (renameMode, sortOrder) of
+        (Sequential, _) -> startNum
 
-    nextNum = case renameMode of
-      Sequential -> realStartNum + 1
-      Even -> realStartNum + 2
-      Odd -> realStartNum + 2
+        (Even, Ascending) -> ((startNum - 1) .|. 1) + 1
+        (Even, Descending) -> ((startNum + 1) .|. 1) - 1
+
+        (Odd, Ascending) -> startNum .|. 1
+        (Odd, Descending) -> (startNum - 1) .|. 1
+
+    nextNum =
+      case (renameMode, sortOrder) of
+        (Sequential, Ascending) -> realStartNum + 1
+        (Sequential, Descending) -> realStartNum - 1
+        (Even, Ascending) -> realStartNum + 2
+        (Even, Descending) -> realStartNum - 2
+        (Odd, Ascending) -> realStartNum + 2
+        (Odd, Descending) -> realStartNum - 2
+
+    mappings =
+      zipWith function elements [realStartNum, nextNum..]
   in
-    zipWith function elements [realStartNum, nextNum..]
+    mappings
 
 
-getRenamingBatches :: Int -> RenameMode -> [Text] -> [[(Text, Text)]]
-getRenamingBatches startNumber renameMode files =
+getRenamingBatches
+  :: Int
+  -> RenameMode
+  -> SortOrder
+  -> [Text]
+  -> [[(Text, Text)]]
+getRenamingBatches startNumber renameMode sortOrder files =
   let
     filesSorted :: [Text]
     filesSorted = files
@@ -36,8 +54,12 @@ getRenamingBatches startNumber renameMode files =
 
     renamings :: [(Text, Text)]
     renamings = filesSorted
-      & mapWithIndex startNumber renameMode (\file index ->
-          (file, show index <> (pack $ takeExtension $ unpack file))
+      & mapWithIndex startNumber renameMode sortOrder (\file index ->
+          ( file
+          , (if index < 0 then "_todo_" else "")
+            <> show index
+            <> (pack $ takeExtension $ unpack file)
+          )
         )
 
     renamingsWithTemp :: [(Text, Maybe Text, Text)]
