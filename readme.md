@@ -83,14 +83,14 @@ make install
 This copies the `Perspec.app` to your `/Applications` directory
 and makes the `perspec` command available on your path.
 You can then either drop images on the app window,
-or use it via the CLI like `perspec image.jpg`
+or use it via the CLI like `perspec fix image.jpeg`
 
 
 ## Manual
 
 ### Interpolation of Missing Parts
 
-Perspect automatically interpolates missing parts by using the closest pixel.
+Perspec automatically interpolates missing parts by using the closest pixel.
 (https://www.imagemagick.org/Usage/misc/#edge)
 
 
@@ -99,7 +99,7 @@ Perspect automatically interpolates missing parts by using the closest pixel.
 It's also possible to directly invoke Perspec via the CLI like so:
 
 ```sh
-/Applications/Perspec.app/Contents/Resources/perspec path/to/image.jpeg
+/Applications/Perspec.app/Contents/Resources/perspec fix path/to/image.jpeg
 ```
 
 You can also pass several images and they will all be opened
@@ -107,69 +107,73 @@ one after another.
 This is very useful for batch correcting a large set of images.
 
 
-### Photo Digitalization Workflow
+### Photo Digitization Workflow
 
-1. Take images
-    1. Use camera app wich lets you lock rotation (e.g. [OpenCamera]).
+1. Take photos
+    1. Use camera app which lets you lock rotation (e.g. [OpenCamera]).
       Otherwise check out the guide below to fix rotation.
-1. Use `number-files-{even,odd,reversed}` commands to fix order and names
+1. Use `perspec rename` sub-command to fix order and names of scanned files.
 1. Verify that
     - All pages were captured and have the correct filename
     - Images are sharp enough
     - Images have a high contrast
     - Images have correct orientation
-1. Convert images to lossless format, apply rotations
+1. Convert images to lossless format (e.g. `png`), apply rotations
   and convert them to grayscale.
   Attention: Exclude the covers!
     ```sh
-    mogrify -verbose -format png -auto-orient -colorspace gray ./*.jpg
+    mogrify -verbose -format png -auto-orient -colorspace gray photos/*.jpeg
     ```
 1. Use Perspec to crop images
-1. Normalize dynamic range:
     ```sh
-    mogrify -verbose -normalize ./*.png
+    perspec fix photos/*.png
+    ````
+1. Improve colors with one of the following steps:
+  1. Normalize dynamic range:
+    ```sh
+    mogrify -verbose -normalize photos/*.png
     ```
-1. Convert to black and white:
-    ```sh
-    #! /usr/bin/env bash
+  1. Convert to black and white:
+      ```sh
+      #! /usr/bin/env bash
 
-    find . -iname "*.png" | \
-    while read -r file
-    do
-      convert \
-        -verbose \
-        "$file" \
-        \( +clone -blur 0x60 -brightness-contrast 40 \) \
-        -compose minus \
-        -composite \
-        -negate \
-        -auto-threshold otsu \
-        "$(basename "$file" ".png")"-fixed.png
-    done
-    ```
+      find . -iname "*.png" | \
+      while read -r file
+      do
+        convert \
+          -verbose \
+          "$file" \
+          \( +clone -blur 0x60 -brightness-contrast 40 \) \
+          -compose minus \
+          -composite \
+          -negate \
+          -auto-threshold otsu \
+          "$(basename "$file" ".png")"-fixed.png
+      done
+      ```
 
 [OpenCamera]:
   https://play.google.com/store/apps/details?id=net.sourceforge.opencamera
 
 
-In order to rotate all photos to portrait mode you can use
-either
+In order to rotate all photos to portrait mode you can use either
 ```sh
-mogrify -verbose -auto-orient -rotate "90>" ./*.jpg
+mogrify -verbose -auto-orient -rotate "90>" photos/*.jpeg
 ```
 or
 ```sh
-mogrify -verbose -auto-orient -rotate "-90>" ./*.jpg
+mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 ```
 
-### Technology
 
-The core is written in [Haskell](https://haskell.org),
-for the perspective transformation it uses ImageMagick,
-and the app bundle is created with [Platypus](https://sveinbjorn.org/platypus).
+### Technologies
+
+- Core is written in [Haskell](https://haskell.org)
+- Perspective transformation are handled by [ImageMagick]
+- App bundle is created with [Platypus](https://sveinbjorn.org/platypus)
 
 
-#### Underlying Imagemagick Commands
+#### Underlying ImageMagick Commands
 
 Once the corners are marked, the correction is equivalent to:
 
@@ -206,7 +210,7 @@ convert \
 
 ### Benchmarking
 
-Use the `-bench` flag to benchmark Imagemagick operations.
+Use the `-bench` flag to benchmark [ImageMagick] operations.
 For example:
 
 ```sh
@@ -235,3 +239,6 @@ svg2icns icon.svg
 
 Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning)
 for an extensive list of related projects.
+
+
+[ImageMagick]: https://imagemagick.org
