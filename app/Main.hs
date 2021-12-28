@@ -41,7 +41,6 @@ execWithArgs cliArgs = do
         <&> \case { [(int, _)] -> int; _ -> 0 }
         & fromMaybe 0
 
-    let
       renameMode =
         if args `isPresent` (longOption "even")
         then Even
@@ -50,12 +49,18 @@ execWithArgs cliArgs = do
           then Odd
           else Sequential
 
+      sortOrder =
+        if args `isPresent` (longOption "descending")
+        then Descending
+        else Ascending
+
     files <- listDirectory directory
 
     let
       renamingBatches = getRenamingBatches
         startNumber
         renameMode
+        sortOrder
         (files <&> pack)
 
     sequence_ $ renamingBatches

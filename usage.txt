@@ -1,8 +1,17 @@
+Perspec
+
+Correct the perspective of photos
+and rename them to match their page numbers.
+
 Usage:
   perspec fix <file>...
-  perspec rename [--start-with=<int>] [--even | --odd] <directory>
+  perspec rename [options] <directory>
 
 Options:
   --start-with=<int>  First page number
   --even              The directory contains only even page numbers
   --odd               The directory contains only odd page numbers
+  --descending        Pages were photographed in descending order
+
+Notes:
+  If page numbers go below zero, they are prefixed with "_todo_"
