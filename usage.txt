@@ -1,0 +1,8 @@
+Usage:
+  perspec fix <file>...
+  perspec rename [--start-with=<int>] [--even | --odd] <directory>
+
+Options:
+  --start-with=<int>  First page number
+  --even              The directory contains only even page numbers
+  --odd               The directory contains only odd page numbers

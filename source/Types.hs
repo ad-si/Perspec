@@ -34,6 +34,13 @@ data ConversionMode
   | SpawnConversion
 
 
+data RenameMode
+  = Sequential
+  | Even
+  | Odd
+  deriving (Show)
+
+
 -- | State of app (list of corners is reversed to order of addition)
 data AppState = AppState
   { tickCounter :: Int

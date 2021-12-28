@@ -4,6 +4,7 @@ packages:
   - .
 
 extra-deps:
+  - docopt-0.7.0.7
   - gloss-juicy-0.2.3
   - gloss-1.13.2.1
   - hsexif-0.6.1.8
