@@ -1,7 +1,6 @@
 module Rename where
 
 import Protolude as P
-import Protolude.Error (error)
 
 import Algorithms.NaturalSort as NaturalSort
 import Data.Text (pack, unpack)
