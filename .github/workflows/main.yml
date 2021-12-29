@@ -57,6 +57,7 @@ jobs:
       - name: Install dependencies
         run:
           sudo apt install
+            imagemagick
             libgl1-mesa-dev
             libglu1-mesa-dev
             libxcursor-dev
@@ -66,7 +67,7 @@ jobs:
             libxxf86vm-dev
 
       - name: Install Perspec CLI tool
-        run: stack install
+        run: make perspec
 
       - name: Upload Linux Release
         uses: actions/upload-artifact@v1
