@@ -20,11 +20,15 @@ import Graphics.HsExif
 import Types
 
 
+-- This is replaced with valid licenses during CI build
+licenses :: [Text]
+licenses = []
+
 ticksPerSecond :: Int
 ticksPerSecond = 10
 
 bannerTime :: Float
-bannerTime = 8  -- seconds
+bannerTime = 10  -- seconds
 
 bannerImage :: Picture
 bannerImage = fromRight mempty $ bitmapOfBMP
@@ -82,12 +86,21 @@ calculateSizes appState =
       }
 
 
-startApp :: FilePath -> FilePath -> Int -> Int -> Float -> Picture -> IO ()
-startApp inPath outPath imgWdth imgHgt rota pic = do
+startApp
+  :: Config
+  -> FilePath
+  -> FilePath
+  -> Int
+  -> Int
+  -> Float
+  -> Picture
+  -> IO ()
+startApp config inPath outPath imgWdth imgHgt rota pic = do
   (screenWidth, screenHeight) <- getScreenSize
 
   let
     distance = 0.1
+    isRegistered = (config&licenseKey) `elem` licenses
     stateWithSizes = calculateSizes $ initialState
       { imgWidthOrig = imgWdth
       , imgHeightOrig = imgHgt
@@ -95,7 +108,8 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
       , image = pic
       , inputPath = inPath
       , outputPath = outPath
-      , bannerIsVisible = not $ initialState&isRegistered
+      , isRegistered = isRegistered
+      , bannerIsVisible = not $ isRegistered
       }
 
   let
@@ -123,7 +137,7 @@ startApp inPath outPath imgWdth imgHgt rota pic = do
 
     window = InWindow
       ("Perspec - " <> inPath
-        <> if stateWithSizes&isRegistered
+        <> if isRegistered
             then mempty
             else " - ⚠️ NOT REGISTERED")
       (stateWithImage&imgViewWidth, stateWithImage&imgViewHeight)
@@ -421,8 +435,8 @@ imgOrientToRot = \case
   MirrorRotation HundredAndEighty -> 180
 
 
-loadAndStart :: FilePath -> IO ()
-loadAndStart filePath = do
+loadAndStart :: Config -> FilePath -> IO ()
+loadAndStart config filePath = do
   let outName = (takeBaseName filePath) <> "-fixed"
 
   pictureExifMapEither <- loadImage filePath
@@ -444,6 +458,7 @@ loadAndStart filePath = do
       putStrLn $ "with orientation " <> (show imgOrient :: Text)
 
       startApp
+        config
         filePath
         (replaceBaseName filePath outName)
         imgWdth
