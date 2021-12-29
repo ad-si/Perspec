@@ -29,8 +29,8 @@ jobs:
 
       - name: Inject license keys
         run:
-          sed
-            's/licenses = []/licenses = ${{ secrets.LICENSE_KEYS }}/'
+          sed -i ''
+            's/licenses = \[\]/licenses = \[${{ secrets.LICENSE_KEYS }}\]/'
             source/Lib.hs
 
       - name: Build Perspec App
