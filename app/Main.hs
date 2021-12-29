@@ -5,9 +5,16 @@ module Main where
 import Protolude as P
 
 import System.Console.Docopt as Docopt
-import System.Directory (listDirectory, renameFile)
+import System.Directory
+  ( createDirectoryIfMissing
+  , getXdgDirectory
+  , listDirectory
+  , renameFile
+  , XdgDirectory(..)
+  )
 import System.FilePath ((</>))
-import Data.Text (pack, unpack)
+import Data.Text as T (pack, unpack, isInfixOf)
+import Data.Yaml (decodeFileEither, prettyPrintParseException)
 
 import Lib
 import Rename
@@ -22,14 +29,14 @@ getArgOrExit :: Arguments -> Docopt.Option -> IO [Char]
 getArgOrExit = getArgOrExitWith patterns
 
 
-execWithArgs :: [[Char]] -> IO ()
-execWithArgs cliArgs = do
+execWithArgs :: Config -> [[Char]] -> IO ()
+execWithArgs config cliArgs = do
   args <- parseArgsOrExit patterns cliArgs
 
   when (args `isPresent` (command "fix")) $ do
     let files = args `getAllArgs` (argument "file")
 
-    sequence_ $ files <&> loadAndStart
+    sequence_ $ files <&> loadAndStart config
 
 
   when (args `isPresent` (command "rename")) $ do
@@ -76,4 +83,31 @@ execWithArgs cliArgs = do
 
 main :: IO ()
 main = do
-  getArgs >>= execWithArgs
+  let appName = "Perspec"
+
+  configDirectory <- getXdgDirectory XdgConfig appName
+  createDirectoryIfMissing True configDirectory
+
+  let configPath = configDirectory </> "config.yaml"
+
+  configResult <- decodeFileEither configPath
+
+  case configResult of
+    Left error -> do
+      if "file not found" `T.isInfixOf`
+            (T.pack $ prettyPrintParseException error)
+      then do
+        writeFile configPath "licenseKey:\n"
+        configResult2 <- decodeFileEither configPath
+
+        case configResult2 of
+          Left error2 -> die $ T.pack $ prettyPrintParseException error2
+          Right config -> do
+            getArgs >>= execWithArgs config
+      else
+        die $ T.pack $ prettyPrintParseException error
+
+    Right config -> do
+      getArgs >>= execWithArgs config
+
+

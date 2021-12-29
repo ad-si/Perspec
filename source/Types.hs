@@ -2,7 +2,21 @@ module Types where
 
 import Protolude as P
 
+import Data.Aeson
 import Graphics.Gloss
+
+
+data Config = Config
+  { licenseKey :: Text
+  }
+  deriving (Generic, Show)
+
+
+-- | Necessary to make fields optional without using a Maybe type
+instance FromJSON Config where
+  parseJSON = withObject "config" $ \o -> do
+    licenseKey <- o .:? "licenseKey" .!= ""
+    pure $ Config {..}
 
 
 type Corner = Point

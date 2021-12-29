@@ -17,6 +17,7 @@ description: |
   Please see the readme on GitHub at <https://github.com/ad-si/perspec#readme>
 
 dependencies:
+  - aeson
   - base >= 4.7 && < 5
   - bmp
   - bytestring
@@ -31,8 +32,10 @@ dependencies:
   - process
   - protolude
   - text
+  - yaml
 
 default-extensions:
+  - DeriveGeneric
   - LambdaCase
   - NamedFieldPuns
   - NoImplicitPrelude
