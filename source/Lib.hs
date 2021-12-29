@@ -5,7 +5,7 @@ import Protolude as P
 import Codec.BMP
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed
-import Data.List as DL
+import Data.List as DL (minimum, elemIndex)
 import Data.Text as T
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Environment
@@ -225,7 +225,7 @@ getIndexClosest points point =
     distances = fmap (calcDistance point) points
     minDistance = DL.minimum distances
   in
-    fromMaybe 0 (elemIndex minDistance distances)
+    fromMaybe 0 (DL.elemIndex minDistance distances)
 
 
 addCorner :: AppState -> Corner -> AppState
