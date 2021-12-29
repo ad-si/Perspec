@@ -8,9 +8,7 @@ jobs:
       matrix:
         os:
           - macos-10.15
-          # FIXME: Building gloss with GLFW currently fails
-          # https://groups.google.com/g/haskell-gloss/c/KYUfqvY5WXQ/m/xiCln77DAAAJ
-          # - macos-11.0
+          - macos-11.0
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -45,24 +43,33 @@ jobs:
           path: artifact
           name: perspec-app_${{ matrix.os }}_x86_64
 
+  linux:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
 
-  # FIXME: Not working because installation of GLFW fails
-  # linux:
-  #   runs-on: ubuntu-18.04
-  #   steps:
-  #     - uses: actions/checkout@v2
+      - name: Setup Stack
+        uses: actions/setup-haskell@v1.1
+        with:
+          enable-stack: true
+          stack-no-global: true
 
-  #     - name: Setup Stack
-  #       uses: actions/setup-haskell@v1.1
-  #       with:
-  #         enable-stack: true
-  #         stack-no-global: true
+      - name: Install dependencies
+        run:
+          sudo apt install
+            libgl1-mesa-dev
+            libglu1-mesa-dev
+            libxcursor-dev
+            libxi-dev
+            libxinerama-dev
+            libxrandr-dev
+            libxxf86vm-dev
 
-  #     - name: Install Perspec CLI tool
-  #       run: stack install
+      - name: Install Perspec CLI tool
+        run: stack install
 
-  #     - name: Upload Linux Release
-  #       uses: actions/upload-artifact@v1
-  #       with:
-  #         path: /home/runner/.local/bin/perspec
-  #         name: perspec_linux_x86_64.zip
+      - name: Upload Linux Release
+        uses: actions/upload-artifact@v1
+        with:
+          path: /home/runner/.local/bin/perspec
+          name: perspec_linux_x86_64.zip
