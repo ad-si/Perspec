@@ -5,7 +5,7 @@ import Protolude as P
 import Codec.BMP
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed
-import Data.List as DL (minimum, elemIndex)
+import Data.List as DL (minimum, elemIndex, findIndex)
 import Data.Text as T
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Environment
@@ -20,9 +20,17 @@ import Graphics.HsExif
 import Types
 
 
--- This is replaced with valid licenses during CI build
+-- | This is replaced with valid licenses during CI build
 licenses :: [Text]
 licenses = []
+
+-- | Radius of the circles to mark the corners of the selection
+cornCircRadius :: Float
+cornCircRadius = 6
+
+-- | Border thickness of the circles to mark the corners of the selection
+cornCircThickness :: Float
+cornCircThickness = 4
 
 ticksPerSecond :: Int
 ticksPerSecond = 10
@@ -169,10 +177,9 @@ stepWorld _ appState =
 makePicture :: AppState -> IO Picture
 makePicture appState =
   let
-    radius = 6
-    thickness = 4
-    drawCorner (x, y) =
-      Translate x y (color green $ ThickCircle radius thickness)
+    drawCorner (x, y) = Translate x y
+      (color green $ ThickCircle cornCircRadius cornCircThickness)
+
     drawEdges points =
       color (makeColor 0.2 1 0.5 0.4) $ Polygon points
     -- drawButton buttonWidth buttonHeight =
@@ -319,8 +326,43 @@ getCorners appState =
 handleEvent :: Event -> AppState -> IO AppState
 handleEvent event appState =
   case event of
-    EventKey (MouseButton LeftButton) Gl.Down _ point ->
-      pure $ addCorner appState point
+    EventKey (MouseButton LeftButton) Gl.Down _ point -> do
+      let
+        clickedCorner = P.find
+          (\corner ->
+            (calcDistance point corner) < (cornCircRadius + cornCircThickness)
+          )
+          (appState&corners)
+
+      pure $ case clickedCorner of
+        Nothing -> appState
+          & flip addCorner point
+          & (\state_ -> state_ { cornerDragged = Just point })
+
+        Just cornerPoint ->
+          appState { cornerDragged = Just cornerPoint }
+
+    EventKey (MouseButton LeftButton) Gl.Up _ _ -> do
+      pure $ appState { cornerDragged = Nothing }
+
+    EventMotion newPoint -> do
+      pure $ case appState&cornerDragged of
+        Nothing -> appState
+        Just cornerPoint ->
+          let cornerIndexMb = DL.findIndex
+                (\point -> point == cornerPoint)
+                (appState&corners)
+          in
+            case cornerIndexMb of
+              Nothing -> appState
+              Just cornerIndex ->
+                appState
+                  { corners = replaceElemAtIndex
+                      cornerIndex
+                      newPoint
+                      (appState&corners)
+                  , cornerDragged = Just newPoint
+                  }
 
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ -> do
       let
