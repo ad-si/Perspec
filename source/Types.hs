@@ -65,6 +65,7 @@ data AppState = AppState
   { tickCounter :: Int
 
   , corners :: [Corner]
+  , cornerDragged :: Maybe Corner
   , image :: Picture
 
   , imgViewWidth :: Int
@@ -93,6 +94,7 @@ initialState = AppState
   { tickCounter = 0
 
   , corners = []
+  , cornerDragged = Nothing
   , image = Blank
 
   , imgViewWidth = 1280
