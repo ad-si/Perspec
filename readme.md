@@ -108,6 +108,11 @@ This is very useful for batch correcting a large set of images.
 1. Take photos
     1. Use camera app which lets you lock rotation (e.g. [OpenCamera]).
       Otherwise check out the guide below to fix rotation.
+    1. Use a sound activated camera to take photos simply
+      by clicking your tongue or snipping your finger. E.g. with:
+      - [Pluto Trigger] - Hardware device
+      - [Magic Lantern] - 3rd party firmware for Canon
+      - [iSoundCam] - Android app
 1. Use `perspec rename` sub-command to fix order and names of scanned files.
 1. Verify that
     - All pages were captured and have the correct filename
@@ -148,8 +153,11 @@ This is very useful for batch correcting a large set of images.
       done
       ```
 
+[iSoundCam]: http://www.cherry-software.com/isoundcam.html
+[Magic Lantern]: https://wiki.magiclantern.fm/pl:userguide?#audio_remoteshot
 [OpenCamera]:
   https://play.google.com/store/apps/details?id=net.sourceforge.opencamera
+[Pluto Trigger]: https://plutotrigger.com
 
 
 In order to rotate all photos to portrait mode you can use either
@@ -195,7 +203,7 @@ convert \
 - [x] Handle JPEG rotation
 - [ ] Manual rotation buttons
 - [ ] Zoom view for corners
-- [ ] Drag'n'Drop for corner markers
+- [x] Drag'n'Drop for corner markers
 - [ ] "Convert to Grayscale" button
 - [ ] Add support for custom output size (e.g. A4)
 - [x] Draw lines between corners to simplify guessing of clipped corners
