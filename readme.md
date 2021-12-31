@@ -52,10 +52,10 @@ brew cask install ad-si/tap/perspec
 ```
 
 You can also get this (and previous) versions from
-[the releases page](https://github.com/ad-si/Perspec/releases).
+[the releases page](https://github.com/feramhq/Perspec/releases).
 
 The current nightly version can be downloaded from
-https://github.com/ad-si/Perspec/actions.
+https://github.com/feramhq/Perspec/actions.
 However, it's necessary to fix the file permissions after download:
 
 ```sh
@@ -71,7 +71,7 @@ Build it from source with Haskell's
 [stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).
 
 ```sh
-git clone https://github.com/ad-si/Perspec
+git clone https://github.com/feramhq/Perspec
 cd Perspec
 make install
 ```
