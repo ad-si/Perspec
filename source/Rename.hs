@@ -38,18 +38,27 @@ mapWithIndex startNum renameMode sortOrder function elements =
 
 
 getRenamingBatches
-  :: Int
+  :: Maybe Int
   -> RenameMode
   -> SortOrder
   -> [Text]
   -> [[(Text, Text)]]
-getRenamingBatches startNumber renameMode sortOrder files =
+getRenamingBatches startNumberMb renameMode sortOrder files =
   let
     filesSorted :: [Text]
     filesSorted = files
       <&> unpack
       & sortBy NaturalSort.compare
       <&> pack
+
+    startNumber :: Int
+    startNumber =
+      case (startNumberMb, sortOrder, renameMode) of
+        (Just val,          _,          _) -> val
+        (       _,  Ascending,          _) -> 0
+        (       _, Descending, Sequential) -> length files - 1
+        (       _, Descending,       Even) -> (length files * 2) - 2
+        (       _, Descending,        Odd) -> (length files * 2) - 1
 
     renamings :: [(Text, Text)]
     renamings = filesSorted

@@ -23,76 +23,125 @@ main = hspec $ do
               ]
             ]
 
-        (getRenamingBatches 0 Sequential Ascending files) `shouldBe` batches
+        (getRenamingBatches Nothing Sequential Ascending files)
+          `shouldBe` batches
 
-      it "renames files in descending order" $ do
-        let
-          files = ["1.txt", "10.txt", "2.txt"]
-          batches =
-            [ [ ("1.txt","_perspec_temp_2.txt")
-              , ("2.txt", "_perspec_temp_1.txt")
-              , ("10.txt","0.txt")
-              ]
-            , [ ("_perspec_temp_2.txt","2.txt")
-              , ("_perspec_temp_1.txt", "1.txt")
-              ]
-            ]
-
-        (getRenamingBatches 2 Sequential Descending files) `shouldBe` batches
-
-
-      describe "renames files with even page numbers" $ do
-        it "directly with even page number" $ do
+      describe "Renaming files in descending order" $ do
+        it "automatically sets first page number" $ do
           let
-            files = ["a.txt", "c.txt", "e.txt"]
+            files = ["1.txt", "10.txt", "2.txt"]
             batches =
+              [ [ ("1.txt","_perspec_temp_2.txt")
+                , ("2.txt", "_perspec_temp_1.txt")
+                , ("10.txt","0.txt")
+                ]
+              , [ ("_perspec_temp_2.txt","2.txt")
+                , ("_perspec_temp_1.txt", "1.txt")
+                ]
+              ]
+
+          (getRenamingBatches Nothing Sequential Descending files)
+            `shouldBe` batches
+
+        it "allows explicitly setting first page number" $ do
+          let
+            files = ["1.txt", "10.txt", "2.txt"]
+            batches =
+              [ [ ("1.txt","_perspec_temp_2.txt")
+                , ("2.txt", "_perspec_temp_1.txt")
+                , ("10.txt","0.txt")
+                ]
+              , [ ("_perspec_temp_2.txt","2.txt")
+                , ("_perspec_temp_1.txt", "1.txt")
+                ]
+              ]
+
+          (getRenamingBatches (Just 2) Sequential Descending files)
+            `shouldBe` batches
+
+
+      describe "Renaming files with even page numbers" $ do
+        let
+            files = ["a.txt", "c.txt", "e.txt"]
+            batchesStartingZero =
               [ [ ("a.txt","0.txt")
                 , ("c.txt", "2.txt")
                 , ("e.txt","4.txt")
                 ]
               ]
 
-          (getRenamingBatches 0 Even Ascending files) `shouldBe` batches
+        it "automatically sets first page number" $ do
+          (getRenamingBatches Nothing Even Ascending files)
+            `shouldBe` batchesStartingZero
 
-
-        it "rounds to next even page number" $ do
+        it "automatically sets first page number with descending order" $ do
           let
-            files = ["a.txt", "c.txt", "e.txt"]
+            numericFiles = ["8.txt", "10.txt", "9.txt"]
             batches =
-              [ [ ("a.txt","2.txt")
-                , ("c.txt", "4.txt")
-                , ("e.txt","6.txt")
+              [ [ ("8.txt","4.txt")
+                , ("9.txt", "2.txt")
+                , ("10.txt","0.txt")
                 ]
               ]
 
-          (getRenamingBatches 1 Even Ascending files) `shouldBe` batches
+          (getRenamingBatches Nothing Even Descending numericFiles)
+            `shouldBe` batches
+
+        it "allows explicitly setting first page number" $ do
+          (getRenamingBatches (Just 0) Even Ascending files)
+            `shouldBe` batchesStartingZero
+
+        it "rounds to next even page number" $ do
+          let batches =
+                [ [ ("a.txt","2.txt")
+                  , ("c.txt", "4.txt")
+                  , ("e.txt","6.txt")
+                  ]
+                ]
+
+          (getRenamingBatches (Just 1) Even Ascending files)
+            `shouldBe` batches
 
 
-      it "renames files with odd page numbers" $ do
-        let
-          files = ["b.txt", "d.txt", "f.txt"]
-          batches =
-            [ [ ("b.txt","1.txt")
-              , ("d.txt", "3.txt")
-              , ("f.txt","5.txt")
+      describe "Renaming files with odd page numbers" $ do
+        it "correctly sets first page number" $ do
+          let
+            files = ["b.txt", "d.txt", "f.txt"]
+            batches =
+              [ [ ("b.txt","1.txt")
+                , ("d.txt", "3.txt")
+                , ("f.txt","5.txt")
+                ]
               ]
-            ]
 
-        (getRenamingBatches 0 Odd Ascending files) `shouldBe` batches
-        (getRenamingBatches 1 Odd Ascending files) `shouldBe` batches
+          (getRenamingBatches Nothing Odd Ascending files) `shouldBe` batches
+          (getRenamingBatches (Just 0) Odd Ascending files) `shouldBe` batches
+          (getRenamingBatches (Just 1) Odd Ascending files) `shouldBe` batches
 
-      it "renames files with odd page numbers in descending order" $ do
-        let
-          files = ["8.txt", "10.txt", "9.txt"]
-          batches =
-            [ [ ("8.txt","7.txt")
-              , ("9.txt", "5.txt")
-              , ("10.txt","3.txt")
+        it "works with descending order and automatically sets page number" $ do
+          let
+            files = ["8.txt", "10.txt", "9.txt"]
+            batches =
+              [ [ ("8.txt","5.txt")
+                , ("9.txt", "3.txt")
+                , ("10.txt","1.txt")
+                ]
               ]
-            ]
 
-        (getRenamingBatches 7 Odd Descending files) `shouldBe` batches
-        (getRenamingBatches 8 Odd Descending files) `shouldBe` batches
+          (getRenamingBatches Nothing Odd Descending files) `shouldBe` batches
+
+        it "works with descending order and explicit page number" $ do
+          let
+            files = ["8.txt", "10.txt", "9.txt"]
+            batches =
+              [ [ ("8.txt","7.txt")
+                , ("9.txt", "5.txt")
+                , ("10.txt","3.txt")
+                ]
+              ]
+
+          (getRenamingBatches (Just 7) Odd Descending files) `shouldBe` batches
+          (getRenamingBatches (Just 8) Odd Descending files) `shouldBe` batches
 
       it "prefixes pages with negative numbers with \"_todo_\"" $ do
         let
@@ -104,4 +153,4 @@ main = hspec $ do
               ]
             ]
 
-        (getRenamingBatches 1 Odd Descending files) `shouldBe` batches
+        (getRenamingBatches (Just 1) Odd Descending files) `shouldBe` batches
