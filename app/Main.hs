@@ -46,10 +46,12 @@ execWithArgs config cliArgs = do
     directory <- args `getArgOrExit` (argument "directory")
 
     let
-      startNumber = args `getArg` (longOption "start-with")
+      startNumberMb = args `getArg` (longOption "start-with")
         <&> reads
-        <&> \case { [(int, _)] -> int; _ -> 0 }
-        & fromMaybe 0
+        & (\case
+              Just [(int, _)] -> Just int
+              _ -> Nothing
+          )
 
       renameMode =
         if args `isPresent` (longOption "even")
@@ -68,7 +70,7 @@ execWithArgs config cliArgs = do
 
     let
       renamingBatches = getRenamingBatches
-        startNumber
+        startNumberMb
         renameMode
         sortOrder
         (files <&> pack)
