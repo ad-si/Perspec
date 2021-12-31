@@ -9,6 +9,7 @@ import System.Directory
   ( createDirectoryIfMissing
   , getXdgDirectory
   , listDirectory
+  , makeAbsolute
   , renameFile
   , XdgDirectory(..)
   )
@@ -36,7 +37,9 @@ execWithArgs config cliArgs = do
   when (args `isPresent` (command "fix")) $ do
     let files = args `getAllArgs` (argument "file")
 
-    sequence_ $ files <&> loadAndStart config
+    filesAbs <- sequence $ files <&> makeAbsolute
+
+    sequence_ $ filesAbs <&> loadAndStart config
 
 
   when (args `isPresent` (command "rename")) $ do
