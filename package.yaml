@@ -1,6 +1,6 @@
 name: perspec
 version: 0.1.3.0
-github: ad-si/perspec
+github: feramhq/Perspec
 license-file: license
 author: Adrian Sieber
 maintainer: mail@adriansieber.com
@@ -14,7 +14,7 @@ synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
 
 description: |
-  Please see the readme on GitHub at <https://github.com/ad-si/perspec#readme>
+  Please see the readme on GitHub at <https://github.com/feramhq/Perspec#readme>
 
 dependencies:
   - aeson
