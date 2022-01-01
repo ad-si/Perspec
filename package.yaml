@@ -28,6 +28,7 @@ dependencies:
   - gloss
   - gloss-juicy
   - hsexif
+  - JuicyPixels
   - natural-sort
   - process
   - protolude

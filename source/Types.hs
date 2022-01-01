@@ -60,6 +60,17 @@ data SortOrder
   | Descending
 
 
+data UiComponent
+  = Button
+      { text :: Text
+      , width :: Int
+      , height :: Int
+      , bgColor :: Int
+      }
+  | Select
+  deriving (Show)
+
+
 -- | State of app
 data AppState = AppState
   { tickCounter :: Int
@@ -88,6 +99,8 @@ data AppState = AppState
 
   , sidebarWidth :: Int
   , sidebarColor :: Int
+
+  , uiComponents :: [UiComponent]
   }
   deriving Show
 
@@ -126,4 +139,13 @@ initialState = AppState
 
   , sidebarWidth = sidebarInitialWidth
   , sidebarColor = 0
+
+  , uiComponents =
+      [ Button
+          { text = "Submit"
+          , width = 110
+          , height = 30
+          , bgColor = 0
+          }
+      ]
   }

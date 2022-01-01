@@ -3,6 +3,7 @@ module Lib where
 import Protolude as P
 
 import Codec.BMP
+import Codec.Picture (decodePng)
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed
 import Data.List as DL (minimum, elemIndex, findIndex)
@@ -31,6 +32,9 @@ cornCircRadius = 6
 -- | Border thickness of the circles to mark the corners of the selection
 cornCircThickness :: Float
 cornCircThickness = 4
+
+sidebarPaddingTop :: Int
+sidebarPaddingTop = 50
 
 ticksPerSecond :: Int
 ticksPerSecond = 10
@@ -178,42 +182,86 @@ stepWorld _ appState =
   else pure appState { bannerIsVisible = False }
 
 
+wordsSprite :: ByteString
+wordsSprite = $(embedFile "images/words.png")
+
+
+wordsPic :: Picture
+wordsPic = fromMaybe mempty
+  ((either (const Nothing) Just $ decodePng wordsSprite)
+    >>= fromDynamicImage)
+
+
+getWordSprite :: Text -> Picture
+getWordSprite spriteText =
+  case wordsPic of
+    Bitmap bitmapData -> case spriteText of
+      "Submit" -> BitmapSection
+        Rectangle { rectPos = (0, 60), rectSize = (60, 20) }
+        bitmapData
+      _ -> mempty
+    _ -> mempty
+
+
+drawCorner :: Point -> Picture
+drawCorner (x, y) = Translate x y
+  (color green $ ThickCircle cornCircRadius cornCircThickness)
+
+
+drawEdges :: [Point] -> Picture
+drawEdges points =
+  color (makeColor 0.2 1 0.5 0.4) $ Polygon points
+
+
+drawSidebar :: Int -> Int -> Int -> Picture
+drawSidebar appWidth appHeight width =
+  Translate
+    (((fromIntegral appWidth) / 2.0)
+      - ((fromIntegral $ width) / 2.0)
+    )
+    0
+    (color (greyN 0.1) $ rectangleSolid
+      (fromIntegral $ width)
+      (fromIntegral $ appHeight)
+    )
+
+
+drawButton :: (Int, Int) -> Int -> Text -> (Int, Int) -> Picture
+drawButton (appWidth, appHeight) sidebarWidth btnText (btnWidth, btnHeight) =
+  Translate
+    ((fromIntegral appWidth / 2.0)
+      - ((fromIntegral btnWidth) / 2.0)
+      - ((fromIntegral sidebarWidth - fromIntegral btnWidth) / 2.0)
+    )
+    ((fromIntegral appHeight / 2.0)
+      - fromIntegral sidebarPaddingTop
+      - (fromIntegral btnHeight / 2.0)
+    )
+    $ pictures
+        [ color (greyN 0.2) $ rectangleSolid
+            (fromIntegral btnWidth)
+            (fromIntegral btnHeight)
+        , Translate 0 (-4) $ getWordSprite btnText
+        ]
+
+
+drawUiComponent :: AppState -> UiComponent -> Picture
+drawUiComponent appState uiComponent = case uiComponent of
+  Button btnText btnWidth btnHeight _ ->
+    drawButton
+      (appState&appWidth, appState&appHeight)
+      (appState&sidebarWidth)
+      btnText
+      (btnWidth, btnHeight)
+  Select -> mempty
+
+
 -- | Render the app state to a picture.
 makePicture :: AppState -> IO Picture
 makePicture appState =
   let
     appWidthInteg = fromIntegral $ appState&appWidth
     sidebarWidthInteg = fromIntegral $ appState&sidebarWidth
-
-    drawCorner (x, y) = Translate x y
-      (color green $ ThickCircle cornCircRadius cornCircThickness)
-
-    drawEdges points =
-      color (makeColor 0.2 1 0.5 0.4) $ Polygon points
-
-    drawSidebar width =
-      Translate
-        ((appWidthInteg / 2.0)
-          - ((fromIntegral $ width) / 2.0)
-        )
-        0
-        (color (greyN 0.1) $ rectangleSolid
-          (fromIntegral $ width)
-          (fromIntegral $ appState&appHeight)
-        )
-
-    drawButton :: Int -> Int -> Picture
-    drawButton buttonWidth buttonHeight =
-      Translate
-        ((appWidthInteg / 2.0)
-          - ((fromIntegral buttonWidth) / 2.0)
-          - ((sidebarWidthInteg - fromIntegral buttonWidth) / 2.0)
-        )
-        (((fromIntegral $ appState&appHeight) / 2.0)
-          - ((fromIntegral $ buttonHeight) * 1.5))
-        $ color (greyN 0.2) $ rectangleSolid
-          (fromIntegral $ buttonWidth)
-          (fromIntegral $ buttonHeight)
   in
     pure $ Pictures
       $ ( (
@@ -227,9 +275,12 @@ makePicture appState =
           )
             <&> Translate (-sidebarWidthInteg / 2.0) 0
         )
-      <> [ (drawSidebar $ appState&sidebarWidth)
-          , drawButton 110 30
-          ]
+      <> [ drawSidebar
+            appWidthInteg
+            (appState&appHeight)
+            (appState&sidebarWidth)
+        ]
+      <> ((appState&uiComponents) <&> drawUiComponent appState)
       <>  [ if appState&bannerIsVisible
               then Scale 0.5 0.5 bannerImage
               else mempty
@@ -247,6 +298,7 @@ makePicture appState =
                       --     -
               else mempty
           ]
+
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
 replaceElemAtIndex theIndex newElem (x:xs) =
@@ -356,25 +408,90 @@ appCoordToImgCoord appState point =
   )
 
 
+checkSidebarRectHit :: (Int, Int) -> Int -> (Int, Int) -> (Float, Float) -> Bool
+checkSidebarRectHit (appW, appH) sidebarW (rectW, rectH) (hitX, hitY) =
+    let
+      minX =
+        (fromIntegral appW / 2.0)
+        - fromIntegral rectW
+        - ((fromIntegral sidebarW - fromIntegral rectW) / 2.0)
+      maxX = minX + fromIntegral rectW
+
+      minY =
+        (fromIntegral appH / 2.0)
+        - fromIntegral sidebarPaddingTop
+        - fromIntegral rectH
+      maxY = minY + fromIntegral rectH
+    in
+         hitX > minX && hitX < maxX
+      && hitY > minY && hitY < maxY
+
+
+submitSelection :: AppState -> IO AppState
+submitSelection appState = do
+  let
+    cornersTrans = getCorners appState
+    cornerTuple = fromRight
+      ((0,0), (0,0), (0,0), (0,0))
+      (toQuadTuple cornersTrans)
+    targetShape = getTargetShape cornerTuple
+    projectionMapNorm = toCounterClock $
+      getProjectionMap cornerTuple targetShape
+
+  putText $ "Target shape: " <> (show targetShape)
+  putText $ "Marked corners: " <> (show cornerTuple)
+
+  let
+    convertArgs = getConvertArgs
+      (appState&inputPath)
+      (appState&outputPath)
+      projectionMapNorm
+      targetShape
+
+  putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
+
+  correctAndWrite convertArgs
+
+  exitSuccess
+
+
 handleEvent :: Event -> AppState -> IO AppState
 handleEvent event appState =
   case event of
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
-      let
-        point = appCoordToImgCoord appState clickedPoint
-        clickedCorner = P.find
-          (\corner ->
-            (calcDistance point corner) < (cornCircRadius + cornCircThickness)
-          )
-          (appState&corners)
+      -- Check if a UiComponent was clicked
+      let clickedComponent = P.find
+            (\component -> case component of
+                Button _ width height _ -> checkSidebarRectHit
+                  (appState&appWidth, appState&appHeight)
+                  (appState&sidebarWidth)
+                  (width, height)
+                  clickedPoint
+                _ -> False
+            )
+            (appState&uiComponents)
 
-      pure $ case clickedCorner of
-        Nothing -> appState
-          & flip addCorner point
-          & (\state_ -> state_ { cornerDragged = Just point })
+      case clickedComponent of
+        Just (Button {text = "Submit"}) ->
+          submitSelection appState
 
-        Just cornerPoint ->
-          appState { cornerDragged = Just cornerPoint }
+        _ -> do
+          let
+            point = appCoordToImgCoord appState clickedPoint
+            clickedCorner = P.find
+              (\corner ->
+                (calcDistance point corner)
+                < (cornCircRadius + cornCircThickness)
+              )
+              (appState&corners)
+
+          pure $ case clickedCorner of
+            Nothing -> appState
+              & flip addCorner point
+              & (\state_ -> state_ { cornerDragged = Just point })
+
+            Just cornerPoint ->
+              appState { cornerDragged = Just cornerPoint }
 
     EventKey (MouseButton LeftButton) Gl.Up _ _ -> do
       pure $ appState { cornerDragged = Nothing }
@@ -400,31 +517,8 @@ handleEvent event appState =
                   , cornerDragged = Just point
                   }
 
-    EventKey (SpecialKey KeyEnter) Gl.Down _ _ -> do
-      let
-        cornersTrans = getCorners appState
-        cornerTuple = fromRight
-          ((0,0), (0,0), (0,0), (0,0))
-          (toQuadTuple cornersTrans)
-        targetShape = getTargetShape cornerTuple
-        projectionMapNorm = toCounterClock $
-          getProjectionMap cornerTuple targetShape
-
-      putText $ "Target shape: " <> (show targetShape)
-      putText $ "Marked corners: " <> (show cornerTuple)
-
-      let
-        convertArgs = getConvertArgs
-          (inputPath appState)
-          (outputPath appState)
-          projectionMapNorm
-          targetShape
-
-      putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
-
-      correctAndWrite convertArgs
-
-      exitSuccess
+    EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
+      submitSelection appState
 
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState { corners = [] }

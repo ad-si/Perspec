@@ -199,9 +199,7 @@ convert \
 
 ### TODO
 
-- [ ] "Skip" button
-- [ ] "Reset" button
-- [ ] "Submit" button
+- [x] "Submit" button
 - [ ] Label corner markers
 - [x] Rescale image on viewport change
 - [x] Handle JPEG rotation
