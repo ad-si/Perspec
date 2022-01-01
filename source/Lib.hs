@@ -77,13 +77,18 @@ loadImage filePath = do
 calculateSizes :: AppState -> AppState
 calculateSizes appState =
   let
-    widthFrac = fromIntegral $ appState&imgWidthOrig
-    heightFrac = fromIntegral $ appState&imgHeightOrig
-    scaleFactorX = (fromIntegral $ appState&imgViewWidth) / widthFrac
-    scaleFactorY = (fromIntegral $ appState&imgViewHeight) / heightFrac
+    imgViewWidth = (appState&appWidth) - (appState&sidebarWidth)
+    imgViewHeight = appState&appHeight
+
+    imgWidthFrac = fromIntegral $ appState&imgWidthOrig
+    imgHeightFrac = fromIntegral $ appState&imgHeightOrig
+
+    scaleFactorX = (fromIntegral imgViewWidth) / imgWidthFrac
+    scaleFactorY = (fromIntegral imgViewHeight) / imgHeightFrac
+
     scaleFactor = min scaleFactorX scaleFactorY
-    imgWidthTrgt = round $ scaleFactor * widthFrac
-    imgHeightTrgt = round $ scaleFactor * heightFrac
+    imgWidthTrgt = round $ scaleFactor * imgWidthFrac
+    imgHeightTrgt = round $ scaleFactor * imgHeightFrac
   in
     appState
       { imgWidthTrgt
@@ -138,17 +143,17 @@ startApp config inPath outPath imgWdth imgHgt rota pic = do
 
     initialX =
       ((fromIntegral screenWidth :: Float) / 2)
-      - ((fromIntegral $ stateWithSizes&imgViewWidth) / 2)
+      - ((fromIntegral $ stateWithSizes&appWidth) / 2)
     initialY =
       ((fromIntegral screenHeight :: Float) / 2)
-      - ((fromIntegral $ stateWithSizes&imgViewHeight) / 2)
+      - ((fromIntegral $ stateWithSizes&appHeight) / 2)
 
     window = InWindow
       ("Perspec - " <> inPath
         <> if isRegistered
             then mempty
             else " - ⚠️ NOT REGISTERED")
-      (stateWithImage&imgViewWidth, stateWithImage&imgViewHeight)
+      (stateWithImage&appWidth, stateWithImage&appHeight)
       (round initialX, round initialY)
 
   putText "Starting the app …"
@@ -177,33 +182,54 @@ stepWorld _ appState =
 makePicture :: AppState -> IO Picture
 makePicture appState =
   let
+    appWidthInteg = fromIntegral $ appState&appWidth
+    sidebarWidthInteg = fromIntegral $ appState&sidebarWidth
+
     drawCorner (x, y) = Translate x y
       (color green $ ThickCircle cornCircRadius cornCircThickness)
 
     drawEdges points =
       color (makeColor 0.2 1 0.5 0.4) $ Polygon points
-    -- drawButton buttonWidth buttonHeight =
-    --   Translate
-    --     (((fromIntegral $ appState&imgViewWidth) / 2.0)
-    --       - ((fromIntegral $ buttonWidth) / 2.0))
-    --     (((fromIntegral $ appState&imgViewHeight) / 2.0)
-    --       - ((fromIntegral $ buttonHeight) * 1.5))
-    --     $ color red $ rectangleSolid
-    --       (fromIntegral $ buttonWidth)
-    --       (fromIntegral $ buttonHeight)
+
+    drawSidebar width =
+      Translate
+        ((appWidthInteg / 2.0)
+          - ((fromIntegral $ width) / 2.0)
+        )
+        0
+        (color (greyN 0.1) $ rectangleSolid
+          (fromIntegral $ width)
+          (fromIntegral $ appState&appHeight)
+        )
+
+    drawButton :: Int -> Int -> Picture
+    drawButton buttonWidth buttonHeight =
+      Translate
+        ((appWidthInteg / 2.0)
+          - ((fromIntegral buttonWidth) / 2.0)
+          - ((sidebarWidthInteg - fromIntegral buttonWidth) / 2.0)
+        )
+        (((fromIntegral $ appState&appHeight) / 2.0)
+          - ((fromIntegral $ buttonHeight) * 1.5))
+        $ color (greyN 0.2) $ rectangleSolid
+          (fromIntegral $ buttonWidth)
+          (fromIntegral $ buttonHeight)
   in
     pure $ Pictures
-      $ (
-          (Scale
-            (appState&scaleFactor)
-            (appState&scaleFactor)
-            (appState&image)
-          ) :
-          (drawEdges $ appState&corners ) :
-          -- drawButton 200 100 :
-          []
+      $ ( (
+            [ Scale
+                (appState&scaleFactor)
+                (appState&scaleFactor)
+                (appState&image)
+            , (appState&corners) & drawEdges
+            ]
+            <> ((appState&corners) <&> drawCorner)
+          )
+            <&> Translate (-sidebarWidthInteg / 2.0) 0
         )
-      <> (fmap drawCorner $ appState&corners)
+      <> [ (drawSidebar $ appState&sidebarWidth)
+          , drawButton 110 30
+          ]
       <>  [ if appState&bannerIsVisible
               then Scale 0.5 0.5 bannerImage
               else mempty
@@ -323,11 +349,19 @@ getCorners appState =
     (P.reverse $ corners appState)
 
 
+appCoordToImgCoord :: AppState -> Point -> Point
+appCoordToImgCoord appState point =
+  ( fst point + ((fromIntegral $ appState&sidebarWidth) / 2.0)
+  , snd point
+  )
+
+
 handleEvent :: Event -> AppState -> IO AppState
 handleEvent event appState =
   case event of
-    EventKey (MouseButton LeftButton) Gl.Down _ point -> do
+    EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
       let
+        point = appCoordToImgCoord appState clickedPoint
         clickedCorner = P.find
           (\corner ->
             (calcDistance point corner) < (cornCircRadius + cornCircThickness)
@@ -346,11 +380,13 @@ handleEvent event appState =
       pure $ appState { cornerDragged = Nothing }
 
     EventMotion newPoint -> do
+      let point = appCoordToImgCoord appState newPoint
+
       pure $ case appState&cornerDragged of
         Nothing -> appState
         Just cornerPoint ->
           let cornerIndexMb = DL.findIndex
-                (\point -> point == cornerPoint)
+                (\pnt -> pnt == cornerPoint)
                 (appState&corners)
           in
             case cornerIndexMb of
@@ -359,9 +395,9 @@ handleEvent event appState =
                 appState
                   { corners = replaceElemAtIndex
                       cornerIndex
-                      newPoint
+                      point
                       (appState&corners)
-                  , cornerDragged = Just newPoint
+                  , cornerDragged = Just point
                   }
 
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ -> do
@@ -395,8 +431,8 @@ handleEvent event appState =
 
     EventResize (windowWidth, windowHeight) -> do
       pure $ calculateSizes $ appState
-        { imgViewWidth = windowWidth
-        , imgViewHeight = windowHeight
+        { appWidth = windowWidth
+        , appHeight = windowHeight
         }
 
     _ ->

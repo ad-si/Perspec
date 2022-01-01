@@ -60,16 +60,16 @@ data SortOrder
   | Descending
 
 
--- | State of app (list of corners is reversed to order of addition)
+-- | State of app
 data AppState = AppState
   { tickCounter :: Int
 
-  , corners :: [Corner]
-  , cornerDragged :: Maybe Corner
+  , corners :: [Corner] -- ^ Reversed to order of addition
+  , cornerDragged :: Maybe Corner  -- ^ Currently dragged corner
   , image :: Picture
 
-  , imgViewWidth :: Int
-  , imgViewHeight :: Int
+  , appWidth :: Int
+  , appHeight :: Int
 
   , imgWidthOrig :: Int
   , imgHeightOrig :: Int
@@ -85,8 +85,17 @@ data AppState = AppState
 
   , isRegistered :: Bool
   , bannerIsVisible :: Bool
+
+  , sidebarWidth :: Int
+  , sidebarColor :: Int
   }
   deriving Show
+
+
+appInitialWidth, appInitialHeight, sidebarInitialWidth :: Int
+appInitialWidth = 1280
+appInitialHeight = 960
+sidebarInitialWidth = 150
 
 
 initialState :: AppState
@@ -97,8 +106,8 @@ initialState = AppState
   , cornerDragged = Nothing
   , image = Blank
 
-  , imgViewWidth = 1280
-  , imgViewHeight = 960
+  , appWidth = appInitialWidth
+  , appHeight = appInitialHeight
 
   , imgWidthOrig = 0
   , imgHeightOrig = 0
@@ -114,4 +123,7 @@ initialState = AppState
 
   , isRegistered = False
   , bannerIsVisible = False
+
+  , sidebarWidth = sidebarInitialWidth
+  , sidebarColor = 0
   }
