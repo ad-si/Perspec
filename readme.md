@@ -206,7 +206,7 @@ convert \
 - [ ] Manual rotation buttons
 - [ ] Zoom view for corners
 - [x] Drag'n'Drop for corner markers
-- [ ] "Convert to Grayscale" button
+- [x] "Convert to Grayscale" button
 - [ ] Add support for custom output size (e.g. A4)
 - [x] Draw lines between corners to simplify guessing of clipped corners
 - [x] Bundle Imagemagick

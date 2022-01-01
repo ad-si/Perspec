@@ -60,6 +60,12 @@ data SortOrder
   | Descending
 
 
+data ExportMode
+  = UnmodifiedExport
+  | GrayscaleExport
+  | BlackWhiteExport
+
+
 data UiComponent
   = Button
       { text :: Text
@@ -142,7 +148,19 @@ initialState = AppState
 
   , uiComponents =
       [ Button
-          { text = "Submit"
+          { text = "Save"
+          , width = 110
+          , height = 30
+          , bgColor = 0
+          }
+      , Button
+          { text = "Save Gray"
+          , width = 110
+          , height = 30
+          , bgColor = 0
+          }
+      , Button
+          { text = "Save BW"
           , width = 110
           , height = 30
           , bgColor = 0

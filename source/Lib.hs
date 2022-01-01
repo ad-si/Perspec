@@ -36,6 +36,9 @@ cornCircThickness = 4
 sidebarPaddingTop :: Int
 sidebarPaddingTop = 50
 
+sidebarGridHeight :: Int
+sidebarGridHeight = 40
+
 ticksPerSecond :: Int
 ticksPerSecond = 10
 
@@ -196,9 +199,18 @@ getWordSprite :: Text -> Picture
 getWordSprite spriteText =
   case wordsPic of
     Bitmap bitmapData -> case spriteText of
-      "Submit" -> BitmapSection
-        Rectangle { rectPos = (0, 60), rectSize = (60, 20) }
+      "Save" -> BitmapSection
+        Rectangle { rectPos = (0, 40), rectSize = (90, 20) }
         bitmapData
+
+      "Save BW" -> BitmapSection
+        Rectangle { rectPos = (0, 60), rectSize = (90, 20) }
+        bitmapData
+
+      "Save Gray" -> BitmapSection
+        Rectangle { rectPos = (0, 80), rectSize = (90, 20) }
+        bitmapData
+
       _ -> mempty
     _ -> mempty
 
@@ -226,15 +238,16 @@ drawSidebar appWidth appHeight width =
     )
 
 
-drawButton :: (Int, Int) -> Int -> Text -> (Int, Int) -> Picture
-drawButton (appWidth, appHeight) sidebarWidth btnText (btnWidth, btnHeight) =
+drawButton :: (Int, Int) -> Int -> Int -> Text -> (Int, Int) -> Picture
+drawButton
+  (appWidth, appHeight) sidebarWidth topOffset btnText (btnWidth, btnHeight) =
   Translate
     ((fromIntegral appWidth / 2.0)
       - ((fromIntegral btnWidth) / 2.0)
       - ((fromIntegral sidebarWidth - fromIntegral btnWidth) / 2.0)
     )
     ((fromIntegral appHeight / 2.0)
-      - fromIntegral sidebarPaddingTop
+      - fromIntegral topOffset
       - (fromIntegral btnHeight / 2.0)
     )
     $ pictures
@@ -245,15 +258,17 @@ drawButton (appWidth, appHeight) sidebarWidth btnText (btnWidth, btnHeight) =
         ]
 
 
-drawUiComponent :: AppState -> UiComponent -> Picture
-drawUiComponent appState uiComponent = case uiComponent of
-  Button btnText btnWidth btnHeight _ ->
-    drawButton
-      (appState&appWidth, appState&appHeight)
-      (appState&sidebarWidth)
-      btnText
-      (btnWidth, btnHeight)
-  Select -> mempty
+drawUiComponent :: AppState -> UiComponent -> Int -> Picture
+drawUiComponent appState uiComponent componentIndex =
+  case uiComponent of
+    Button btnText btnWidth btnHeight _ ->
+      drawButton
+        (appState&appWidth, appState&appHeight)
+        (appState&sidebarWidth)
+        (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
+        btnText
+        (btnWidth, btnHeight)
+    Select -> mempty
 
 
 -- | Render the app state to a picture.
@@ -280,7 +295,7 @@ makePicture appState =
             (appState&appHeight)
             (appState&sidebarWidth)
         ]
-      <> ((appState&uiComponents) <&> drawUiComponent appState)
+      <> (P.zipWith (drawUiComponent appState) (appState&uiComponents) [0..])
       <>  [ if appState&bannerIsVisible
               then Scale 0.5 0.5 bannerImage
               else mempty
@@ -408,8 +423,10 @@ appCoordToImgCoord appState point =
   )
 
 
-checkSidebarRectHit :: (Int, Int) -> Int -> (Int, Int) -> (Float, Float) -> Bool
-checkSidebarRectHit (appW, appH) sidebarW (rectW, rectH) (hitX, hitY) =
+checkSidebarRectHit
+  :: (Int, Int) -> Int -> Int -> (Int, Int) -> (Float, Float) -> Bool
+checkSidebarRectHit
+  (appW, appH) sidebarW topOffset (rectW, rectH) (hitX, hitY) =
     let
       minX =
         (fromIntegral appW / 2.0)
@@ -419,7 +436,7 @@ checkSidebarRectHit (appW, appH) sidebarW (rectW, rectH) (hitX, hitY) =
 
       minY =
         (fromIntegral appH / 2.0)
-        - fromIntegral sidebarPaddingTop
+        - fromIntegral topOffset
         - fromIntegral rectH
       maxY = minY + fromIntegral rectH
     in
@@ -427,8 +444,8 @@ checkSidebarRectHit (appW, appH) sidebarW (rectW, rectH) (hitX, hitY) =
       && hitY > minY && hitY < maxY
 
 
-submitSelection :: AppState -> IO AppState
-submitSelection appState = do
+submitSelection :: AppState -> ExportMode -> IO AppState
+submitSelection appState exportMode = do
   let
     cornersTrans = getCorners appState
     cornerTuple = fromRight
@@ -447,6 +464,8 @@ submitSelection appState = do
       (appState&outputPath)
       projectionMapNorm
       targetShape
+      exportMode
+
 
   putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
 
@@ -460,20 +479,30 @@ handleEvent event appState =
   case event of
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
       -- Check if a UiComponent was clicked
-      let clickedComponent = P.find
-            (\component -> case component of
-                Button _ width height _ -> checkSidebarRectHit
-                  (appState&appWidth, appState&appHeight)
-                  (appState&sidebarWidth)
-                  (width, height)
-                  clickedPoint
-                _ -> False
+      let clickedComponent =
+            (P.find
+              (\(component, componentIndex) -> case component of
+                  Button _ width height _ -> checkSidebarRectHit
+                    (appState&appWidth, appState&appHeight)
+                    (appState&sidebarWidth)
+                    (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
+                    (width, height)
+                    clickedPoint
+                  _ -> False
+              )
+              (P.zip (appState&uiComponents) [0..])
             )
-            (appState&uiComponents)
+            <&> fst
 
       case clickedComponent of
-        Just (Button {text = "Submit"}) ->
-          submitSelection appState
+        Just (Button {text = "Save"}) ->
+          submitSelection appState UnmodifiedExport
+
+        Just (Button {text = "Save Gray"}) ->
+          submitSelection appState GrayscaleExport
+
+        Just (Button {text = "Save BW"}) ->
+          submitSelection appState BlackWhiteExport
 
         _ -> do
           let
@@ -518,7 +547,7 @@ handleEvent event appState =
                   }
 
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
-      submitSelection appState
+      submitSelection appState UnmodifiedExport
 
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState { corners = [] }
@@ -542,8 +571,9 @@ showProjectionMap pMap = pMap
   & T.replace ")" ""
 
 
-getConvertArgs :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> [Text]
-getConvertArgs inPath outPath projMap shape =
+getConvertArgs
+  :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
+getConvertArgs inPath outPath projMap shape exportMode =
   [ (T.pack inPath)
   , "-auto-orient"
   , "-define", "distort:viewport="
@@ -564,8 +594,16 @@ getConvertArgs inPath outPath projMap shape =
   -- TODO: Implement more sophisticated one upstream in Imagemagick
 
   , "-distort", "Perspective", showProjectionMap projMap
-  , "+repage"
-  , (T.pack outPath)
+  ]
+  <> case exportMode of
+      UnmodifiedExport -> []
+      GrayscaleExport -> [ "-colorspace", "gray", "-normalize" ]
+      BlackWhiteExport -> [ "-auto-threshold", "OTSU", "-monochrome" ]
+  <>
+  [ "+repage"
+  , case exportMode of
+      BlackWhiteExport -> T.pack $ replaceExtension outPath "png"
+      _  -> T.pack outPath
   ]
 
 
