@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0.0
+
+- Add sidebar with save buttons (normal, grayscale, or binary)
+- Add sub-command "rename" for easy renaming of photos
+- Make corners of selection draggable
+- Center Perspec window on screen
+- Add support for > macOS 11
+- Display better usage information when opening the macOS app
+- Add a welcome banner
+- Support registering the app with a license key
+
+
 ## 0.1.3.0
 
 - Apply EXIF rotation to JPEG images
