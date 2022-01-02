@@ -20,16 +20,36 @@
 App and workflow to perspectively correct images.
 For example whiteboards, document scans, or facades.
 
+<!-- toc -->
+
+- [App Workflow](#app-workflow)
+- [Installation](#installation)
+  * [Prebuilt](#prebuilt)
+  * [From Source](#from-source)
+- [Usage via CLI](#usage-via-cli)
+- [Photo Digitization Workflow](#photo-digitization-workflow)
+  * [Additional Steps](#additional-steps)
+- [Features](#features)
+- [Algorithms](#algorithms)
+  * [Perspective Transformation](#perspective-transformation)
+  * [Grayscale Conversion](#grayscale-conversion)
+  * [BW Conversion](#bw-conversion)
+  * [Interpolation of Missing Parts](#interpolation-of-missing-parts)
+- [Technologies](#technologies)
+- [Related](#related)
+
+<!-- tocstop -->
+
 
 ## App Workflow
 
 Step | Description                          | Result
 -----|--------------------------------------|--------
-1    | Take a photo                         | ![Original image][doc]
+1    | Take photos                          | ![Original image][doc]
 2    | Open Perspec                         | ![Opened Perspec App][open]
-3    | Drop the image file onto the window  | ![Dropped image][dropped]
+3    | Drop the images onto the window      | ![Dropped image][dropped]
 4    | Mark the corners by clicking on them | ![Marked corners][corners]
-5    | Press enter                          | ![Corrected image][fixed]
+5    | Click save button (or [Enter])       | ![Corrected image][fixed]
 
 [doc]: images/doc.jpg
 [mark]: images/doc-marking.jpg
@@ -41,17 +61,17 @@ Step | Description                          | Result
 
 ## Installation
 
+**WARNING:**
+Perspec currently only works on macOS.
+Any help to make it work on
+Linux [(Ticket)](https://github.com/feramhq/Perspec/issues/13)
+and Microsoft [(Ticket)](https://github.com/feramhq/Perspec/issues/21)
+would be greatly appreciated!
+
+
 ### Prebuilt
 
-#### MacOS
-
-Install it via my [Homebrew](https://brew.sh) tap:
-
-```sh
-brew install --cask ad-si/tap/perspec
-```
-
-You can also get this (and previous) versions from
+You can get this (and previous) versions from
 [the releases page](https://github.com/feramhq/Perspec/releases).
 
 The current nightly version can be downloaded from
@@ -62,6 +82,12 @@ However, it's necessary to fix the file permissions after download:
 chmod +x \
   ./Perspec.app/Contents/MacOS/Perspec \
   ./Perspec.app/Contents/Resources/{perspec,script,imagemagick/bin/convert}
+```
+
+On macOS you can also install it via this [Homebrew](https://brew.sh) tap:
+
+```sh
+brew install --cask ad-si/tap/perspec
 ```
 
 
@@ -86,15 +112,7 @@ You can then either drop images on the app window,
 or use it via the CLI like `perspec fix image.jpeg`
 
 
-## Manual
-
-### Interpolation of Missing Parts
-
-Perspec automatically interpolates missing parts by using the closest pixel.
-(https://www.imagemagick.org/Usage/misc/#edge)
-
-
-### Usage via CLI
+## Usage via CLI
 
 It's also possible to directly invoke Perspec via the CLI like so:
 
@@ -107,7 +125,7 @@ one after another.
 This is very useful for batch correcting a large set of images.
 
 
-### Photo Digitization Workflow
+## Photo Digitization Workflow
 
 1. Take photos
     1. Use camera app which lets you lock rotation (e.g. [OpenCamera]).
@@ -123,39 +141,18 @@ This is very useful for batch correcting a large set of images.
     - Images are sharp enough
     - Images have a high contrast
     - Images have correct orientation
-1. Convert images to lossless format (e.g. `png`), apply rotations
-  and convert them to grayscale.
+1. For best image quality convert images optionally
+  to a lossless format (e.g. `png`),
+  apply rotations, and convert them to grayscale.
   Attention: Exclude the covers!
     ```sh
-    mogrify -verbose -format png -auto-orient -colorspace gray photos/*.jpeg
+    mogrify -verbose -format png \
+      -auto-orient -colorspace gray photos/*.jpeg
     ```
 1. Use Perspec to crop images
     ```sh
     perspec fix photos/*.png
     ````
-1. Improve colors with one of the following steps:
-  1. Normalize dynamic range:
-    ```sh
-    mogrify -verbose -normalize photos/*.png
-    ```
-  1. Convert to black and white:
-      ```sh
-      #! /usr/bin/env bash
-
-      find . -iname "*.png" | \
-      while read -r file
-      do
-        convert \
-          -verbose \
-          "$file" \
-          \( +clone -blur 0x60 -brightness-contrast 40 \) \
-          -compose minus \
-          -composite \
-          -negate \
-          -auto-threshold otsu \
-          "$(basename "$file" ".png")"-fixed.png
-      done
-      ```
 
 [iSoundCam]: http://www.cherry-software.com/isoundcam.html
 [Magic Lantern]: https://wiki.magiclantern.fm/pl:userguide?#audio_remoteshot
@@ -163,6 +160,33 @@ This is very useful for batch correcting a large set of images.
   https://play.google.com/store/apps/details?id=net.sourceforge.opencamera
 [Pluto Trigger]: https://plutotrigger.com
 
+
+### Additional Steps
+
+Improve colors with one of the following steps:
+
+1. Normalize dynamic range:
+  ```sh
+  mogrify -verbose -normalize photos/*.png
+  ```
+1. Convert to black and white:
+    ```sh
+    #! /usr/bin/env bash
+
+    find . -iname "*.png" | \
+    while read -r file
+    do
+      convert \
+        -verbose \
+        "$file" \
+        \( +clone -blur 0x60 -brightness-contrast 40 \) \
+        -compose minus \
+        -composite \
+        -negate \
+        -auto-threshold otsu \
+        "$(basename "$file" ".png")"-fixed.png
+    done
+    ```
 
 In order to rotate all photos to portrait mode you can use either
 ```sh
@@ -174,14 +198,26 @@ mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 ```
 
 
-### Technologies
+## Features
 
-- Core is written in [Haskell](https://haskell.org)
-- Perspective transformation are handled by [ImageMagick]
-- App bundle is created with [Platypus](https://sveinbjorn.org/platypus)
+- [x] Rescale image on viewport change
+- [x] Handle JPEG rotation
+- [x] Draw lines between corners to simplify guessing of clipped corners
+- [x] Bundle Imagemagick
+- [x] Better error if wrong file format is dropped (images/error-message.jpg)
+- [x] Center Perspec window on screen
+- [x] Drag'n'Drop for corner markers
+- [x] "Submit" button
+- [x] "Convert to Grayscale" button
+- [ ] Add support for custom output size (e.g. A4)
+- [ ] Manual rotation buttons
+- [ ] Zoom view for corners
+- [ ] Label corner markers
 
 
-#### Underlying ImageMagick Commands
+## Algorithms
+
+### Perspective Transformation
 
 Once the corners are marked, the correction is equivalent to:
 
@@ -194,57 +230,34 @@ convert \
   images/example-fixed.jpg
 ```
 
+### Grayscale Conversion
 
-## Development
-
-### TODO
-
-- [x] "Submit" button
-- [ ] Label corner markers
-- [x] Rescale image on viewport change
-- [x] Handle JPEG rotation
-- [ ] Manual rotation buttons
-- [ ] Zoom view for corners
-- [x] Drag'n'Drop for corner markers
-- [x] "Convert to Grayscale" button
-- [ ] Add support for custom output size (e.g. A4)
-- [x] Draw lines between corners to simplify guessing of clipped corners
-- [x] Bundle Imagemagick
-- [x] Better error if wrong file format is dropped (images/error-message.jpg)
-- [x] Center Perspec window on screen
+Converts image to grayscale and normalizes the range of values afterwards.
+(Uses Imagemagick's `-colorspace gray -normalize`)
 
 
-### Benchmarking
+### BW Conversion
 
-Use the `-bench` flag to benchmark [ImageMagick] operations.
-For example:
-
-```sh
-convert \
-  doc.jpg \
-  -bench 50 \
-  -virtual-pixel black \
-  -define distort:viewport=1191x598+0+0 \
-  -distort Perspective \
-    '277,181 0,0 214,776 0,598 1405,723 1191,598 1256,175 1191,0' \
-  +repage \
-  doc-fixed.jpg
-```
+Converts image to binary format with OTSU's method.
+(Uses Imagemagick's `-auto-threshold OTSU -monochrome`)
 
 
-### Generate Icons
+### Interpolation of Missing Parts
 
-With <https://gist.github.com/zlbruce/883605a635df8d5964bab11ed75e46ad:>
+Perspec automatically interpolates missing parts by using the closest pixel.
+(https://www.imagemagick.org/Usage/misc/#edge)
 
-```sh
-svg2icns icon.svg
-```
+
+## Technologies
+
+- Core is written in [Haskell](https://haskell.org)
+- Perspective transformation are handled by [ImageMagick]
+- App bundle is created with [Platypus](https://sveinbjorn.org/platypus)
+
+[ImageMagick]: https://imagemagick.org
 
 
 ## Related
 
 Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning)
 for an extensive list of related projects.
-
-
-[ImageMagick]: https://imagemagick.org
