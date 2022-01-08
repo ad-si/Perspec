@@ -5,7 +5,8 @@ packages:
 
 extra-deps:
   - docopt-0.7.0.7
-  - gloss-juicy-0.2.3
+  - git: https://github.com/hpacheco/gloss-juicy
+    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
   - gloss-1.13.2.1
   - hsexif-0.6.1.8
 

@@ -18,12 +18,16 @@ packages:
       size: 1179
     hackage: docopt-0.7.0.7@sha256:a3d2eac54cd77d8c0b306ff96fb57be55542f143d81766aa1ae51458ad790dbe,3655
 - original:
-    hackage: gloss-juicy-0.2.3
+    git: https://github.com/hpacheco/gloss-juicy
+    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
   completed:
     pantry-tree:
-      sha256: 914c08509bc3da4707d90e542b44833ca1a62abc83c2848f87df3d7a7a1d7e03
-      size: 273
-    hackage: gloss-juicy-0.2.3@sha256:0c3bca95237cbf91f8b3b1936a0661f1e0457acd80502276d54d6c5210f88b25,1618
+      sha256: 48286cf4c310a07ae5ca7d3b3b9c0d995c24b4195191006562d70c52a24a6f8e
+      size: 373
+    version: 0.2.4
+    git: https://github.com/hpacheco/gloss-juicy
+    name: gloss-juicy
+    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
 - original:
     hackage: gloss-1.13.2.1
   completed:

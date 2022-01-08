@@ -27,7 +27,6 @@ dependencies:
   - filepath
   - gloss
   - gloss-juicy
-  - hsexif
   - JuicyPixels
   - natural-sort
   - process

@@ -4,6 +4,8 @@ import Protolude as P
 
 import Codec.BMP
 import Codec.Picture (decodePng)
+import Codec.Picture.Metadata (Keys(Exif), Metadatas, lookup)
+import Codec.Picture.Metadata.Exif (ExifTag(..), ExifData(ExifShort))
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed
 import Data.List as DL (minimum, elemIndex, findIndex)
@@ -16,7 +18,6 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import System.Process
-import Graphics.HsExif
 
 import Types
 
@@ -50,9 +51,9 @@ bannerImage = fromRight mempty $ bitmapOfBMP
                 <$> (parseBMP $ BL.fromStrict $(embedFile "images/banner.bmp"))
 
 
-loadImage :: FilePath -> IO (Either Text (Picture, Map ExifTag ExifValue))
+loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))
 loadImage filePath = do
-  picMaybe <- loadJuicy filePath
+  picMetaMaybe <- loadJuicyWithMetadata filePath
 
   let
     allowedExtensions =
@@ -65,7 +66,7 @@ loadImage filePath = do
       ]
     fileExtension = takeExtension filePath
 
-  case picMaybe of
+  case picMetaMaybe of
     Nothing -> do
       if elem fileExtension allowedExtensions
       then pure $ Left "Error: Image couldn't be loaded"
@@ -73,12 +74,8 @@ loadImage filePath = do
                           <> T.pack fileExtension
                           <> "\" is not supported"
 
-    Just picture -> do
-      exifMapEither <- parseFileExif filePath
-
-      case exifMapEither of
-        Left _ -> pure $ Right (picture, mempty)
-        Right exifMap -> pure $ Right (picture, exifMap)
+    Just (picture, metadata) ->
+      pure $ Right (picture, metadata)
 
 
 calculateSizes :: AppState -> AppState
@@ -631,41 +628,46 @@ correctAndWrite args = do
   pure ()
 
 
-imgOrientToRot :: ImageOrientation -> Float
+imgOrientToRot :: ExifData -> Float
 imgOrientToRot = \case
-  Rotation MinusNinety            -> -90
-  Normal                          -> 0
-  Rotation Ninety                 -> 90
-  Rotation HundredAndEighty       -> 180
+  ExifShort 6 -> -90
+  ExifShort 1 ->   0
+  ExifShort 8 ->  90
+  ExifShort 3 -> 180
 
   -- TODO: Also apply mirroring to image
-  MirrorRotation MinusNinety      -> -90
-  Mirror                          -> 0
-  MirrorRotation Ninety           -> 90
-  MirrorRotation HundredAndEighty -> 180
+  ExifShort 5 -> -90
+  ExifShort 2 ->   0
+  ExifShort 7 ->  90
+  ExifShort 4 -> 180
+
+  _ -> 0
 
 
 loadAndStart :: Config -> FilePath -> IO ()
 loadAndStart config filePath = do
   let outName = (takeBaseName filePath) <> "-fixed"
 
-  pictureExifMapEither <- loadImage filePath
+  pictureMetadataEither <- loadImage filePath
 
-  case pictureExifMapEither of
+  case pictureMetadataEither of
     Left error -> putText error
 
-    Right (picture@(Bitmap bitmapData), exifMap) -> do
+    Right (picture@(Bitmap bitmapData), metadata) -> do
       let
-        imgOrient = fromMaybe Normal $ getOrientation exifMap
-        rotation = imgOrientToRot imgOrient
+        rotation = lookup (Exif TagOrientation) metadata
+          <&> imgOrientToRot
+          & fromMaybe 0
         sizeTuple = bitmapSize bitmapData
         (imgWdth, imgHgt) = case rotation of
                               90  -> swap $ sizeTuple
                               -90 -> swap $ sizeTuple
                               _   -> sizeTuple
 
-      putStrLn $ "Loaded file " <> filePath <> " " <> (show (imgWdth,imgHgt))
-      putStrLn $ "with orientation " <> (show imgOrient :: Text)
+      putText $
+        "Loaded file " <> (pack filePath) <> " " <> (show (imgWdth,imgHgt))
+      putText $
+        "with a rotation of " <> (show rotation) <> " degrees."
 
       startApp
         config

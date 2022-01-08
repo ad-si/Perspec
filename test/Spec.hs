@@ -2,6 +2,10 @@ import Test.Hspec
 
 import Protolude
 
+import Graphics.Gloss.Data.Bitmap (bitmapSize)
+import Graphics.Gloss.Data.Picture (Picture(Bitmap))
+
+import Lib
 import Rename
 import Types
 
@@ -9,6 +13,24 @@ import Types
 main :: IO ()
 main = hspec $ do
   describe "Perspec" $ do
+    describe "Lib" $ do
+      it "Applies EXIF rotation" $ do
+        pictureMetadataEither <- loadImage "images/doc_rotated.jpg"
+
+        case pictureMetadataEither of
+          Right ((Bitmap bitmapData), metadata) -> do
+            bitmapSize bitmapData `shouldBe` (880 , 1500)
+
+            -- Does not provide an Eq instance => Misuse show
+            let metadataText = show metadata
+
+            metadataText `shouldContain` "TagOrientation :=> ExifShort 6"
+            metadataText `shouldContain` "(TagUnknown 40962) :=> ExifLong 880"
+            metadataText `shouldContain` "(TagUnknown 40963) :=> ExifLong 1500"
+
+          _ -> expectationFailure "File should have been loaded"
+
+
     describe "Rename" $ do
       it "renames files according to natural sort and avoids collisions" $ do
         let
