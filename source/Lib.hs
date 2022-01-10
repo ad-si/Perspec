@@ -377,11 +377,20 @@ toQuadTuple _                = Left "The list must contain 4 values"
 -- | 'getProjectionMap clickShape targetShape'
 getProjectionMap :: CornersTup -> (Float, Float) -> ProjMap
 getProjectionMap (tl, tr, br, bl) (wdth, hgt) =
-  ( (tl, (0,    0))
-  , (tr, (wdth, 0))
-  , (br, (wdth, hgt))
-  , (bl, (0,    hgt))
-  )
+  -- Somehow the coordinate system is flipped on macOS with GLFW
+  if os == "darwin"
+  then
+    ( (tl, (0,    hgt))
+    , (tr, (wdth, hgt))
+    , (br, (wdth, 0))
+    , (bl, (0,    0))
+    )
+  else
+    ( (tl, (0,    0))
+    , (tr, (wdth, 0))
+    , (br, (wdth, hgt))
+    , (bl, (0,    hgt))
+    )
 
 
 -- | Accommodate ImageMagick's counter-clockwise direction
