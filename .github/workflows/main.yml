@@ -89,7 +89,7 @@ jobs:
             --output appimage
             --desktop-file ./.desktop
             --icon-file $(pwd)/images/icon_padded_white_512.png &&
-          mv *.AppImage Perspec_x86_64.AppImage
+          mv Perspec-*-x86_64.AppImage Perspec_x86_64.AppImage
 
       - name: Upload Linux Release
         uses: actions/upload-artifact@v2
