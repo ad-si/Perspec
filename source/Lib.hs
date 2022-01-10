@@ -18,6 +18,7 @@ import System.Directory
 import System.Environment
 import System.FilePath
 import System.Process
+import System.Info (os)
 
 import Types
 
@@ -464,7 +465,7 @@ submitSelection appState exportMode = do
       exportMode
 
 
-  putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
+  putText $ "Arguments for magick command:\n" <> (T.unlines convertArgs)
 
   correctAndWrite convertArgs
 
@@ -571,7 +572,8 @@ showProjectionMap pMap = pMap
 getConvertArgs
   :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
 getConvertArgs inPath outPath projMap shape exportMode =
-  [ (T.pack inPath)
+  [ "convert"
+  , (T.pack inPath)
   , "-auto-orient"
   , "-define", "distort:viewport="
       <> (show $ fst shape) <> "x" <> (show $ snd shape) <> "+0+0"
@@ -608,21 +610,25 @@ correctAndWrite :: [Text] -> IO ()
 correctAndWrite args = do
   let
     conversionMode = CallConversion
-    convertBin = "./imagemagick/bin/convert"
+    magickBin = case os of
+      "darwin"  -> "./imagemagick/bin/magick"
+      "mingw32" -> "TODO"
+      _         -> "./magick"
 
   currentDir <- getCurrentDirectory
 
-  setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
-  setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
+  when (os == "darwin") $ do
+    setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
+    setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
 
   -- TODO: Add CLI flag to switch between them
   case conversionMode of
     CallConversion -> do
-      callProcess convertBin (fmap T.unpack args)
+      callProcess magickBin (fmap T.unpack args)
       putText $ "✅ Successfully saved converted image"
 
     SpawnConversion -> do
-      _ <- spawnProcess convertBin (fmap T.unpack args)
+      _ <- spawnProcess magickBin (fmap T.unpack args)
       putText $ "✅ Successfully initiated conversion"
 
   pure ()

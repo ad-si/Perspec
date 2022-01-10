@@ -12,7 +12,6 @@ extra-deps:
 
 flags:
   gloss:
-    GLFW: true
-    GLUT: false
+    glfw: true
 
 allow-newer: true

@@ -66,11 +66,33 @@ jobs:
             libxrandr-dev
             libxxf86vm-dev
 
-      - name: Install Perspec CLI tool
+      - name: Download bundable ImageMagick AppImage
+        run:
+          curl -L -O
+            https://download.imagemagick.org/ImageMagick/download/binaries/magick &&
+          chmod +x ./magick
+
+      - name: Build Perspec CLI tool
         run: make perspec
+
+      - name: Install AppImage
+        run:
+          curl -L -O \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage &&
+          chmod +x linuxdeploy-x86_64.AppImage
+
+      - name: Build AppImage
+        run:
+          linuxdeploy-x86_64.AppImage
+            --executable $(which perspec)
+            --appdir ./AppDir
+            --output appimage
+            --desktop-file ./.desktop
+            --icon-file $(pwd)/images/icon_padded_white_512.png &&
+          mv *.AppImage Perspec_x86_64.AppImage
 
       - name: Upload Linux Release
         uses: actions/upload-artifact@v2
         with:
-          path: /home/runner/.local/bin/perspec
-          name: perspec-app_linux_x86_64
+          path: ./Perspec_x86_64.AppImage
+          name: Perspec_x86_64.AppImage

@@ -1,8 +1,9 @@
 /.stack-work
 /imagemagick
 /imagemagick.tar.gz
+/images/*-fixed.*
+/images/*.bmp
+/magick
 /Perspec.app
 /perspec.cabal
-/images/*.bmp
-/images/*-fixed.*
 /Perspec_macOS_*
