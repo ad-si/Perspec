@@ -14,7 +14,7 @@ main :: IO ()
 main = hspec $ do
   describe "Perspec" $ do
     describe "Lib" $ do
-      it "Applies EXIF rotation" $ do
+      it "Applies EXIF rotation to JPEGs" $ do
         pictureMetadataEither <- loadImage "images/doc_rotated.jpg"
 
         case pictureMetadataEither of
@@ -27,6 +27,19 @@ main = hspec $ do
             metadataText `shouldContain` "TagOrientation :=> ExifShort 6"
             metadataText `shouldContain` "(TagUnknown 40962) :=> ExifLong 880"
             metadataText `shouldContain` "(TagUnknown 40963) :=> ExifLong 1500"
+
+          _ -> expectationFailure "File should have been loaded"
+
+      it "Applies EXIF rotation to PNGs" $ do
+        pictureMetadataEither <- loadImage "images/rotated.png"
+
+        case pictureMetadataEither of
+          Right ((Bitmap bitmapData), {- metadata -} _) -> do
+            bitmapSize bitmapData `shouldBe` (1800,1280)
+
+            pendingWith "Needs to be implemented upstream in Juicy.Pixels first"
+            -- https://github.com/Twinside/Juicy.Pixels/issues/204
+            -- or in hsexif: https://github.com/emmanueltouzery/hsexif/issues/19
 
           _ -> expectationFailure "File should have been loaded"
 
