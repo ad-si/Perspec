@@ -14,8 +14,6 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.Environment
 import Graphics.Gloss.Interface.IO.Game as Gl
 import Graphics.Gloss.Juicy
-import System.Directory
-import System.Environment
 import System.FilePath
 import System.Process
 import System.Info (os)
@@ -465,7 +463,7 @@ submitSelection appState exportMode = do
       exportMode
 
 
-  putText $ "Arguments for magick command:\n" <> (T.unlines convertArgs)
+  putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
 
   correctAndWrite convertArgs
 
@@ -572,8 +570,7 @@ showProjectionMap pMap = pMap
 getConvertArgs
   :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
 getConvertArgs inPath outPath projMap shape exportMode =
-  [ "convert"
-  , (T.pack inPath)
+  [ (T.pack inPath)
   , "-auto-orient"
   , "-define", "distort:viewport="
       <> (show $ fst shape) <> "x" <> (show $ snd shape) <> "+0+0"
@@ -611,21 +608,39 @@ correctAndWrite args = do
   let
     conversionMode = CallConversion
     magickBin = case os of
-      "darwin"  -> "./imagemagick/bin/magick"
-      "mingw32" -> "TODO"
-      _         -> "./magick"
+      "darwin"  -> "TODO_bundle_imagemagick"
+      "mingw32" -> "TODO_implement"
+      _         -> "TODO_bundle_imagemagick"
 
-  currentDir <- getCurrentDirectory
 
-  when (os == "darwin") $ do
-    setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
-    setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
+  -- TODO: Reactivate when ImageMagick is correctly bundled
+  -- currentDir <- getCurrentDirectory
+  -- when (os == "darwin") $ do
+  --   setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
+  --   setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
+
+  let
+    argsNorm = ("convert" : args) <&> T.unpack
+    successMessage = "✅ Successfully saved converted image"
 
   -- TODO: Add CLI flag to switch between them
   case conversionMode of
     CallConversion -> do
-      callProcess magickBin (fmap T.unpack args)
-      putText $ "✅ Successfully saved converted image"
+      resultBundled <- try $ callProcess magickBin argsNorm
+
+      case resultBundled of
+        Right _ -> putText successMessage
+        Left (_ :: IOException) -> do
+          putText "Uses global installation of ImageMagick"
+          resultMagick <- try $ callProcess "convert" (args <&> T.unpack)
+
+          case resultMagick of
+            Right _ -> putText successMessage
+            Left (error :: IOException) -> do
+              print error
+              putText $
+                "⚠️  Please install ImageMagick first: "
+                <> "https://imagemagick.org/script/download.php"
 
     SpawnConversion -> do
       _ <- spawnProcess magickBin (fmap T.unpack args)
