@@ -83,7 +83,7 @@ jobs:
 
       - name: Build AppImage
         run:
-          linuxdeploy-x86_64.AppImage
+          ./linuxdeploy-x86_64.AppImage
             --executable $(which perspec)
             --appdir ./AppDir
             --output appimage
