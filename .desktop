@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Perspec
 Type=Application
-Icon=/home/parallels/Projects/Perspec/images/icon_padded_white_512.png
+Icon=icon_padded_white_512
 Exec=perspec
 Categories=Graphics;ImageProcessing;RasterGraphics;Photography;Scanning
