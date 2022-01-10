@@ -33,6 +33,12 @@ cornCircRadius = 6
 cornCircThickness :: Float
 cornCircThickness = 4
 
+numGridLines :: Int
+numGridLines = 7
+
+gridColor :: Color
+gridColor = makeColor 0.2 1 0.7 0.6
+
 sidebarPaddingTop :: Int
 sidebarPaddingTop = 50
 
@@ -213,12 +219,41 @@ getWordSprite spriteText =
 
 drawCorner :: Point -> Picture
 drawCorner (x, y) = Translate x y
-  (color green $ ThickCircle cornCircRadius cornCircThickness)
+  (color gridColor $ ThickCircle cornCircRadius cornCircThickness)
 
 
 drawEdges :: [Point] -> Picture
 drawEdges points =
-  color (makeColor 0.2 1 0.5 0.4) $ Polygon points
+  color gridColor $ lineLoop points
+
+
+drawGrid :: [Point] -> Picture
+drawGrid [p1, p2, p3, p4] =
+  let
+    numSegments = fromIntegral $ numGridLines + 1
+
+    getLinePoint :: Int -> Int -> Point -> Point -> Point
+    getLinePoint sgmnts idx pA pB =
+      let fraction = 1 / fromIntegral sgmnts
+      in
+        ( fst pA + (fst pB - fst pA) * ((fromIntegral idx) * fraction)
+        , snd pA + (snd pB - snd pA) * ((fromIntegral idx) * fraction)
+        )
+
+    getGridLineVert num = color gridColor $ Line
+      [ getLinePoint numSegments num p1 p2
+      , getLinePoint numSegments num p4 p3
+      ]
+
+    getGridLineHor num = color gridColor $ Line
+      [ getLinePoint numSegments num p1 p4
+      , getLinePoint numSegments num p2 p3
+      ]
+  in
+    Pictures
+      $ ([1..numGridLines] <&> getGridLineVert)
+      <> ([1..numGridLines] <&> getGridLineHor)
+drawGrid _ = mempty
 
 
 drawSidebar :: Int -> Int -> Int -> Picture
@@ -281,6 +316,7 @@ makePicture appState =
                 (appState&scaleFactor)
                 (appState&image)
             , (appState&corners) & drawEdges
+            , (appState&corners) & drawGrid
             ]
             <> ((appState&corners) <&> drawCorner)
           )

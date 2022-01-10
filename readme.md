@@ -43,13 +43,13 @@ For example whiteboards, document scans, or facades.
 
 ## App Workflow
 
-Step | Description                          | Result
------|--------------------------------------|--------
-1    | Take photos                          | ![Original image][doc]
-2    | Open Perspec                         | ![Opened Perspec App][open]
-3    | Drop the images onto the window      | ![Dropped image][dropped]
-4    | Mark the corners by clicking on them | ![Marked corners][corners]
-5    | Click save button (or [Enter])       | ![Corrected image][fixed]
+Step | Description                                | Result
+-----|--------------------------------------------|------------------
+1    | Take photos                                | ![Original image][doc]
+2    | Open Perspec app                           | ![Opened Perspec App][open]
+3    | Drop the images onto the window            | ![Dropped image][dropped]
+4    | Mark the corners by clicking on them       | ![Marked corners][corners]
+5    | Click one of the save buttons (or [Enter]) | ![Corrected image][fixed]
 
 [doc]: images/doc.jpg
 [mark]: images/doc-marking.jpg

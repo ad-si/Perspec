@@ -42,6 +42,8 @@ svg2icns icon.svg
 ## New Release
 
 - [ ] Bump version number
+- [ ] Create new release on GitHub
+  - [ ] Download artifacts, fix file permission, zip them, add them to release
 - [ ] Update the [cask file]
 - [ ] Update version on [Gumroad]
 
