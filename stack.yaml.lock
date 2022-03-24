@@ -3,42 +3,53 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-snapshots:
-- original: lts-18.20
-  completed:
-    sha256: 8699812d2b2c1f83d6ad1261de9cf628ed36a1cfc14f19d67188e005e7a3a39d
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/20.yaml
-    size: 586106
 packages:
-- original:
-    hackage: docopt-0.7.0.7
-  completed:
-    pantry-tree:
-      sha256: ddbc99124865b40574cd5834c51ae33adaf81f833e8b841b2c5325d521b552d1
-      size: 1179
+- completed:
     hackage: docopt-0.7.0.7@sha256:a3d2eac54cd77d8c0b306ff96fb57be55542f143d81766aa1ae51458ad790dbe,3655
-- original:
-    git: https://github.com/hpacheco/gloss-juicy
-    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
-  completed:
     pantry-tree:
-      sha256: 48286cf4c310a07ae5ca7d3b3b9c0d995c24b4195191006562d70c52a24a6f8e
-      size: 373
+      size: 1179
+      sha256: ddbc99124865b40574cd5834c51ae33adaf81f833e8b841b2c5325d521b552d1
+  original:
+    hackage: docopt-0.7.0.7
+- completed:
+    name: gloss-juicy
     version: 0.2.4
     git: https://github.com/hpacheco/gloss-juicy
-    name: gloss-juicy
+    pantry-tree:
+      size: 373
+      sha256: 48286cf4c310a07ae5ca7d3b3b9c0d995c24b4195191006562d70c52a24a6f8e
     commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
-- original:
-    hackage: gloss-1.13.2.1
-  completed:
-    pantry-tree:
-      sha256: 1bcac9962bad9412bfb3c3a694fcdaae7097ee4071b03fc1dc5ab6047baad01b
-      size: 3807
+  original:
+    git: https://github.com/hpacheco/gloss-juicy
+    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
+- completed:
     hackage: gloss-1.13.2.1@sha256:273d02d30e1896932d45424dab6022a16986c0ed3eef6937776b5f40854ce51c,4075
-- original:
-    hackage: hsexif-0.6.1.8
-  completed:
     pantry-tree:
-      sha256: 0ce5093c9d5e41218e6fc01efe068213e6b297f27e1abbafc9918f82b660b864
-      size: 1120
+      size: 3807
+      sha256: 1bcac9962bad9412bfb3c3a694fcdaae7097ee4071b03fc1dc5ab6047baad01b
+  original:
+    hackage: gloss-1.13.2.1
+- completed:
     hackage: hsexif-0.6.1.8@sha256:8c213fc9a6ab0c959e68e5be736b19cb157739f784e24d63a0824dfb02687d76,2275
+    pantry-tree:
+      size: 1120
+      sha256: 0ce5093c9d5e41218e6fc01efe068213e6b297f27e1abbafc9918f82b660b864
+  original:
+    hackage: hsexif-0.6.1.8
+- completed:
+    name: protolude
+    version: 0.3.1
+    git: https://github.com/protolude/protolude
+    pantry-tree:
+      size: 3146
+      sha256: 685ed0191298da9540e772ffa746eb078d4f4a77ed8012a9933d3c79644b1054
+    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
+  original:
+    git: https://github.com/protolude/protolude
+    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
+snapshots:
+- completed:
+    size: 616897
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/19/0.yaml
+    sha256: bbf2be02f17940bac1f87cb462d4fb0c3355de6dcfc53d84f4f9ad3ee2164f65
+  original: lts-19.0
