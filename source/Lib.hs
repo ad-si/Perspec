@@ -14,6 +14,8 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.Environment
 import Graphics.Gloss.Interface.IO.Game as Gl
 import Graphics.Gloss.Juicy
+import System.Directory (getCurrentDirectory)
+import System.Environment (setEnv)
 import System.FilePath
 import System.Process
 import System.Info (os)
@@ -73,7 +75,7 @@ loadImage filePath = do
 
   case picMetaMaybe of
     Nothing -> do
-      if elem fileExtension allowedExtensions
+      if P.elem fileExtension allowedExtensions
       then pure $ Left "Error: Image couldn't be loaded"
       else pure $ Left $ "Error: File extension \""
                           <> T.pack fileExtension
@@ -650,19 +652,18 @@ getConvertArgs inPath outPath projMap shape exportMode =
 
 correctAndWrite :: [Text] -> IO ()
 correctAndWrite args = do
+  currentDir <- getCurrentDirectory
+
   let
     conversionMode = CallConversion
     magickBin = case os of
-      "darwin"  -> "TODO_bundle_imagemagick"
+      "darwin"  -> currentDir ++ "/imagemagick/bin/magick"
       "mingw32" -> "TODO_implement"
       _         -> "TODO_bundle_imagemagick"
 
-
-  -- TODO: Reactivate when ImageMagick is correctly bundled
-  -- currentDir <- getCurrentDirectory
-  -- when (os == "darwin") $ do
-  --   setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
-  --   setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
+  when (os == "darwin") $ do
+    setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
+    setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
 
   let
     argsNorm = ("convert" : args) <&> T.unpack
