@@ -26,5 +26,12 @@ printf "
  "
 
 else
-  ./perspec fix "$@"
+  # TODO: Loop should not be necessary,
+  #   but Perspec doesn't support several files at once yet
+  #   ./perspec fix "$@"
+
+  for file in "$@"
+  do
+    ./perspec fix "$file"
+  done
 fi
