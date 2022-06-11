@@ -9,7 +9,7 @@ import Codec.Picture.Metadata.Exif (ExifTag(..), ExifData(ExifShort))
 import qualified Data.ByteString.Lazy as BL
 import Data.FileEmbed
 import Data.List as DL (minimum, elemIndex, findIndex)
-import Data.Text as T
+import qualified Data.Text as T
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Environment
 import Graphics.Gloss.Interface.IO.Game as Gl
@@ -732,7 +732,7 @@ loadAndStart config filePath = do
                               _   -> sizeTuple
 
       putText $
-        "Loaded file " <> (pack filePath) <> " " <> (show (imgWdth,imgHgt))
+        "Loaded file " <> (T.pack filePath) <> " " <> (show (imgWdth,imgHgt))
       putText $
         "with a rotation of " <> (show rotation) <> " degrees."
 
