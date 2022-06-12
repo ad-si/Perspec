@@ -57,8 +57,10 @@ jobs:
       - name: Install dependencies
         run:
           sudo apt install
+            freeglut3
             imagemagick
             libgl1-mesa-dev
+            libglfw3
             libglu1-mesa-dev
             libxcursor-dev
             libxi-dev

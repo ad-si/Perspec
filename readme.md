@@ -62,10 +62,9 @@ Step | Description                                | Result
 ## Installation
 
 **WARNING:**
-Perspec currently only works on macOS.
+Perspec currently only works on macOS and Linux.
 Any help to make it work on
-Linux [(Ticket)](https://github.com/feramhq/Perspec/issues/13)
-and Microsoft [(Ticket)](https://github.com/feramhq/Perspec/issues/21)
+Microsoft [(Ticket)](https://github.com/feramhq/Perspec/issues/21)
 would be greatly appreciated!
 
 
