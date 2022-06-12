@@ -88,7 +88,7 @@ jobs:
           ./linuxdeploy-x86_64.AppImage
             --executable $(which perspec)
             --library /usr/lib/x86_64-linux-gnu/libglut.so.3
-            --library /usr/lib/x86_64-linux-gnu/libglfw3.so
+            --library /usr/lib/x86_64-linux-gnu/libglfw.so.3
             --appdir ./AppDir
             --output appimage
             --desktop-file ./.desktop
