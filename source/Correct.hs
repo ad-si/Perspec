@@ -7,85 +7,17 @@ module Correct where
 
 import Protolude as P
 
--- base
-import Data.Maybe
-
 -- hip
-import Graphics.Image hiding (V2, (!), V3)
+import Graphics.Image hiding ((!))
 
 -- hmatrix
-import Numeric.LinearAlgebra
-       (linearSolve, linearSolveSVD, (!), (><))
+import Numeric.LinearAlgebra (linearSolve, linearSolveSVD, (!), (><))
 
 -- lens
 import Control.Lens hiding (transform)
 
 -- linear
 import Linear
-
-import Graphics.Color.Space (Alpha, SRGB, Linearity(Linear))
-
-
--- massiv
-import Data.Massiv.Core.Index (Sz(..), Sz2, Ix2(Ix2, (:.)))
-import Data.Massiv.Array (S)
-
--- optparse-applicative
-import qualified Options.Applicative as Options
-import Options.Applicative ((<**>))
-
-data Options = Options
-  { inputPath :: FilePath
-  , outputPath :: FilePath
-  , cornersClockwiseFromTopLeft :: V4 (V2 Double)
-  }
-
-
-
-main :: IO ()
-main =
-  Options.execParser
-    (Options.info (optionsParser <**> Options.helper) mempty)
-  >>=
-  \Options
-    { inputPath
-    , outputPath
-    , cornersClockwiseFromTopLeft
-    } -> do
-  uncorrected <- readImageRGBA inputPath
-
-  let size@(Sz (height :. width)) =
-        determineSize cornersClockwiseFromTopLeft
-
-      correctionTransform =
-        calculatePerspectiveTransform
-          ( fmap fromIntegral <$>
-             V4
-              (V2 0 0)
-              (V2 width 0)
-              (V2 width height)
-              (V2 0 height)
-          )
-          cornersClockwiseFromTopLeft
-
-      corrected :: Image (Alpha (SRGB 'Linear) ) Double
-      corrected =
-        transform
-        (\sourceSize -> (size, sourceSize))
-        (\(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol ) ->
-            let V3 colCrd rowCrd p =
-
-                    correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
-
-                colCrd' = max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
-
-                rowCrd' = max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
-
-            in interpolate Bilinear getPixel (rowCrd', colCrd')
-        )
-        uncorrected
-
-  writeImage outputPath corrected
 
 
 determineSize :: V4 (V2 Double) -> Sz2
@@ -94,7 +26,6 @@ determineSize (V4 c1 c2 c3 c4) = Sz ((round height) :. (round width))
     diagonalA = c3 ^-^ c1
     diagonalB = c4 ^-^ c2
     V2 width height = (abs diagonalA ^+^ abs diagonalB) / 2
-
 
 
 -- /* Calculates coefficients of perspective transformation
@@ -126,14 +57,14 @@ calculatePerspectiveTransform :: V4 (V2 Double) -> V4 (V2 Double) -> M33 Double
 calculatePerspectiveTransform s d =
   let
     a = (8><8)
-        [ s ^. _x . _x  , s ^. _x . _y , 1 , 0            , 0            , 0, negate(s ^. _x . _x * d ^. _x . _x), negate(s ^. _x . _y * d ^. _x . _x)
-        , s ^. _y . _x  , s ^. _y . _y , 1 , 0            , 0            , 0, negate(s ^. _y . _x * d ^. _y . _x), negate(s ^. _y . _y * d ^. _y . _x)
-        , s ^. _z . _x  , s ^. _z . _y , 1 , 0            , 0            , 0, negate(s ^. _z . _x * d ^. _z . _x), negate(s ^. _z . _y * d ^. _z . _x)
-        , s ^. _w . _x  , s ^. _w . _y , 1 , 0            , 0            , 0, negate(s ^. _w . _x * d ^. _w . _x), negate(s ^. _w . _y * d ^. _w . _x)
-        , 0             , 0            , 0 , s ^. _x . _x , s ^. _x . _y , 1, negate(s ^. _x . _x * d ^. _x . _y), negate(s ^. _x . _y * d ^. _x . _y)
-        , 0             , 0            , 0 , s ^. _y . _x , s ^. _y . _y , 1, negate(s ^. _y . _x * d ^. _y . _y), negate(s ^. _y . _y * d ^. _y . _y)
-        , 0             , 0            , 0 , s ^. _z . _x , s ^. _z . _y , 1, negate(s ^. _z . _x * d ^. _z . _y), negate(s ^. _z . _y * d ^. _z . _y)
-        , 0             , 0            , 0 , s ^. _w . _x , s ^. _w . _y , 1, negate(s ^. _w . _x * d ^. _w . _y), negate(s ^. _w . _y * d ^. _w . _y)
+        [ s ^. _x . _x  , s ^. _x . _y , 1 ,            0 ,            0 , 0, negate(s ^. _x . _x * d ^. _x . _x), negate(s ^. _x . _y * d ^. _x . _x)
+        , s ^. _y . _x  , s ^. _y . _y , 1 ,            0 ,            0 , 0, negate(s ^. _y . _x * d ^. _y . _x), negate(s ^. _y . _y * d ^. _y . _x)
+        , s ^. _z . _x  , s ^. _z . _y , 1 ,            0 ,            0 , 0, negate(s ^. _z . _x * d ^. _z . _x), negate(s ^. _z . _y * d ^. _z . _x)
+        , s ^. _w . _x  , s ^. _w . _y , 1 ,            0 ,            0 , 0, negate(s ^. _w . _x * d ^. _w . _x), negate(s ^. _w . _y * d ^. _w . _x)
+        ,            0  ,            0 , 0 , s ^. _x . _x , s ^. _x . _y , 1, negate(s ^. _x . _x * d ^. _x . _y), negate(s ^. _x . _y * d ^. _x . _y)
+        ,            0  ,            0 , 0 , s ^. _y . _x , s ^. _y . _y , 1, negate(s ^. _y . _x * d ^. _y . _y), negate(s ^. _y . _y * d ^. _y . _y)
+        ,            0  ,            0 , 0 , s ^. _z . _x , s ^. _z . _y , 1, negate(s ^. _z . _x * d ^. _z . _y), negate(s ^. _z . _y * d ^. _z . _y)
+        ,            0  ,            0 , 0 , s ^. _w . _x , s ^. _w . _y , 1, negate(s ^. _w . _x * d ^. _w . _y), negate(s ^. _w . _y * d ^. _w . _y)
         ]
     b = (8><1)
         [ d ^. _x . _x
@@ -150,38 +81,3 @@ calculatePerspectiveTransform s d =
       (V3 (m ! 0 ! 0) (m ! 1 ! 0) (m ! 2 ! 0))
       (V3 (m ! 3 ! 0) (m ! 4 ! 0) (m ! 5 ! 0))
       (V3 (m ! 6 ! 0) (m ! 7 ! 0) 1)
-
-
-optionsParser :: Options.Parser Options
-optionsParser = do
-  inputPath <-
-    Options.strOption
-      ( mconcat
-         [ Options.long "input"
-         , Options.help "The path to the input file"
-         ]
-      )
-
-  outputPath <-
-    Options.strOption
-      ( mconcat
-         [ Options.long "output"
-         , Options.help "The path to the output file"
-         ]
-      )
-
-  (tl, tr, br, bl) <-
-    Options.option Options.auto
-      ( mconcat
-         [ Options.long "corners"
-         , Options.help "The corners clockwise from top left '((x,y), (x,y), (x,y), (x,y))'"
-         ]
-      )
-  pure
-    Options
-    { cornersClockwiseFromTopLeft =
-        let toV2 :: (Int, Int) -> V2 Double
-            toV2 (x,y) = fromIntegral <$> V2 x y
-        in V4 (toV2 tl) (toV2 tr) (toV2 br) (toV2 bl)
-    , ..
-    }

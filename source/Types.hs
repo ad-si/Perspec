@@ -8,6 +8,7 @@ import Graphics.Gloss
 
 data Config = Config
   { licenseKey :: Text
+  , transformAppFlag :: TransformApp
   }
   deriving (Generic, Show)
 
@@ -16,6 +17,7 @@ data Config = Config
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> do
     licenseKey <- o .:? "licenseKey" .!= ""
+    transformAppFlag <- o .:? "transformAppFlag" .!= ImageMagick
     pure $ Config {..}
 
 
@@ -46,6 +48,18 @@ type ProjMap =
 data ConversionMode
   = CallConversion
   | SpawnConversion
+
+
+data TransformApp
+  = ImageMagick
+  | Hip
+  deriving (Show, Eq)
+
+instance FromJSON TransformApp where
+  parseJSON = withText "TransformApp" $ \txt ->
+    case txt of
+      "Hip" -> return Hip
+      _     -> return ImageMagick
 
 
 data RenameMode
@@ -99,6 +113,7 @@ data AppState = AppState
   , inputPath :: FilePath
   , outputPath :: FilePath
   , scaleFactor :: Float
+  , transformApp :: TransformApp
 
   , isRegistered :: Bool
   , bannerIsVisible :: Bool
@@ -139,6 +154,7 @@ initialState = AppState
   , inputPath = ""
   , outputPath = ""
   , scaleFactor = 1
+  , transformApp = ImageMagick
 
   , isRegistered = False
   , bannerIsVisible = False

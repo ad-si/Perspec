@@ -17,7 +17,7 @@ import System.FilePath ((</>))
 import Data.Text as T (pack, unpack, isInfixOf)
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
 
-import Lib
+import Lib (loadAndStart)
 import Rename
 import Types
 
@@ -33,6 +33,19 @@ getArgOrExit = getArgOrExitWith patterns
 execWithArgs :: Config -> [[Char]] -> IO ()
 execWithArgs config cliArgs = do
   args <- parseArgsOrExit patterns cliArgs
+
+  when (args `isPresent` (command "fastfix")) $ do
+    let files = args `getAllArgs` (argument "file")
+
+    filesAbs <- sequence $ files <&> makeAbsolute
+
+    let file = case filesAbs of
+          [x] -> x
+          x : _ -> x
+          _ -> "This branch should not be reachable"
+
+    loadAndStart (config { transformAppFlag = Hip }) file
+
 
   when (args `isPresent` (command "fix")) $ do
     let files = args `getAllArgs` (argument "file")

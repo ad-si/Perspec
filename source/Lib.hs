@@ -1,3 +1,5 @@
+{-# language DataKinds #-}
+
 module Lib where
 
 import Protolude as P
@@ -19,8 +21,12 @@ import System.Environment (setEnv)
 import System.FilePath
 import System.Process
 import System.Info (os)
-
+-- hip
+import Graphics.Image hiding ((!))
+-- linear
+import Linear (V2(V2), V3(V3), V4(V4), M33, (!*))
 import Types
+import Correct (calculatePerspectiveTransform, determineSize)
 
 
 -- | This is replaced with valid licenses during CI build
@@ -38,7 +44,7 @@ cornCircThickness = 4
 numGridLines :: Int
 numGridLines = 7
 
-gridColor :: Color
+gridColor :: Gl.Color
 gridColor = makeColor 0.2 1 0.7 0.6
 
 sidebarPaddingTop :: Int
@@ -132,6 +138,7 @@ startApp config inPath outPath imgWdth imgHgt rota pic = do
       , image = pic
       , inputPath = inPath
       , outputPath = outPath
+      , transformApp = config&transformAppFlag
       , isRegistered = isRegistered
       , bannerIsVisible = not $ isRegistered
       }
@@ -509,10 +516,18 @@ submitSelection appState exportMode = do
       targetShape
       exportMode
 
+  if (appState&transformApp) == ImageMagick
+  then
+    putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
+  else
+    putText $ "Write file to " <> (show $ appState&outputPath)
 
-  putText $ "Arguments for convert command:\n" <> (T.unlines convertArgs)
-
-  correctAndWrite convertArgs
+  correctAndWrite
+    (appState&transformApp)
+    (appState&inputPath)
+    (appState&outputPath)
+    projectionMapNorm
+    convertArgs
 
   exitSuccess
 
@@ -650,49 +665,107 @@ getConvertArgs inPath outPath projMap shape exportMode =
   ]
 
 
-correctAndWrite :: [Text] -> IO ()
-correctAndWrite args = do
+correctAndWrite
+  :: TransformApp
+  -> FilePath
+  -> FilePath
+  -> ProjMap
+  -> [Text]
+  -> IO ()
+correctAndWrite transformApp inputPath outputPath ((bl,_),(tl,_),(tr,_),(br,_)) args = do
   currentDir <- getCurrentDirectory
 
-  let
-    conversionMode = CallConversion
-    magickBin = case os of
-      "darwin"  -> currentDir ++ "/imagemagick/bin/magick"
-      "mingw32" -> "TODO_implement"
-      _         -> "TODO_bundle_imagemagick"
+  case transformApp of
+    ImageMagick -> do
+      let
+        conversionMode = CallConversion
+        magickBin = case os of
+          "darwin"  -> currentDir ++ "/imagemagick/bin/magick"
+          "mingw32" -> "TODO_implement"
+          _         -> "TODO_bundle_imagemagick"
 
-  when (os == "darwin") $ do
-    setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
-    setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
+      when (os == "darwin") $ do
+        setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
+        setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
 
-  let
-    argsNorm = ("convert" : args) <&> T.unpack
-    successMessage = "✅ Successfully saved converted image"
+      let
+        argsNorm = ("convert" : args) <&> T.unpack
+        successMessage = "✅ Successfully saved converted image"
 
-  -- TODO: Add CLI flag to switch between them
-  case conversionMode of
-    CallConversion -> do
-      resultBundled <- try $ callProcess magickBin argsNorm
+      -- TODO: Add CLI flag to switch between them
+      case conversionMode of
+        CallConversion -> do
+          resultBundled <- try $ callProcess magickBin argsNorm
 
-      case resultBundled of
-        Right _ -> putText successMessage
-        Left (_ :: IOException) -> do
-          putText "Uses global installation of ImageMagick"
-          resultMagick <- try $ callProcess "convert" (args <&> T.unpack)
-
-          case resultMagick of
+          case resultBundled of
             Right _ -> putText successMessage
-            Left (error :: IOException) -> do
-              print error
-              putText $
-                "⚠️  Please install ImageMagick first: "
-                <> "https://imagemagick.org/script/download.php"
+            Left (_ :: IOException) -> do
+              putText "Uses global installation of ImageMagick"
+              resultMagick <- try $ callProcess "convert" (args <&> T.unpack)
 
-    SpawnConversion -> do
-      _ <- spawnProcess magickBin (fmap T.unpack args)
-      putText $ "✅ Successfully initiated conversion"
+              case resultMagick of
+                Right _ -> putText successMessage
+                Left (error :: IOException) -> do
+                  print error
+                  putText $
+                    "⚠️  Please install ImageMagick first: "
+                    <> "https://imagemagick.org/script/download.php"
+
+        SpawnConversion -> do
+          _ <- spawnProcess magickBin (fmap T.unpack args)
+          putText $ "✅ Successfully initiated conversion"
+
+    Hip -> do
+      uncorrected <- readImageRGBA inputPath
+
+      let
+
+        cornersClockwiseFromTopLeft :: V4 (V2 Double)
+        cornersClockwiseFromTopLeft =
+          let
+            toV2 :: (Float, Float) -> V2 Double
+            toV2 (x,y) = realToFrac <$> V2 x y
+          in
+            V4 (toV2 tl) (toV2 tr) (toV2 br) (toV2 bl)
+
+        correctionTransform :: M33 Double
+        correctionTransform =
+          calculatePerspectiveTransform
+            ( fmap fromIntegral <$>
+              V4
+                (V2 0 0)
+                (V2 width 0)
+                (V2 width height)
+                (V2 0 height)
+            )
+            cornersClockwiseFromTopLeft
+
+        size :: Sz Ix2
+        size@(Sz (height :. width)) =
+          determineSize cornersClockwiseFromTopLeft
+
+        corrected :: Image (Alpha (SRGB 'Linear) ) Double
+        corrected =
+          transform
+          (\sourceSize -> (size, sourceSize))
+          (\(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol ) ->
+              let V3 colCrd rowCrd p =
+
+                      correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
+
+                  colCrd' = max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
+
+                  rowCrd' = max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
+
+              in interpolate Bilinear getPixel (rowCrd', colCrd')
+          )
+          uncorrected
+
+      writeImage outputPath corrected
 
   pure ()
+
+
 
 
 imgOrientToRot :: ExifData -> Float
