@@ -6,15 +6,26 @@ packages:
 extra-deps:
   - docopt-0.7.0.7
 
-  - git: https://github.com/hpacheco/gloss-juicy
+  - github: hpacheco/gloss-juicy
     commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
+
+  - github: lehins/hip
+    commit: ddfc77feb21722babccd3b3aa73c4c3d41268f54
+    subdirs:
+      - hip
+
+  - github: lehins/Color
+    commit: ec833edd8f9b15543855c00826c4ede470773f83
+    subdirs:
+      - Color
 
   - gloss-1.13.2.1
 
   - hsexif-0.6.1.8
 
-  - git: https://github.com/protolude/protolude
-    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
+  - massiv-io-1.0.0.1
+
+  - protolude-0.3.1
 
 flags:
   gloss:

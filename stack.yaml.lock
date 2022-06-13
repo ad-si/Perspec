@@ -12,16 +12,42 @@ packages:
   original:
     hackage: docopt-0.7.0.7
 - completed:
+    sha256: 0ece997eb15a5d48f8782064d31ce2bb0ad3fbc782df83c6a10fad1c6e4efef5
     name: gloss-juicy
+    size: 4652
+    url: https://github.com/hpacheco/gloss-juicy/archive/acbdfd864b7e574dfbe1595fbdcd154563b2a0ef.tar.gz
     pantry-tree:
       sha256: 48286cf4c310a07ae5ca7d3b3b9c0d995c24b4195191006562d70c52a24a6f8e
       size: 373
-    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
-    git: https://github.com/hpacheco/gloss-juicy
     version: 0.2.4
   original:
-    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
-    git: https://github.com/hpacheco/gloss-juicy
+    url: https://github.com/hpacheco/gloss-juicy/archive/acbdfd864b7e574dfbe1595fbdcd154563b2a0ef.tar.gz
+- completed:
+    sha256: 28ed9b657c5bd2eed0ea08cc2d06aea24a89a949e7b5f1babcdf6e2c69d0c0be
+    name: hip
+    subdir: hip
+    size: 13585656
+    url: https://github.com/lehins/hip/archive/ddfc77feb21722babccd3b3aa73c4c3d41268f54.tar.gz
+    pantry-tree:
+      sha256: 53735040ab8bfe0221f9ee71e3f5cee0b9b11a73926c400a906e6a9cbc1b3864
+      size: 2896
+    version: 2.0.0.0
+  original:
+    subdir: hip
+    url: https://github.com/lehins/hip/archive/ddfc77feb21722babccd3b3aa73c4c3d41268f54.tar.gz
+- completed:
+    sha256: eb956cbe9fd5d0d7d9eea7d13bdddb2a26734cba3537904b7585a0fb7da4cbc5
+    name: Color
+    subdir: Color
+    size: 125805
+    url: https://github.com/lehins/Color/archive/ec833edd8f9b15543855c00826c4ede470773f83.tar.gz
+    pantry-tree:
+      sha256: 4eb4766d2fa2eccf58b735a034e9a73d471a89448248ffb9ccf8eb3738a18523
+      size: 17484
+    version: 0.4.0
+  original:
+    subdir: Color
+    url: https://github.com/lehins/Color/archive/ec833edd8f9b15543855c00826c4ede470773f83.tar.gz
 - completed:
     pantry-tree:
       sha256: 1bcac9962bad9412bfb3c3a694fcdaae7097ee4071b03fc1dc5ab6047baad01b
@@ -37,16 +63,19 @@ packages:
   original:
     hackage: hsexif-0.6.1.8
 - completed:
-    name: protolude
     pantry-tree:
-      sha256: 685ed0191298da9540e772ffa746eb078d4f4a77ed8012a9933d3c79644b1054
-      size: 3146
-    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
-    git: https://github.com/protolude/protolude
-    version: 0.3.1
+      sha256: 0182e62b51787c9fc09ebd3ce00b32f6b64b19de79ebff43abf1248883b98639
+      size: 2023
+    hackage: massiv-io-1.0.0.1@sha256:36772f6a178514458cc68a7d5079d0c6d34321ad394ec9046e2676a2c665e831,4123
   original:
-    commit: 3e249724fd0ead27370c8c297b1ecd38f92cbd5b
-    git: https://github.com/protolude/protolude
+    hackage: massiv-io-1.0.0.1
+- completed:
+    pantry-tree:
+      sha256: 6452a6ca8d395f7d810139779bb0fd16fc1dbb00f1862630bc08ef5a100430f9
+      size: 1645
+    hackage: protolude-0.3.1@sha256:1cc9e5a5c26c33a43c52b554443dd9779fef13974eaa0beec7ca6d2551b400da,2647
+  original:
+    hackage: protolude-0.3.1
 snapshots:
 - completed:
     sha256: 61540db3d2df1a56c223c80aafbe3173ad52dc4d3bf16c627c687b4fab1716fb

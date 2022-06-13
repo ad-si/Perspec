@@ -21,14 +21,22 @@ dependencies:
   - base >= 4.7 && < 5
   - bmp
   - bytestring
+  - Color
   - directory
   - docopt
   - file-embed
   - filepath
   - gloss
   - gloss-juicy
+  - hip
+  - hmatrix
   - JuicyPixels
+  - lens
+  - linear
+  - massiv
+  - massiv-io
   - natural-sort
+  - optparse-applicative
   - process
   - protolude
   - text
