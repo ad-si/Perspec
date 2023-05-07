@@ -44,13 +44,17 @@ dependencies:
 
 default-extensions:
   - DeriveGeneric
+  - DuplicateRecordFields
+  - ImportQualifiedPost
   - LambdaCase
   - NamedFieldPuns
   - NoImplicitPrelude
+  - OverloadedRecordDot
   - OverloadedStrings
   - RecordWildCards
   - ScopedTypeVariables
   - TemplateHaskell
+  - TupleSections
 
 ghc-options:
   - -Wall

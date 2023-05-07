@@ -1,3 +1,8 @@
+.PHONY: help
+help: makefile
+	@tail -n +4 makefile | grep ".PHONY"
+
+
 Perspec.app: ~/.local/bin/perspec imagemagick
 	platypus \
 		--name Perspec \
