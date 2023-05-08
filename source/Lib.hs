@@ -2,7 +2,7 @@
 
 module Lib where
 
-import Protolude as P (
+import Protolude (
   Applicative (pure),
   Bool (..),
   ByteString,
@@ -12,7 +12,6 @@ import Protolude as P (
   FilePath,
   Float,
   Floating (sqrt),
-  Foldable (elem, length),
   Fractional ((/)),
   Functor (fmap),
   IO,
@@ -29,24 +28,19 @@ import Protolude as P (
   const,
   either,
   exitSuccess,
-  find,
   flip,
   fromIntegral,
   fromMaybe,
   fromRight,
   fst,
   not,
-  print,
   putText,
   realToFrac,
-  reverse,
   show,
   snd,
   swap,
   try,
   when,
-  zip,
-  zipWith,
   ($),
   (&),
   (&&),
@@ -54,15 +48,18 @@ import Protolude as P (
   (<$>),
   (<&>),
  )
+import Protolude qualified as P
 
 import Codec.BMP (parseBMP)
 import Codec.Picture (decodePng)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
+import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as TSE
 import Graphics.Gloss (
   BitmapData (bitmapSize),
   Display (InWindow),
@@ -109,9 +106,10 @@ import System.FilePath (
   replaceExtension,
   takeBaseName,
   takeExtension,
+  (</>),
  )
 import System.Info (os)
-import System.Process (callProcess, spawnProcess)
+import System.Process (callProcess, readProcessWithExitCode, spawnProcess)
 
 -- hip
 import Graphics.Image (
@@ -156,6 +154,7 @@ import Types (
   ),
   Config (transformAppFlag),
   ConversionMode (CallConversion, SpawnConversion),
+  Coordinate (..),
   Corner,
   CornersTup,
   ExportMode (..),
@@ -267,6 +266,63 @@ calculateSizes appState =
       }
 
 
+-- | Get initial corner positions by shelling out to a Python script
+getInitialCorners :: AppState -> FilePath -> IO [Corner]
+getInitialCorners appState inPath = do
+  currentDir <- getCurrentDirectory
+
+  let
+    wdthFrac = fromIntegral $ appState.imgWidthOrig
+    hgtFrac = fromIntegral $ appState.imgHeightOrig
+
+    pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
+    pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
+
+  -- Run the Python script
+  let
+    pyScriptPath =
+      if os == "mingw32"
+        then pyScriptPathWindows
+        else pyScriptPathMac
+
+  (exitCode, stdout, stderr) <-
+    readProcessWithExitCode pyScriptPath ["corners", inPath] ""
+
+  if exitCode == P.ExitSuccess
+    then do
+      let
+        -- Parse JSON output in stdout with Aeson in the form of:
+        -- [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}]
+        corners :: Maybe [Coordinate] =
+          Aeson.decode $ BL.fromStrict (TSE.encodeUtf8 $ T.pack stdout)
+
+      pure $
+        corners
+          & fromMaybe []
+          & P.map (\coord -> (coord.x, coord.y))
+          -- convert to correct coord system
+          & originAtCenter appState.imgWidthOrig appState.imgHeightOrig
+          & scalePoints (1 / appState.scaleFactor)
+    else do
+      P.putErrLn stderr
+
+      let
+        -- Initial distance of the corners from the image border
+        distance = 0.1
+
+      pure
+        $ originTopLeft
+          (-appState.imgWidthTrgt)
+          appState.imgHeightTrgt
+        $ scalePoints (1 / appState.scaleFactor)
+        $ P.reverse
+          [ (wdthFrac * distance, hgtFrac * distance)
+          , (wdthFrac * (1 - distance), hgtFrac * distance)
+          , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
+          , (wdthFrac * distance, hgtFrac * (1 - distance))
+          ]
+
+
 startApp
   :: Config
   -> FilePath
@@ -280,7 +336,6 @@ startApp config inPath outPath imgWdth imgHgt rota pic = do
   (screenWidth, screenHeight) <- getScreenSize
 
   let
-    distance = 0.1 -- Initial distance of the corners from the image border
     isRegistered = True -- (config&licenseKey) `elem` licenses
     stateWithSizes =
       calculateSizes $
@@ -296,24 +351,10 @@ startApp config inPath outPath imgWdth imgHgt rota pic = do
           , bannerIsVisible = not isRegistered
           }
 
-  let
-    wdthFrac = fromIntegral $ stateWithSizes.imgWidthOrig
-    hgtFrac = fromIntegral $ stateWithSizes.imgHeightOrig
+  corners <- getInitialCorners stateWithSizes inPath
 
-    stateWithImage =
-      stateWithSizes
-        { corners =
-            originTopLeft
-              (-stateWithSizes.imgWidthTrgt)
-              stateWithSizes.imgHeightTrgt
-              $ scalePoints (1 / stateWithSizes.scaleFactor)
-              $ P.reverse
-                [ (wdthFrac * distance, hgtFrac * distance)
-                , (wdthFrac * (1 - distance), hgtFrac * distance)
-                , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
-                , (wdthFrac * distance, hgtFrac * (1 - distance))
-                ]
-        }
+  let
+    stateWithImage = stateWithSizes{corners = corners}
 
     initialX =
       ((fromIntegral screenWidth :: Float) / 2)
@@ -625,13 +666,24 @@ toCounterClock :: (a, a, a, a) -> (a, a, a, a)
 toCounterClock (tl, tr, br, bl) = (tl, bl, br, tr)
 
 
--- | Fix weird gloss coordinate system
+-- | Transform from origin in center to origin in top left
 originTopLeft :: Int -> Int -> [Point] -> [Point]
 originTopLeft width height =
   fmap
     ( \(x, y) ->
         ( x + (fromIntegral width / 2.0)
         , -(y - (fromIntegral height / 2.0))
+        )
+    )
+
+
+-- | Transform from origin in top left to origin in center
+originAtCenter :: Int -> Int -> [Point] -> [Point]
+originAtCenter width height =
+  fmap
+    ( \(x, y) ->
+        ( -((fromIntegral width / 2.0) - x)
+        , (fromIntegral height / 2.0) - y
         )
     )
 
@@ -643,7 +695,7 @@ scalePoints scaleFac = fmap $
 
 getCorners :: AppState -> [Point]
 getCorners appState =
-  scalePoints (scaleFactor appState) $
+  scalePoints appState.scaleFactor $
     originTopLeft
       appState.imgWidthTrgt
       appState.imgHeightTrgt
@@ -901,7 +953,7 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
               case resultMagick of
                 Right _ -> putText successMessage
                 Left (error :: IOException) -> do
-                  print error
+                  P.putErrLn $ P.displayException error
                   putText $
                     "⚠️  Please install ImageMagick first: "
                       <> "https://imagemagick.org/script/download.php"

@@ -13,6 +13,7 @@ Perspec.app: ~/.local/bin/perspec imagemagick
 		--bundled-file ~/.local/bin/perspec \
 		--bundled-file app-aux-files/Credits.html \
 		--bundled-file imagemagick \
+		--bundled-file scripts \
 		--bundle-identifier org.adrian.Perspec \
 		--droppable \
 		--optimize-nib \
