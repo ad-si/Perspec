@@ -300,9 +300,9 @@ getInitialCorners appState inPath = do
         corners
           & fromMaybe []
           & P.map (\coord -> (coord.x, coord.y))
-          -- convert to correct coord system
           & originAtCenter appState.imgWidthOrig appState.imgHeightOrig
           & scalePoints (1 / appState.scaleFactor)
+          & P.reverse
     else do
       P.putErrLn stderr
 
