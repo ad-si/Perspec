@@ -55,11 +55,16 @@ jobs:
           enable-stack: true
           stack-no-global: true
 
+      - name: Add apt repository for libfuse2
+        run:
+          sudo add-apt-repository universe
+
       - name: Install dependencies
         run:
           sudo apt install
             freeglut3
             imagemagick
+            libfuse2
             libgl1-mesa-dev
             libglfw3
             libglu1-mesa-dev
@@ -68,9 +73,6 @@ jobs:
             libxinerama-dev
             libxrandr-dev
             libxxf86vm-dev
-
-          sudo add-apt-repository universe
-          sudo apt install libfuse2
 
       - name: Download bundable ImageMagick AppImage
         run:
