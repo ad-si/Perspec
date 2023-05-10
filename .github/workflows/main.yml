@@ -69,6 +69,9 @@ jobs:
             libxrandr-dev
             libxxf86vm-dev
 
+          sudo add-apt-repository universe
+          sudo apt install libfuse2
+
       - name: Download bundable ImageMagick AppImage
         run:
           curl -L -O
