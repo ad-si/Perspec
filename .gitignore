@@ -4,7 +4,8 @@
 /images/*-fixed.*
 /images/*.bmp
 /magick
+/ml-test
+/Perspec_macOS_*
 /Perspec.app
 /perspec.cabal
-/Perspec_macOS_*
 /scripts/perspectra

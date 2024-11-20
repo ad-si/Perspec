@@ -1,10 +1,10 @@
-resolver: lts-20.20
+resolver: lts-22.42
 
 packages:
   - .
 
 extra-deps:
-  - docopt-0.7.0.7
+  - docopt-0.7.0.8
 
   - github: hpacheco/gloss-juicy
     commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
@@ -18,14 +18,6 @@ extra-deps:
     commit: ec833edd8f9b15543855c00826c4ede470773f83
     subdirs:
       - Color
-
-  - gloss-1.13.2.1
-
-  - hsexif-0.6.1.8
-
-  - massiv-io-1.0.0.1
-
-  - protolude-0.3.1
 
 flags:
   gloss:

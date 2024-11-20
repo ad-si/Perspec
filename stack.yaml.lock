@@ -5,12 +5,12 @@
 
 packages:
 - completed:
-    hackage: docopt-0.7.0.7@sha256:a3d2eac54cd77d8c0b306ff96fb57be55542f143d81766aa1ae51458ad790dbe,3655
+    hackage: docopt-0.7.0.8@sha256:b88ca348766430101ff1d1ca230ea9038a9fcd63aa3f042a4b95ceab207357e5,3352
     pantry-tree:
-      sha256: ddbc99124865b40574cd5834c51ae33adaf81f833e8b841b2c5325d521b552d1
+      sha256: 55d4b40116a7b5d4213f25bae39688941fc59e85d9d74922248803f21817a02c
       size: 1179
   original:
-    hackage: docopt-0.7.0.7
+    hackage: docopt-0.7.0.8
 - completed:
     name: gloss-juicy
     pantry-tree:
@@ -48,37 +48,9 @@ packages:
   original:
     subdir: Color
     url: https://github.com/lehins/Color/archive/ec833edd8f9b15543855c00826c4ede470773f83.tar.gz
-- completed:
-    hackage: gloss-1.13.2.1@sha256:273d02d30e1896932d45424dab6022a16986c0ed3eef6937776b5f40854ce51c,4075
-    pantry-tree:
-      sha256: 1bcac9962bad9412bfb3c3a694fcdaae7097ee4071b03fc1dc5ab6047baad01b
-      size: 3807
-  original:
-    hackage: gloss-1.13.2.1
-- completed:
-    hackage: hsexif-0.6.1.8@sha256:8c213fc9a6ab0c959e68e5be736b19cb157739f784e24d63a0824dfb02687d76,2275
-    pantry-tree:
-      sha256: 0ce5093c9d5e41218e6fc01efe068213e6b297f27e1abbafc9918f82b660b864
-      size: 1120
-  original:
-    hackage: hsexif-0.6.1.8
-- completed:
-    hackage: massiv-io-1.0.0.1@sha256:36772f6a178514458cc68a7d5079d0c6d34321ad394ec9046e2676a2c665e831,4123
-    pantry-tree:
-      sha256: 0182e62b51787c9fc09ebd3ce00b32f6b64b19de79ebff43abf1248883b98639
-      size: 2023
-  original:
-    hackage: massiv-io-1.0.0.1
-- completed:
-    hackage: protolude-0.3.1@sha256:1cc9e5a5c26c33a43c52b554443dd9779fef13974eaa0beec7ca6d2551b400da,2647
-    pantry-tree:
-      sha256: 6452a6ca8d395f7d810139779bb0fd16fc1dbb00f1862630bc08ef5a100430f9
-      size: 1645
-  original:
-    hackage: protolude-0.3.1
 snapshots:
 - completed:
-    sha256: 126fa33ceb11f5e85ceb4e86d434756bd9a8439e2e5776d306a15fbc63b01e89
-    size: 650041
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/20.yaml
-  original: lts-20.20
+    sha256: 3e184a8f5e751ba159db999ce1bebe45143ce8422b525b4d2de6d9b849d203c9
+    size: 720269
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/22/42.yaml
+  original: lts-22.42

@@ -7,15 +7,16 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-11
           - macos-12
           - macos-13
+          - macos-14
+          - macos-15
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Setup Stack
-        uses: haskell/actions/setup@v1
+        uses: haskell-actions/setup@v2
         with:
           enable-stack: true
           stack-no-global: true
@@ -45,12 +46,12 @@ jobs:
           name: perspec-app_${{ matrix.os }}_x86_64
 
   linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Setup Stack
-        uses: haskell/actions/setup@v1
+        uses: haskell-actions/setup@v2
         with:
           enable-stack: true
           stack-no-global: true
