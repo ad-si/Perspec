@@ -40,7 +40,7 @@ jobs:
         run: mkdir artifact && mv Perspec.app artifact
 
       - name: Upload MacOS Release
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: artifact
           name: perspec-app_${{ matrix.os }}_x86_64
@@ -103,7 +103,7 @@ jobs:
           mv Perspec-*-x86_64.AppImage Perspec_x86_64.AppImage
 
       - name: Upload Linux Release
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ./Perspec_x86_64.AppImage
           name: Perspec_x86_64.AppImage
