@@ -22,7 +22,7 @@ jobs:
           stack-no-global: true
 
       - name: Install Platypus
-        run: brew install platypus
+        run: brew install --cask platypus
 
       - name: Install ImageMagick
         run: brew install imagemagick
