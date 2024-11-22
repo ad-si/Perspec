@@ -2,25 +2,24 @@
 
 module Main where
 
-import Protolude as P (
+import Protolude (
   Bool (True),
   Char,
   Either (Left, Right),
   IO,
   Maybe (Just, Nothing),
   Monad ((>>=)),
-  Traversable (sequence),
   die,
   getArgs,
   otherwise,
   reads,
-  sequence_,
   when,
   writeFile,
   ($),
   (&),
   (<&>),
  )
+import Protolude qualified as P
 
 import Data.Text as T (isInfixOf, pack, unpack)
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
@@ -70,10 +69,13 @@ execWithArgs :: Config -> [[Char]] -> IO ()
 execWithArgs config cliArgs = do
   args <- parseArgsOrExit patterns cliArgs
 
+  when (args `isPresent` command "gui") $ do
+    loadAndStart config Nothing
+
   when (args `isPresent` command "fastfix") $ do
     let files = args `getAllArgs` argument "file"
 
-    filesAbs <- sequence $ files <&> makeAbsolute
+    filesAbs <- files & P.mapM makeAbsolute
 
     let
       file = case filesAbs of
@@ -81,14 +83,14 @@ execWithArgs config cliArgs = do
         x : _ -> x
         _ -> "This branch should not be reachable"
 
-    loadAndStart (config{transformAppFlag = Hip}) file
+    loadAndStart (config{transformAppFlag = Hip}) (Just file)
 
   when (args `isPresent` command "fix") $ do
     let files = args `getAllArgs` argument "file"
 
-    filesAbs <- sequence $ files <&> makeAbsolute
+    filesAbs <- files & P.mapM makeAbsolute
 
-    sequence_ $ filesAbs <&> loadAndStart config
+    filesAbs <&> Just & P.mapM_ (loadAndStart config)
 
   when (args `isPresent` command "rename") $ do
     directory <- args `getArgOrExit` argument "directory"
@@ -123,17 +125,17 @@ execWithArgs config cliArgs = do
           sortOrder
           (files <&> pack)
 
-    sequence_ $
-      renamingBatches
-        <&> ( \renamings -> do
-                sequence_ $
-                  renamings
-                    <&> ( \(file, target) ->
-                            renameFile
-                              (directory </> unpack file)
-                              (directory </> unpack target)
-                        )
-            )
+    renamingBatches
+      & P.mapM_
+        ( \renamings ->
+            renamings
+              & P.mapM_
+                ( \(file, target) ->
+                    renameFile
+                      (directory </> unpack file)
+                      (directory </> unpack target)
+                )
+        )
 
 
 main :: IO ()

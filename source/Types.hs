@@ -25,7 +25,7 @@ import Data.Aeson (
   (.:),
   (.:?),
  )
-import Graphics.Gloss (Picture (Blank), Point)
+import Brillo (Picture (Blank), Point)
 
 
 data Config = Config
@@ -148,9 +148,14 @@ data UiComponent
   deriving (Show)
 
 
+data View = HomeView | ImageView | BannerView
+  deriving (Show)
+
+
 -- | State of app
 data AppState = AppState
-  { tickCounter :: Int
+  { currentView :: View
+  , tickCounter :: Int
   , corners :: [Corner]
   -- ^ Reversed to order of addition
   -- ^ (0, 0) is center of coordinate system
@@ -164,8 +169,8 @@ data AppState = AppState
   , imgWidthTrgt :: Int
   , imgHeightTrgt :: Int
   , rotation :: Float
-  , inputPath :: FilePath
-  , outputPath :: FilePath
+  , inputPath :: Maybe FilePath
+  , outputPath :: Maybe FilePath
   , scaleFactor :: Float -- TODO: Should be smaller than 1
   , transformApp :: TransformApp
   , isRegistered :: Bool
@@ -186,7 +191,8 @@ sidebarInitialWidth = 150
 initialState :: AppState
 initialState =
   AppState
-    { tickCounter = 0
+    { currentView = HomeView
+    , tickCounter = 0
     , corners = []
     , cornerDragged = Nothing
     , image = Blank
@@ -197,8 +203,8 @@ initialState =
     , imgWidthTrgt = 0
     , imgHeightTrgt = 0
     , rotation = 0
-    , inputPath = ""
-    , outputPath = ""
+    , inputPath = Nothing
+    , outputPath = Nothing
     , scaleFactor = 1
     , transformApp = ImageMagick
     , isRegistered = False

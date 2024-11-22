@@ -2,8 +2,8 @@ import Test.Hspec
 
 import Protolude
 
-import Graphics.Gloss.Data.Bitmap (bitmapSize)
-import Graphics.Gloss.Data.Picture (Picture(Bitmap))
+import Brillo.Data.Bitmap (bitmapSize)
+import Brillo.Data.Picture (Picture(Bitmap))
 
 import Lib
 import Rename

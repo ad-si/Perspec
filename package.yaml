@@ -9,6 +9,7 @@ copyright: Adrian Sieber
 extra-source-files:
   - readme.md
   - changelog.md
+  - cbits/tinyfiledialogs.h
 
 synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
@@ -16,18 +17,20 @@ category: Scan
 description: |
   Please see the readme on GitHub at <https://github.com/feramhq/Perspec#readme>
 
+language: GHC2021
+
 dependencies:
   - aeson
   - base >= 4.7 && < 5
   - bmp
+  - brillo
+  - brillo-juicy
   - bytestring
   - Color
   - directory
   - docopt
   - file-embed
   - filepath
-  - gloss
-  - gloss-juicy
   - hip
   - hmatrix
   - JuicyPixels
@@ -43,18 +46,13 @@ dependencies:
   - yaml
 
 default-extensions:
-  - DeriveGeneric
   - DuplicateRecordFields
-  - ImportQualifiedPost
   - LambdaCase
-  - NamedFieldPuns
   - NoImplicitPrelude
   - OverloadedRecordDot
   - OverloadedStrings
   - RecordWildCards
-  - ScopedTypeVariables
   - TemplateHaskell
-  - TupleSections
 
 ghc-options:
   - -Wall
@@ -66,6 +64,10 @@ ghc-options:
 
 library:
   source-dirs: source
+  build-tools: c2hs
+  c-sources: cbits/tinyfiledialogs.c
+  include-dirs: cbits/
+  cc-options: -DHSFORCECONSOLE=0
 
 executables:
   perspec:

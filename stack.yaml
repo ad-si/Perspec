@@ -6,9 +6,6 @@ packages:
 extra-deps:
   - docopt-0.7.0.8
 
-  - github: hpacheco/gloss-juicy
-    commit: acbdfd864b7e574dfbe1595fbdcd154563b2a0ef
-
   - github: lehins/hip
     commit: ddfc77feb21722babccd3b3aa73c4c3d41268f54
     subdirs:
@@ -19,8 +16,12 @@ extra-deps:
     subdirs:
       - Color
 
-flags:
-  gloss:
-    glfw: true
+  - github: ad-si/Brillo
+    commit: 932dd2c20e713591d4658a8b7cc0b00478d3e70b
+    subdirs:
+      - brillo
+      - brillo-algorithms
+      - brillo-juicy
+      - brillo-rendering
 
 allow-newer: true

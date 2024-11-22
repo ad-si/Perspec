@@ -5,28 +5,23 @@ module Lib where
 import Protolude (
   Applicative (pure),
   Bool (..),
-  ByteString,
   Double,
-  Either (..),
+  Either(Left, Right),
   Eq ((==)),
   FilePath,
   Float,
   Floating (sqrt),
   Fractional ((/)),
   Functor (fmap),
+  Int,
   IO,
   IOException,
-  Int,
   Maybe (Just, Nothing),
-  Monad ((>>=)),
   Monoid (mempty),
   Num ((*), (+), (-)),
   Ord (max, min, (<), (>)),
-  RealFrac (round),
   Semigroup ((<>)),
   Text,
-  const,
-  either,
   exitSuccess,
   flip,
   fromIntegral,
@@ -38,7 +33,6 @@ import Protolude (
   realToFrac,
   show,
   snd,
-  swap,
   try,
   when,
   ($),
@@ -51,31 +45,16 @@ import Protolude (
 import Protolude qualified as P
 
 import Codec.BMP (parseBMP)
-import Codec.Picture (decodePng)
-import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
-import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TSE
-import Graphics.Gloss (
-  BitmapData (bitmapSize),
+import Brillo (
   Display (InWindow),
-  Picture (
-    Bitmap,
-    BitmapSection,
-    Line,
-    Pictures,
-    Rotate,
-    Scale,
-    ThickArc,
-    ThickCircle,
-    Translate
-  ),
+  Picture ( Line, Pictures, Scale, ThickArc, ThickCircle, Translate ),
   Point,
-  Rectangle (Rectangle, rectPos, rectSize),
   bitmapOfBMP,
   black,
   color,
@@ -85,8 +64,8 @@ import Graphics.Gloss (
   pictures,
   rectangleSolid,
  )
-import Graphics.Gloss.Interface.Environment (getScreenSize)
-import Graphics.Gloss.Interface.IO.Game as Gl (
+import Brillo.Interface.Environment (getScreenSize)
+import Brillo.Interface.IO.Game as Gl (
   Color,
   Event (..),
   Key (MouseButton, SpecialKey),
@@ -95,19 +74,10 @@ import Graphics.Gloss.Interface.IO.Game as Gl (
   SpecialKey (KeyEnter, KeyEsc),
   playIO,
  )
-import Graphics.Gloss.Juicy (
-  fromDynamicImage,
-  loadJuicyWithMetadata,
- )
+import Home (handleHomeEvent)
 import System.Directory (getCurrentDirectory)
 import System.Environment (setEnv)
-import System.FilePath (
-  replaceBaseName,
-  replaceExtension,
-  takeBaseName,
-  takeExtension,
-  (</>),
- )
+import System.FilePath ( replaceExtension, (</>), )
 import System.Info (os)
 import System.Process (callProcess, readProcessWithExitCode, spawnProcess)
 
@@ -131,27 +101,7 @@ import Graphics.Image (
 import Correct (calculatePerspectiveTransform, determineSize)
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 import Types (
-  AppState (
-    appHeight,
-    appWidth,
-    bannerIsVisible,
-    cornerDragged,
-    corners,
-    image,
-    imgHeightOrig,
-    imgHeightTrgt,
-    imgWidthOrig,
-    imgWidthTrgt,
-    inputPath,
-    isRegistered,
-    outputPath,
-    rotation,
-    scaleFactor,
-    sidebarWidth,
-    tickCounter,
-    transformApp,
-    uiComponents
-  ),
+  AppState (..),
   Config (transformAppFlag),
   ConversionMode (CallConversion, SpawnConversion),
   Coordinate (..),
@@ -161,8 +111,14 @@ import Types (
   ProjMap,
   TransformApp (..),
   UiComponent (Button, Select, text),
+  View (..),
   initialState,
  )
+import Utils (
+  getWordSprite, calcInitWindowPos,
+  loadFileIntoState,
+  scalePoints, originTopLeft, getCorners, calculateSizes
+  )
 
 
 -- | This is replaced with valid licenses during CI build
@@ -209,61 +165,6 @@ bannerImage =
   fromRight mempty $
     bitmapOfBMP
       <$> parseBMP (BL.fromStrict $(embedFile "images/banner.bmp"))
-
-
-loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))
-loadImage filePath = do
-  picMetaMaybe <- loadJuicyWithMetadata filePath
-
-  let
-    allowedExtensions =
-      [ ".jpeg"
-      , ".jpg"
-      , ".png"
-      , ".bmp"
-      , ".gif"
-      , ".hdr"
-      ]
-    fileExtension = takeExtension filePath
-
-  case picMetaMaybe of
-    Nothing -> do
-      if P.elem fileExtension allowedExtensions
-        then pure $ Left "Error: Image couldn't be loaded"
-        else
-          pure $
-            Left $
-              "Error: File extension \""
-                <> T.pack fileExtension
-                <> "\" is not supported"
-    Just (picture, metadata) ->
-      pure $ Right (picture, metadata)
-
-
-calculateSizes :: AppState -> AppState
-calculateSizes appState =
-  let
-    imgViewWidth = appState.appWidth - appState.sidebarWidth
-    imgViewHeight = appState.appHeight
-
-    imgWidthFrac = fromIntegral $ appState.imgWidthOrig
-    imgHeightFrac = fromIntegral $ appState.imgHeightOrig
-
-    scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
-    scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
-
-    scaleFactor = min scaleFactorX scaleFactorY
-    imgWidthTrgt = round $ scaleFactor * imgWidthFrac
-    imgHeightTrgt = round $ scaleFactor * imgHeightFrac
-  in
-    appState
-      { imgWidthTrgt
-      , imgHeightTrgt
-      , scaleFactor
-      , corners =
-          originTopLeft (-imgWidthTrgt) imgHeightTrgt $
-            scalePoints (1 / scaleFactor) (getCorners appState)
-      }
 
 
 -- | Get initial corner positions by shelling out to a Python script
@@ -323,67 +224,62 @@ getInitialCorners appState inPath = do
           ]
 
 
-startApp
-  :: Config
-  -> FilePath
-  -> FilePath
-  -> Int
-  -> Int
-  -> Float
-  -> Picture
-  -> IO ()
-startApp config inPath outPath imgWdth imgHgt rota pic = do
-  (screenWidth, screenHeight) <- getScreenSize
+appStateToWindow :: (Int, Int) -> AppState -> Display
+appStateToWindow screenSize appState = do
+  let appSize = (appState.appWidth, appState.appHeight)
 
-  let
-    isRegistered = True -- (config&licenseKey) `elem` licenses
-    stateWithSizes =
-      calculateSizes $
-        initialState
-          { imgWidthOrig = imgWdth
-          , imgHeightOrig = imgHgt
-          , rotation = rota
-          , image = pic
-          , inputPath = inPath
-          , outputPath = outPath
-          , transformApp = config.transformAppFlag
-          , isRegistered = isRegistered
-          , bannerIsVisible = not isRegistered
-          }
+  case appState.currentView of
+    HomeView -> do
+      InWindow "Perspec - Select a file" appSize
+        (calcInitWindowPos screenSize appSize)
 
-  corners <- getInitialCorners stateWithSizes inPath
+    ImageView -> do
+      case appState.inputPath of
+        Nothing -> InWindow "SHOULD NOT BE POSSIBLE" (100, 100) (0, 0)
+        Just inPath ->
+          InWindow
+            ( "Perspec - "
+                <> inPath
+                <> if appState.isRegistered
+                  then mempty
+                  else " - ⚠️ NOT REGISTERED"
+            )
+            appSize
+            (calcInitWindowPos screenSize appSize)
 
-  let
-    stateWithImage = stateWithSizes{corners = corners}
+    BannerView ->
+      InWindow "Perspec - Banner" (800, 600) (10, 10)
 
-    initialX =
-      ((fromIntegral screenWidth :: Float) / 2)
-        - (fromIntegral stateWithSizes.appWidth / 2)
-    initialY =
-      ((fromIntegral screenHeight :: Float) / 2)
-        - (fromIntegral stateWithSizes.appHeight / 2)
 
-    window =
-      InWindow
-        ( "Perspec - "
-            <> inPath
-            <> if isRegistered
-              then mempty
-              else " - ⚠️ NOT REGISTERED"
-        )
-        (stateWithImage.appWidth, stateWithImage.appHeight)
-        (round initialX, round initialY)
+startApp :: AppState -> IO ()
+startApp appState = do
+  screenSize <- getScreenSize
 
-  putText "Starting the app …"
+  case (appState.inputPath, appState.outputPath) of
+    (Just inPath, Just _outPath) -> do
+      corners <- getInitialCorners appState inPath
+      let stateWithImage = appState{corners = corners}
 
-  playIO
-    window
-    black
-    ticksPerSecond
-    stateWithImage
-    makePicture
-    handleEvent
-    stepWorld
+      putText "Starting the app …"
+
+      playIO
+        (appStateToWindow screenSize stateWithImage)
+        black
+        ticksPerSecond
+        stateWithImage
+        makePicture
+        handleEvent
+        stepWorld
+
+    (_, _) -> do
+      playIO
+        (appStateToWindow screenSize appState)
+        black
+        ticksPerSecond
+        appState
+        makePicture
+        handleEvent
+        stepWorld
 
 
 stepWorld :: Float -> AppState -> IO AppState
@@ -394,39 +290,6 @@ stepWorld _ appState =
        )
     then pure appState{tickCounter = appState.tickCounter + 1}
     else pure appState{bannerIsVisible = False}
-
-
-wordsSprite :: ByteString
-wordsSprite = $(embedFile "images/words.png")
-
-
-wordsPic :: Picture
-wordsPic =
-  fromMaybe
-    mempty
-    ( either (const Nothing) Just (decodePng wordsSprite)
-        >>= fromDynamicImage
-    )
-
-
-getWordSprite :: Text -> Picture
-getWordSprite spriteText =
-  case wordsPic of
-    Bitmap bitmapData -> case spriteText of
-      "Save" ->
-        BitmapSection
-          Rectangle{rectPos = (0, 40), rectSize = (90, 20)}
-          bitmapData
-      "Save BW" ->
-        BitmapSection
-          Rectangle{rectPos = (0, 60), rectSize = (90, 20)}
-          bitmapData
-      "Save Gray" ->
-        BitmapSection
-          Rectangle{rectPos = (0, 80), rectSize = (90, 20)}
-          bitmapData
-      _ -> mempty
-    _ -> mempty
 
 
 drawCorner :: Point -> Picture
@@ -531,50 +394,68 @@ drawUiComponent appState uiComponent componentIndex =
 -- | Render the app state to a picture.
 makePicture :: AppState -> IO Picture
 makePicture appState =
-  let
-    appWidthInteg = fromIntegral $ appState.appWidth
-    sidebarWidthInteg = fromIntegral $ appState.sidebarWidth
-  in
-    pure $
-      Pictures $
-        ( ( [ Scale
-                appState.scaleFactor
-                appState.scaleFactor
-                appState.image
-            , appState.corners & drawEdges
-            , appState.corners & drawGrid
+  case appState.currentView of
+    HomeView -> do
+      let
+        fileSelectBtnWidth :: (Num a) => a
+        fileSelectBtnWidth = 120
+
+        fileSelectBtnHeight :: (Num a) => a
+        fileSelectBtnHeight = 40
+
+        uiElements =
+          pictures
+            [ color (greyN 0.2) $
+                rectangleSolid fileSelectBtnWidth fileSelectBtnHeight
+            , Translate 0 (-4) $ getWordSprite "Select Files"
             ]
-              <> (appState.corners <&> drawCorner)
+      pure uiElements
+    ImageView -> do
+      let
+        appWidthInteg = fromIntegral appState.appWidth
+        sidebarWidthInteg = fromIntegral appState.sidebarWidth
+
+      pure $
+        Pictures $
+          ( ( [ Scale
+                  appState.scaleFactor
+                  appState.scaleFactor
+                  appState.image
+              , appState.corners & drawEdges
+              , appState.corners & drawGrid
+              ]
+                <> (appState.corners <&> drawCorner)
+            )
+              <&> Translate (-(sidebarWidthInteg / 2.0)) 0
           )
-            <&> Translate (-sidebarWidthInteg / 2.0) 0
-        )
-          <> [ drawSidebar
-                appWidthInteg
-                appState.appHeight
-                appState.sidebarWidth
-             ]
-          <> P.zipWith (drawUiComponent appState) appState.uiComponents [0 ..]
-          <> [ if appState.bannerIsVisible
-                then Scale 0.5 0.5 bannerImage
-                else mempty
-             , if appState.bannerIsVisible
-                then
-                  Translate 300 (-250) $
-                    Scale 0.2 0.2 $
-                      ThickArc
-                        0 -- Start angle
-                        -- End angle
-                        ( ( fromIntegral appState.tickCounter
-                              / (bannerTime * fromIntegral ticksPerSecond)
+            <> [ drawSidebar
+                  appWidthInteg
+                  appState.appHeight
+                  appState.sidebarWidth
+               ]
+            <> P.zipWith (drawUiComponent appState) appState.uiComponents [0 ..]
+            <> [ if appState.bannerIsVisible
+                  then Scale 0.5 0.5 bannerImage
+                  else mempty
+               , if appState.bannerIsVisible
+                  then
+                    Translate 300 (-250) $
+                      Scale 0.2 0.2 $
+                        ThickArc
+                          0 -- Start angle
+                          -- End angle
+                          ( ( fromIntegral appState.tickCounter
+                                / (bannerTime * fromIntegral ticksPerSecond)
+                            )
+                              * 360
                           )
-                            * 360
-                        )
-                        50 -- Radius
-                        100 -- Thickness
-                        -- \$
-                        --     -
-                else mempty
-             ]
+                          50 -- Radius
+                          100 -- Thickness
+                          -- \$
+                          --     -
+                  else mempty
+               ]
+    BannerView -> pure $ Pictures []
 
 
 replaceElemAtIndex :: Int -> a -> [a] -> [a]
@@ -666,17 +547,6 @@ toCounterClock :: (a, a, a, a) -> (a, a, a, a)
 toCounterClock (tl, tr, br, bl) = (tl, bl, br, tr)
 
 
--- | Transform from origin in center to origin in top left
-originTopLeft :: Int -> Int -> [Point] -> [Point]
-originTopLeft width height =
-  fmap
-    ( \(x, y) ->
-        ( x + (fromIntegral width / 2.0)
-        , -(y - (fromIntegral height / 2.0))
-        )
-    )
-
-
 -- | Transform from origin in top left to origin in center
 originAtCenter :: Int -> Int -> [Point] -> [Point]
 originAtCenter width height =
@@ -686,20 +556,6 @@ originAtCenter width height =
         , (fromIntegral height / 2.0) - y
         )
     )
-
-
-scalePoints :: Float -> [Point] -> [Point]
-scalePoints scaleFac = fmap $
-  \(x, y) -> (x / scaleFac, y / scaleFac)
-
-
-getCorners :: AppState -> [Point]
-getCorners appState =
-  scalePoints appState.scaleFactor $
-    originTopLeft
-      appState.imgWidthTrgt
-      appState.imgHeightTrgt
-      (P.reverse $ corners appState)
 
 
 appCoordToImgCoord :: AppState -> Point -> Point
@@ -752,31 +608,37 @@ submitSelection appState exportMode = do
   putText $ "Target shape: " <> show targetShape
   putText $ "Marked corners: " <> show cornerTuple
 
-  let
-    convertArgs =
-      getConvertArgs
-        appState.inputPath
-        appState.outputPath
+  case (appState.inputPath, appState.outputPath) of
+    (Just inputPath, Just outputPath) -> do
+      let
+        convertArgs =
+          getConvertArgs
+            inputPath
+            outputPath
+            projectionMapNorm
+            targetShape
+            exportMode
+
+      if appState.transformApp == ImageMagick
+        then putText $ "Arguments for convert command:\n"
+          <> T.unlines convertArgs
+        else putText $ "Write file to " <> show appState.outputPath
+
+      correctAndWrite
+        appState.transformApp
+        inputPath
+        outputPath
         projectionMapNorm
-        targetShape
-        exportMode
+        convertArgs
 
-  if appState.transformApp == ImageMagick
-    then putText $ "Arguments for convert command:\n" <> T.unlines convertArgs
-    else putText $ "Write file to " <> show appState.outputPath
+      exitSuccess
 
-  correctAndWrite
-    appState.transformApp
-    appState.inputPath
-    appState.outputPath
-    projectionMapNorm
-    convertArgs
-
-  exitSuccess
+    (_, _) -> do
+      P.die "Input path and output path must be set before submitting"
 
 
-handleEvent :: Event -> AppState -> IO AppState
-handleEvent event appState =
+handleImageViewEvent :: Event -> AppState -> IO AppState
+handleImageViewEvent event appState =
   case event of
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
       -- Check if a UiComponent was clicked
@@ -862,6 +724,14 @@ handleEvent event appState =
       pure appState
 
 
+handleEvent :: Event -> AppState -> IO AppState
+handleEvent event appState =
+  case appState.currentView of
+    HomeView -> handleHomeEvent event appState
+    ImageView -> handleImageViewEvent event appState
+    BannerView -> pure appState
+
+
 -- FIXME: Don't rely on show implementation
 showProjectionMap :: ProjMap -> Text
 showProjectionMap pMap =
@@ -936,7 +806,7 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
         setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
 
       let
-        argsNorm = ("convert" : args) <&> T.unpack
+        argsNorm = ("magick" : args) <&> T.unpack
         successMessage = "✅ Successfully saved converted image"
 
       -- TODO: Add CLI flag to switch between them
@@ -948,7 +818,7 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
             Right _ -> putText successMessage
             Left (_ :: IOException) -> do
               putText "Uses global installation of ImageMagick"
-              resultMagick <- try $ callProcess "convert" (args <&> T.unpack)
+              resultMagick <- try $ callProcess "magick" (args <&> T.unpack)
 
               case resultMagick of
                 Right _ -> putText successMessage
@@ -1009,59 +879,22 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
 
   pure ()
 
-
-imgOrientToRot :: ExifData -> Float
-imgOrientToRot = \case
-  ExifShort 6 -> -90
-  ExifShort 1 -> 0
-  ExifShort 8 -> 90
-  ExifShort 3 -> 180
-  -- TODO: Also apply mirroring to image
-  ExifShort 5 -> -90
-  ExifShort 2 -> 0
-  ExifShort 7 -> 90
-  ExifShort 4 -> 180
-  _ -> 0
-
-
-loadAndStart :: Config -> FilePath -> IO ()
-loadAndStart config filePath = do
+loadAndStart :: Config -> Maybe FilePath -> IO ()
+loadAndStart config filePathMb= do
   let
-    outName = takeBaseName filePath <> "-fixed"
+    isRegistered = True -- (config&licenseKey) `elem` licenses
+    stateDraft =
+          initialState
+            { transformApp = config.transformAppFlag
+            , isRegistered = isRegistered
+            , bannerIsVisible = not isRegistered
+            }
 
-  pictureMetadataEither <- loadImage filePath
-
-  case pictureMetadataEither of
-    Left error -> putText error
-    Right (picture@(Bitmap bitmapData), metadata) -> do
-      let
-        rotation =
-          lookup (Exif TagOrientation) metadata
-            <&> imgOrientToRot
-            & fromMaybe 0
-        sizeTuple = bitmapSize bitmapData
-        (imgWdth, imgHgt) = case rotation of
-          90 -> swap sizeTuple
-          -90 -> swap sizeTuple
-          _ -> sizeTuple
-
-      putText $
-        "Loaded file " <> T.pack filePath <> " " <> show (imgWdth, imgHgt)
-      putText $
-        "with a rotation of " <> show rotation <> " degrees."
-
-      startApp
-        config
-        filePath
-        (replaceBaseName filePath outName)
-        imgWdth
-        imgHgt
-        rotation
-        (Rotate (-rotation) picture)
-    Right _ ->
-      putText $
-        "Error: Loaded file is not a Bitmap image. "
-          <> "This error should not be possible."
+  case filePathMb of
+    Nothing -> startApp stateDraft
+    Just filePath -> do
+      stateWithFile <- loadFileIntoState stateDraft filePath
+      startApp stateWithFile
 
 
 helpMessage :: Text

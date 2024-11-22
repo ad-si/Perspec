@@ -4,6 +4,7 @@ Correct the perspective of photos
 and rename them to match their page numbers.
 
 Usage:
+  perspec gui
   perspec fix <file>...
   perspec fastfix <file>...
   perspec rename [options] <directory>
