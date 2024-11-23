@@ -27,6 +27,7 @@ import Protolude (
   show,
   swap,
   ($),
+  (==),
   (&),
   (&&),
   (*),
@@ -50,10 +51,18 @@ import Brillo.Juicy (fromDynamicImage, loadJuicyWithMetadata)
 import Codec.Picture (decodePng)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as TSE
 import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
-import Types (AppState (..), View (..))
+import System.FilePath ((</>))
+import System.Process (readProcessWithExitCode)
+import System.Directory (getCurrentDirectory)
+import System.Info (os)
+
+import Types (AppState (..), Coordinate(..), Corner, View (..))
 
 
 wordsSprite :: ByteString
@@ -118,8 +127,8 @@ calcInitWindowPos (screenWidth, screenHeight) (appWidth, appHeight) = do
 
 
 -- | Transform from origin in center to origin in top left
-originTopLeft :: Int -> Int -> [Point] -> [Point]
-originTopLeft width height =
+transToOrigTopLeft :: Int -> Int -> [Point] -> [Point]
+transToOrigTopLeft width height =
   fmap
     ( \(x, y) ->
         ( x + (fromIntegral width / 2.0)
@@ -127,6 +136,15 @@ originTopLeft width height =
         )
     )
 
+-- | Transform from origin in top left to origin in center
+transToOrigAtCenter :: Int -> Int -> [Point] -> [Point]
+transToOrigAtCenter width height =
+  fmap
+    ( \(x, y) ->
+        ( -((fromIntegral width / 2.0) - x)
+        , (fromIntegral height / 2.0) - y
+        )
+    )
 
 scalePoints :: Float -> [Point] -> [Point]
 scalePoints scaleFac = fmap $
@@ -136,7 +154,7 @@ scalePoints scaleFac = fmap $
 getCorners :: AppState -> [Point]
 getCorners appState =
   scalePoints appState.scaleFactor $
-    originTopLeft
+    transToOrigTopLeft
       appState.imgWidthTrgt
       appState.imgHeightTrgt
       (P.reverse $ corners appState)
@@ -163,7 +181,7 @@ calculateSizes appState =
       , imgHeightTrgt
       , scaleFactor
       , corners =
-          originTopLeft (-imgWidthTrgt) imgHeightTrgt $
+          transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
             scalePoints (1 / scaleFactor) (getCorners appState)
       }
 
@@ -211,6 +229,63 @@ loadImage filePath = do
       pure $ Right (picture, metadata)
 
 
+-- | Get initial corner positions by shelling out to a Python script
+getInitialCorners :: AppState -> FilePath -> IO [Corner]
+getInitialCorners appState inPath = do
+  currentDir <- getCurrentDirectory
+
+  let
+    wdthFrac = fromIntegral appState.imgWidthOrig
+    hgtFrac = fromIntegral appState.imgHeightOrig
+
+    pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
+    pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
+
+  -- Run the Python script
+  let
+    pyScriptPath =
+      if os == "mingw32"
+        then pyScriptPathWindows
+        else pyScriptPathMac
+
+  (exitCode, stdout, stderr) <-
+    readProcessWithExitCode pyScriptPath ["corners", inPath] ""
+
+  if exitCode == P.ExitSuccess
+    then do
+      let
+        -- Parse JSON output in stdout with Aeson in the form of:
+        -- [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}]
+        corners :: Maybe [Coordinate] =
+          Aeson.decode $ BL.fromStrict (TSE.encodeUtf8 $ T.pack stdout)
+
+      pure $
+        corners
+          & fromMaybe []
+          & P.map (\coord -> (coord.x, coord.y))
+          & transToOrigAtCenter appState.imgWidthOrig appState.imgHeightOrig
+          & scalePoints (1 / appState.scaleFactor)
+          & P.reverse
+    else do
+      P.putErrLn stderr
+
+      let
+        -- Initial distance of the corners from the image border
+        distance = 0.1
+
+      pure
+        $ transToOrigTopLeft
+          (-appState.imgWidthTrgt)
+          appState.imgHeightTrgt
+        $ scalePoints (1 / appState.scaleFactor)
+        $ P.reverse
+          [ (wdthFrac * distance, hgtFrac * distance)
+          , (wdthFrac * (1 - distance), hgtFrac * distance)
+          , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
+          , (wdthFrac * distance, hgtFrac * (1 - distance))
+          ]
+
+
 loadFileIntoState :: AppState -> FilePath -> IO AppState
 loadFileIntoState appState filePath = do
   pictureMetadataEither <- loadImage filePath
@@ -231,6 +306,12 @@ loadFileIntoState appState filePath = do
           -90 -> swap sizeTuple
           _ -> sizeTuple
 
+      putText $
+        "Loaded file " <> T.pack filePath <> " " <> show (imgWdth, imgHgt)
+        <> " "
+        <> "with a rotation of " <> show rotation <> " degrees."
+
+      let
         stateWithSizes =
           calculateSizes $
             appState
@@ -243,12 +324,11 @@ loadFileIntoState appState filePath = do
               , outputPath = Just $ getOutPath filePath
               }
 
-      putText $
-        "Loaded file " <> T.pack filePath <> " " <> show (imgWdth, imgHgt)
-      putText $
-        "with a rotation of " <> show rotation <> " degrees."
+      corners <- getInitialCorners stateWithSizes filePath
+      let stateWithCorners = stateWithSizes{corners = corners}
 
-      pure stateWithSizes
+      pure stateWithCorners
+
     Right _ -> do
       putText $
         "Error: Loaded file is not a Bitmap image. "

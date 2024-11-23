@@ -70,18 +70,16 @@ import Brillo.Interface.IO.Game as Gl (
   playIO,
  )
 import Codec.BMP (parseBMP)
-import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as TSE
 import Home (handleHomeEvent)
 import System.Directory (getCurrentDirectory)
 import System.Environment (setEnv)
-import System.FilePath (replaceExtension, (</>))
+import System.FilePath (replaceExtension)
 import System.Info (os)
-import System.Process (callProcess, readProcessWithExitCode, spawnProcess)
+import System.Process (callProcess, spawnProcess)
 
 -- hip
 import Graphics.Image (
@@ -106,7 +104,6 @@ import Types (
   AppState (..),
   Config (transformAppFlag),
   ConversionMode (CallConversion, SpawnConversion),
-  Coordinate (..),
   Corner,
   CornersTup,
   ExportMode (..),
@@ -122,8 +119,6 @@ import Utils (
   getCorners,
   getWordSprite,
   loadFileIntoState,
-  originTopLeft,
-  scalePoints,
  )
 
 
@@ -174,63 +169,6 @@ bannerImage =
     (parseBMP (BL.fromStrict $(embedFile "images/banner.bmp")))
 
 
--- | Get initial corner positions by shelling out to a Python script
-getInitialCorners :: AppState -> FilePath -> IO [Corner]
-getInitialCorners appState inPath = do
-  currentDir <- getCurrentDirectory
-
-  let
-    wdthFrac = fromIntegral appState.imgWidthOrig
-    hgtFrac = fromIntegral appState.imgHeightOrig
-
-    pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
-    pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
-
-  -- Run the Python script
-  let
-    pyScriptPath =
-      if os == "mingw32"
-        then pyScriptPathWindows
-        else pyScriptPathMac
-
-  (exitCode, stdout, stderr) <-
-    readProcessWithExitCode pyScriptPath ["corners", inPath] ""
-
-  if exitCode == P.ExitSuccess
-    then do
-      let
-        -- Parse JSON output in stdout with Aeson in the form of:
-        -- [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}]
-        corners :: Maybe [Coordinate] =
-          Aeson.decode $ BL.fromStrict (TSE.encodeUtf8 $ T.pack stdout)
-
-      pure $
-        corners
-          & fromMaybe []
-          & P.map (\coord -> (coord.x, coord.y))
-          & originAtCenter appState.imgWidthOrig appState.imgHeightOrig
-          & scalePoints (1 / appState.scaleFactor)
-          & P.reverse
-    else do
-      P.putErrLn stderr
-
-      let
-        -- Initial distance of the corners from the image border
-        distance = 0.1
-
-      pure
-        $ originTopLeft
-          (-appState.imgWidthTrgt)
-          appState.imgHeightTrgt
-        $ scalePoints (1 / appState.scaleFactor)
-        $ P.reverse
-          [ (wdthFrac * distance, hgtFrac * distance)
-          , (wdthFrac * (1 - distance), hgtFrac * distance)
-          , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
-          , (wdthFrac * distance, hgtFrac * (1 - distance))
-          ]
-
-
 appStateToWindow :: (Int, Int) -> AppState -> Display
 appStateToWindow screenSize appState = do
   let appSize = (appState.appWidth, appState.appHeight)
@@ -257,35 +195,6 @@ appStateToWindow screenSize appState = do
     BannerView ->
       InWindow "Perspec - Banner" (800, 600) (10, 10)
 
-
-startApp :: AppState -> IO ()
-startApp appState = do
-  screenSize <- getScreenSize
-
-  case (appState.inputPath, appState.outputPath) of
-    (Just inPath, Just _outPath) -> do
-      corners <- getInitialCorners appState inPath
-      let stateWithImage = appState{corners = corners}
-
-      putText "Starting the app …"
-
-      playIO
-        (appStateToWindow screenSize stateWithImage)
-        black
-        ticksPerSecond
-        stateWithImage
-        makePicture
-        handleEvent
-        stepWorld
-    (_, _) -> do
-      playIO
-        (appStateToWindow screenSize appState)
-        black
-        ticksPerSecond
-        appState
-        makePicture
-        handleEvent
-        stepWorld
 
 
 stepWorld :: Float -> AppState -> IO AppState
@@ -532,36 +441,16 @@ toQuadTuple _ = Left "The list must contain 4 values"
 -}
 getProjectionMap :: CornersTup -> (Float, Float) -> ProjMap
 getProjectionMap (tl, tr, br, bl) (wdth, hgt) =
-  -- Somehow the coordinate system is flipped on macOS with GLFW
-  if os == "darwin"
-    then
-      ( (tl, (0, hgt))
-      , (tr, (wdth, hgt))
-      , (br, (wdth, 0))
-      , (bl, (0, 0))
-      )
-    else
-      ( (tl, (0, 0))
-      , (tr, (wdth, 0))
-      , (br, (wdth, hgt))
-      , (bl, (0, hgt))
-      )
+  ( (tl, (0, 0))
+  , (tr, (wdth, 0))
+  , (br, (wdth, hgt))
+  , (bl, (0, hgt))
+  )
 
 
 -- | Accommodate ImageMagick's counter-clockwise direction
 toCounterClock :: (a, a, a, a) -> (a, a, a, a)
 toCounterClock (tl, tr, br, bl) = (tl, bl, br, tr)
-
-
--- | Transform from origin in top left to origin in center
-originAtCenter :: Int -> Int -> [Point] -> [Point]
-originAtCenter width height =
-  fmap
-    ( \(x, y) ->
-        ( -((fromIntegral width / 2.0) - x)
-        , (fromIntegral height / 2.0) - y
-        )
-    )
 
 
 appCoordToImgCoord :: AppState -> Point -> Point
@@ -907,11 +796,22 @@ loadAndStart config filePathMb = do
         , bannerIsVisible = not isRegistered
         }
 
-  case filePathMb of
-    Nothing -> startApp stateDraft
-    Just filePath -> do
-      stateWithFile <- loadFileIntoState stateDraft filePath
-      startApp stateWithFile
+  screenSize <- getScreenSize
+
+  appState <- case filePathMb of
+    Nothing -> pure stateDraft
+    Just filePath -> loadFileIntoState stateDraft filePath
+
+  putText "Starting the app …"
+
+  playIO
+    (appStateToWindow screenSize appState)
+    black
+    ticksPerSecond
+    appState
+    makePicture
+    handleEvent
+    stepWorld
 
 
 helpMessage :: Text
