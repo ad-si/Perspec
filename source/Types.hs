@@ -17,7 +17,7 @@ import Protolude as P (
   ($),
  )
 
-import Brillo (Picture (Blank), Point)
+import Brillo (Picture, Point)
 import Data.Aeson (
   FromJSON (parseJSON),
   withObject,
@@ -152,6 +152,21 @@ data View = HomeView | ImageView | BannerView
   deriving (Show)
 
 
+data ImageData
+  = ImageToLoad {filePath :: FilePath}
+  | ImageData
+      { inputPath :: FilePath
+      , outputPath :: FilePath
+      , width :: Int
+      , height :: Int
+      , widthTarget :: Int
+      , heightTarget :: Int
+      , content :: Picture
+      , rotation :: Float
+      }
+  deriving (Show)
+
+
 -- | State of app
 data AppState = AppState
   { currentView :: View
@@ -161,16 +176,9 @@ data AppState = AppState
   -- ^ (0, 0) is center of coordinate system
   , cornerDragged :: Maybe Corner
   -- ^ Currently dragged corner
-  , image :: Picture
+  , images :: [ImageData]
   , appWidth :: Int
   , appHeight :: Int
-  , imgWidthOrig :: Int
-  , imgHeightOrig :: Int
-  , imgWidthTrgt :: Int
-  , imgHeightTrgt :: Int
-  , rotation :: Float
-  , inputPath :: Maybe FilePath
-  , outputPath :: Maybe FilePath
   , scaleFactor :: Float -- TODO: Should be smaller than 1
   , transformApp :: TransformApp
   , isRegistered :: Bool
@@ -195,16 +203,9 @@ initialState =
     , tickCounter = 0
     , corners = []
     , cornerDragged = Nothing
-    , image = Blank
+    , images = []
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
-    , imgWidthOrig = 0
-    , imgHeightOrig = 0
-    , imgWidthTrgt = 0
-    , imgHeightTrgt = 0
-    , rotation = 0
-    , inputPath = Nothing
-    , outputPath = Nothing
     , scaleFactor = 1
     , transformApp = ImageMagick
     , isRegistered = False

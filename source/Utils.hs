@@ -27,7 +27,6 @@ import Protolude (
   show,
   swap,
   ($),
-  (==),
   (&),
   (&&),
   (*),
@@ -37,6 +36,7 @@ import Protolude (
   (<&>),
   (<=),
   (<>),
+  (==),
   (>=),
  )
 import Protolude qualified as P
@@ -56,13 +56,12 @@ import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TSE
-import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
-import System.FilePath ((</>))
-import System.Process (readProcessWithExitCode)
 import System.Directory (getCurrentDirectory)
+import System.FilePath (replaceBaseName, takeBaseName, takeExtension, (</>))
 import System.Info (os)
+import System.Process (readProcessWithExitCode)
 
-import Types (AppState (..), Coordinate(..), Corner, View (..))
+import Types (AppState (..), Coordinate (..), Corner, ImageData (..), View (..))
 
 
 wordsSprite :: ByteString
@@ -136,6 +135,7 @@ transToOrigTopLeft width height =
         )
     )
 
+
 -- | Transform from origin in top left to origin in center
 transToOrigAtCenter :: Int -> Int -> [Point] -> [Point]
 transToOrigAtCenter width height =
@@ -146,6 +146,7 @@ transToOrigAtCenter width height =
         )
     )
 
+
 scalePoints :: Float -> [Point] -> [Point]
 scalePoints scaleFac = fmap $
   \(x, y) -> (x / scaleFac, y / scaleFac)
@@ -153,37 +154,50 @@ scalePoints scaleFac = fmap $
 
 getCorners :: AppState -> [Point]
 getCorners appState =
-  scalePoints appState.scaleFactor $
-    transToOrigTopLeft
-      appState.imgWidthTrgt
-      appState.imgHeightTrgt
-      (P.reverse $ corners appState)
+  case appState.images of
+    [] -> []
+    image : _otherImages -> do
+      scalePoints appState.scaleFactor $
+        transToOrigTopLeft
+          image.widthTarget
+          image.heightTarget
+          (P.reverse $ corners appState)
 
 
+{-| Calculate the target image size, the scale factor,
+and the corner positions for current image
+-}
 calculateSizes :: AppState -> AppState
 calculateSizes appState =
-  let
-    imgViewWidth = appState.appWidth - appState.sidebarWidth
-    imgViewHeight = appState.appHeight
+  case appState.images of
+    [] -> appState
+    image : otherImages -> do
+      let
+        imgViewWidth = appState.appWidth - appState.sidebarWidth
+        imgViewHeight = appState.appHeight
 
-    imgWidthFrac = fromIntegral appState.imgWidthOrig
-    imgHeightFrac = fromIntegral appState.imgHeightOrig
+        imgWidthFrac = fromIntegral image.width
+        imgHeightFrac = fromIntegral image.height
 
-    scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
-    scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
+        scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
+        scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
 
-    scaleFactor = min scaleFactorX scaleFactorY
-    imgWidthTrgt = round $ scaleFactor * imgWidthFrac
-    imgHeightTrgt = round $ scaleFactor * imgHeightFrac
-  in
-    appState
-      { imgWidthTrgt
-      , imgHeightTrgt
-      , scaleFactor
-      , corners =
-          transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
-            scalePoints (1 / scaleFactor) (getCorners appState)
-      }
+        scaleFactor = min scaleFactorX scaleFactorY
+        imgWidthTrgt = round $ scaleFactor * imgWidthFrac
+        imgHeightTrgt = round $ scaleFactor * imgHeightFrac
+
+      appState
+        { images =
+            image
+              { widthTarget = imgWidthTrgt
+              , heightTarget = imgHeightTrgt
+              }
+              : otherImages
+        , scaleFactor
+        , corners =
+            transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
+              scalePoints (1 / scaleFactor) (getCorners appState)
+        }
 
 
 imgOrientToRot :: ExifData -> Float
@@ -232,105 +246,124 @@ loadImage filePath = do
 -- | Get initial corner positions by shelling out to a Python script
 getInitialCorners :: AppState -> FilePath -> IO [Corner]
 getInitialCorners appState inPath = do
-  currentDir <- getCurrentDirectory
-
-  let
-    wdthFrac = fromIntegral appState.imgWidthOrig
-    hgtFrac = fromIntegral appState.imgHeightOrig
-
-    pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
-    pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
-
-  -- Run the Python script
-  let
-    pyScriptPath =
-      if os == "mingw32"
-        then pyScriptPathWindows
-        else pyScriptPathMac
-
-  (exitCode, stdout, stderr) <-
-    readProcessWithExitCode pyScriptPath ["corners", inPath] ""
-
-  if exitCode == P.ExitSuccess
-    then do
-      let
-        -- Parse JSON output in stdout with Aeson in the form of:
-        -- [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}]
-        corners :: Maybe [Coordinate] =
-          Aeson.decode $ BL.fromStrict (TSE.encodeUtf8 $ T.pack stdout)
-
-      pure $
-        corners
-          & fromMaybe []
-          & P.map (\coord -> (coord.x, coord.y))
-          & transToOrigAtCenter appState.imgWidthOrig appState.imgHeightOrig
-          & scalePoints (1 / appState.scaleFactor)
-          & P.reverse
-    else do
-      P.putErrLn stderr
+  case appState.images of
+    [] -> pure []
+    image : _otherImages -> do
+      currentDir <- getCurrentDirectory
 
       let
-        -- Initial distance of the corners from the image border
-        distance = 0.1
+        wdthFrac = fromIntegral image.width
+        hgtFrac = fromIntegral image.height
 
-      pure
-        $ transToOrigTopLeft
-          (-appState.imgWidthTrgt)
-          appState.imgHeightTrgt
-        $ scalePoints (1 / appState.scaleFactor)
-        $ P.reverse
-          [ (wdthFrac * distance, hgtFrac * distance)
-          , (wdthFrac * (1 - distance), hgtFrac * distance)
-          , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
-          , (wdthFrac * distance, hgtFrac * (1 - distance))
-          ]
+        pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
+        pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
 
-
-loadFileIntoState :: AppState -> FilePath -> IO AppState
-loadFileIntoState appState filePath = do
-  pictureMetadataEither <- loadImage filePath
-
-  case pictureMetadataEither of
-    Left error -> do
-      putText error
-      pure appState
-    Right (picture@(Bitmap bitmapData), metadata) -> do
+      -- Run the Python script
       let
-        rotation =
-          lookup (Exif TagOrientation) metadata
-            <&> imgOrientToRot
-            & fromMaybe 0
-        sizeTuple = bitmapSize bitmapData
-        (imgWdth, imgHgt) = case rotation of
-          90 -> swap sizeTuple
-          -90 -> swap sizeTuple
-          _ -> sizeTuple
+        pyScriptPath =
+          if os == "mingw32"
+            then pyScriptPathWindows
+            else pyScriptPathMac
 
-      putText $
-        "Loaded file " <> T.pack filePath <> " " <> show (imgWdth, imgHgt)
-        <> " "
-        <> "with a rotation of " <> show rotation <> " degrees."
+      (exitCode, stdout, stderr) <-
+        readProcessWithExitCode pyScriptPath ["corners", inPath] ""
 
-      let
-        stateWithSizes =
-          calculateSizes $
-            appState
-              { currentView = ImageView
-              , imgWidthOrig = imgWdth
-              , imgHeightOrig = imgHgt
-              , rotation = rotation
-              , image = Rotate (-rotation) picture
-              , inputPath = Just filePath
-              , outputPath = Just $ getOutPath filePath
-              }
+      if exitCode == P.ExitSuccess
+        then do
+          let
+            -- Parse JSON output in stdout with Aeson in the form of:
+            -- [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}]
+            corners :: Maybe [Coordinate] =
+              Aeson.decode $ BL.fromStrict (TSE.encodeUtf8 $ T.pack stdout)
 
-      corners <- getInitialCorners stateWithSizes filePath
-      let stateWithCorners = stateWithSizes{corners = corners}
+          pure $
+            corners
+              & fromMaybe []
+              & P.map (\coord -> (coord.x, coord.y))
+              & transToOrigAtCenter image.width image.height
+              & scalePoints (1 / appState.scaleFactor)
+              & P.reverse
+        else do
+          P.putErrLn stderr
 
-      pure stateWithCorners
+          let
+            -- Initial distance of the corners from the image border
+            distance = 0.1
 
-    Right _ -> do
-      putText $
-        "Error: Loaded file is not a Bitmap image. "
-          <> "This error should not be possible."
-      pure appState
+          pure $
+            transToOrigTopLeft (-image.widthTarget) image.heightTarget $
+              scalePoints (1 / appState.scaleFactor) $
+                P.reverse
+                  [ (wdthFrac * distance, hgtFrac * distance)
+                  , (wdthFrac * (1 - distance), hgtFrac * distance)
+                  , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
+                  , (wdthFrac * distance, hgtFrac * (1 - distance))
+                  ]
+
+
+loadFileIntoState :: AppState -> IO AppState
+loadFileIntoState appState = do
+  case appState.images of
+    [] -> pure appState
+    image : otherImages -> do
+      case image of
+        ImageData{} -> do
+          putText "Error: Image was already loaded"
+          pure appState
+        ImageToLoad filePath -> do
+          pictureMetadataEither <- loadImage filePath
+
+          case pictureMetadataEither of
+            Left error -> do
+              putText error
+              pure appState
+            Right (picture@(Bitmap bitmapData), metadata) -> do
+              let
+                rotation =
+                  lookup (Exif TagOrientation) metadata
+                    <&> imgOrientToRot
+                    & fromMaybe 0
+                sizeTuple = bitmapSize bitmapData
+                (imgWdth, imgHgt) = case rotation of
+                  90 -> swap sizeTuple
+                  -90 -> swap sizeTuple
+                  _ -> sizeTuple
+
+              putText $
+                "Loaded file "
+                  <> T.pack filePath
+                  <> " "
+                  <> show (imgWdth, imgHgt)
+                  <> " "
+                  <> "with a rotation of "
+                  <> show rotation
+                  <> " degrees."
+
+              let
+                stateWithSizes =
+                  calculateSizes $
+                    appState
+                      { currentView = ImageView
+                      , images =
+                          ImageData
+                            { inputPath = filePath
+                            , outputPath = getOutPath filePath
+                            , width = imgWdth
+                            , height = imgHgt
+                            , widthTarget = 0 -- calculateSizes will set it
+                            , heightTarget = 0 -- calculateSizes will set it
+                            , rotation = rotation
+                            , content = Rotate (-rotation) picture
+                            }
+                            : otherImages
+                      }
+
+              corners <- getInitialCorners stateWithSizes filePath
+              let stateWithCorners = stateWithSizes{corners = corners}
+
+              pure stateWithCorners
+            Right _ -> do
+              putText $
+                "Error: Loaded file is not a Bitmap image. "
+                  <> "This error should not be possible."
+              pure appState

@@ -74,23 +74,15 @@ execWithArgs config cliArgs = do
 
   when (args `isPresent` command "fastfix") $ do
     let files = args `getAllArgs` argument "file"
-
     filesAbs <- files & P.mapM makeAbsolute
 
-    let
-      file = case filesAbs of
-        [x] -> x
-        x : _ -> x
-        _ -> "This branch should not be reachable"
-
-    loadAndStart (config{transformAppFlag = Hip}) (Just file)
+    loadAndStart (config{transformAppFlag = Hip}) (Just filesAbs)
 
   when (args `isPresent` command "fix") $ do
     let files = args `getAllArgs` argument "file"
-
     filesAbs <- files & P.mapM makeAbsolute
 
-    filesAbs <&> Just & P.mapM_ (loadAndStart config)
+    loadAndStart config (Just filesAbs)
 
   when (args `isPresent` command "rename") $ do
     directory <- args `getArgOrExit` argument "directory"

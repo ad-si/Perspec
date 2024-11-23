@@ -107,6 +107,7 @@ import Types (
   Corner,
   CornersTup,
   ExportMode (..),
+  ImageData (..),
   ProjMap,
   TransformApp (..),
   UiComponent (Button, Select, text),
@@ -171,30 +172,29 @@ bannerImage =
 
 appStateToWindow :: (Int, Int) -> AppState -> Display
 appStateToWindow screenSize appState = do
-  let appSize = (appState.appWidth, appState.appHeight)
+  let
+    appSize = (appState.appWidth, appState.appHeight)
+    windowPos = calcInitWindowPos screenSize appSize
 
-  case appState.currentView of
-    HomeView -> do
-      InWindow
-        "Perspec - Select a file"
-        appSize
-        (calcInitWindowPos screenSize appSize)
-    ImageView -> do
-      case appState.inputPath of
-        Nothing -> InWindow "SHOULD NOT BE POSSIBLE" (100, 100) (0, 0)
-        Just inPath ->
+  case appState.images of
+    [] -> InWindow "Perspec" appSize (0, 0)
+    image : _otherImages -> do
+      case appState.currentView of
+        HomeView -> InWindow "Perspec - Select a file" appSize windowPos
+        ImageView -> do
           InWindow
             ( "Perspec - "
-                <> inPath
+                <> case image of
+                  ImageToLoad{filePath} -> filePath
+                  ImageData{inputPath} -> inputPath
                 <> if appState.isRegistered
                   then mempty
                   else " - ⚠️ NOT REGISTERED"
             )
             appSize
-            (calcInitWindowPos screenSize appSize)
-    BannerView ->
-      InWindow "Perspec - Banner" (800, 600) (10, 10)
-
+            windowPos
+        BannerView ->
+          InWindow "Perspec - Banner" (800, 600) (10, 10)
 
 
 stepWorld :: Float -> AppState -> IO AppState
@@ -326,50 +326,59 @@ makePicture appState =
             ]
       pure uiElements
     ImageView -> do
-      let
-        appWidthInteg = fromIntegral appState.appWidth
-        sidebarWidthInteg = fromIntegral appState.sidebarWidth
+      case appState.images of
+        [] -> pure mempty
+        image : _otherImages -> do
+          let
+            appWidthInteg = fromIntegral appState.appWidth
+            sidebarWidthInteg = fromIntegral appState.sidebarWidth
 
-      pure $
-        Pictures $
-          ( ( [ Scale
-                  appState.scaleFactor
-                  appState.scaleFactor
-                  appState.image
-              , appState.corners & drawEdges
-              , appState.corners & drawGrid
-              ]
-                <> (appState.corners <&> drawCorner)
-            )
-              <&> Translate (-(sidebarWidthInteg / 2.0)) 0
-          )
-            <> [ drawSidebar
-                  appWidthInteg
-                  appState.appHeight
-                  appState.sidebarWidth
-               ]
-            <> P.zipWith (drawUiComponent appState) appState.uiComponents [0 ..]
-            <> [ if appState.bannerIsVisible
-                  then Scale 0.5 0.5 bannerImage
-                  else mempty
-               , if appState.bannerIsVisible
-                  then
-                    Translate 300 (-250) $
-                      Scale 0.2 0.2 $
-                        ThickArc
-                          0 -- Start angle
-                          -- End angle
-                          ( ( fromIntegral appState.tickCounter
-                                / (bannerTime * fromIntegral ticksPerSecond)
-                            )
-                              * 360
-                          )
-                          50 -- Radius
-                          100 -- Thickness
-                          -- \$
-                          --     -
-                  else mempty
-               ]
+          pure $
+            Pictures $
+              ( ( [ Scale
+                      appState.scaleFactor
+                      appState.scaleFactor
+                      ( case image of
+                          ImageToLoad{} -> mempty
+                          ImageData{content} -> content
+                      )
+                  , appState.corners & drawEdges
+                  , appState.corners & drawGrid
+                  ]
+                    <> (appState.corners <&> drawCorner)
+                )
+                  <&> Translate (-(sidebarWidthInteg / 2.0)) 0
+              )
+                <> [ drawSidebar
+                      appWidthInteg
+                      appState.appHeight
+                      appState.sidebarWidth
+                   ]
+                <> P.zipWith
+                  (drawUiComponent appState)
+                  appState.uiComponents
+                  [0 ..]
+                <> [ if appState.bannerIsVisible
+                      then Scale 0.5 0.5 bannerImage
+                      else mempty
+                   , if appState.bannerIsVisible
+                      then
+                        Translate 300 (-250) $
+                          Scale 0.2 0.2 $
+                            ThickArc
+                              0 -- Start angle
+                              -- End angle
+                              ( ( fromIntegral appState.tickCounter
+                                    / (bannerTime * fromIntegral ticksPerSecond)
+                                )
+                                  * 360
+                              )
+                              50 -- Radius
+                              100 -- Thickness
+                              -- \$
+                              --     -
+                      else mempty
+                   ]
     BannerView -> pure $ Pictures []
 
 
@@ -489,27 +498,28 @@ checkSidebarRectHit
 
 submitSelection :: AppState -> ExportMode -> IO AppState
 submitSelection appState exportMode = do
-  let
-    cornersTrans = getCorners appState
-    cornerTuple =
-      fromRight
-        ((0, 0), (0, 0), (0, 0), (0, 0))
-        (toQuadTuple cornersTrans)
-    targetShape = getTargetShape cornerTuple
-    projectionMapNorm =
-      toCounterClock $
-        getProjectionMap cornerTuple targetShape
+  case appState.images of
+    [] -> pure appState
+    image : otherImages -> do
+      let
+        cornersTrans = getCorners appState
+        cornerTuple =
+          fromRight
+            ((0, 0), (0, 0), (0, 0), (0, 0))
+            (toQuadTuple cornersTrans)
+        targetShape = getTargetShape cornerTuple
+        projectionMapNorm =
+          toCounterClock $
+            getProjectionMap cornerTuple targetShape
 
-  putText $ "Target shape: " <> show targetShape
-  putText $ "Marked corners: " <> show cornerTuple
+      putText $ "Target shape: " <> show targetShape
+      putText $ "Marked corners: " <> show cornerTuple
 
-  case (appState.inputPath, appState.outputPath) of
-    (Just inputPath, Just outputPath) -> do
       let
         convertArgs =
           getConvertArgs
-            inputPath
-            outputPath
+            image.inputPath
+            image.outputPath
             projectionMapNorm
             targetShape
             exportMode
@@ -519,19 +529,19 @@ submitSelection appState exportMode = do
           putText $
             "Arguments for convert command:\n"
               <> T.unlines convertArgs
-        else putText $ "Write file to " <> show appState.outputPath
+        else putText $ "Write file to " <> show image.outputPath
 
       correctAndWrite
         appState.transformApp
-        inputPath
-        outputPath
+        image.inputPath
+        image.outputPath
         projectionMapNorm
         exportMode
         convertArgs
 
-      exitSuccess
-    (_, _) -> do
-      P.die "Input path and output path must be set before submitting"
+      if P.null otherImages
+        then exitSuccess
+        else loadFileIntoState appState{images = otherImages}
 
 
 handleImageViewEvent :: Event -> AppState -> IO AppState
@@ -786,8 +796,8 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
   pure ()
 
 
-loadAndStart :: Config -> Maybe FilePath -> IO ()
-loadAndStart config filePathMb = do
+loadAndStart :: Config -> Maybe [FilePath] -> IO ()
+loadAndStart config filePathsMb = do
   let
     isRegistered = True -- (config&licenseKey) `elem` licenses
     stateDraft =
@@ -799,20 +809,34 @@ loadAndStart config filePathMb = do
 
   screenSize <- getScreenSize
 
-  appState <- case filePathMb of
-    Nothing -> pure stateDraft
-    Just filePath -> loadFileIntoState stateDraft filePath
-
   putText "Starting the app …"
 
-  playIO
-    (appStateToWindow screenSize appState)
-    black
-    ticksPerSecond
-    appState
-    makePicture
-    handleEvent
-    stepWorld
+  case filePathsMb of
+    Nothing -> do
+      playIO
+        (appStateToWindow screenSize stateDraft)
+        black
+        ticksPerSecond
+        stateDraft
+        makePicture
+        handleEvent
+        stepWorld
+    Just filePaths -> do
+      let
+        images =
+          filePaths <&> \filePath ->
+            ImageToLoad{filePath = filePath}
+
+      appState <- loadFileIntoState stateDraft{images = images}
+
+      playIO
+        (appStateToWindow screenSize appState)
+        black
+        ticksPerSecond
+        appState
+        makePicture
+        handleEvent
+        stepWorld
 
 
 helpMessage :: Text

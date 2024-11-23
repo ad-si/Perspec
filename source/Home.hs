@@ -9,6 +9,7 @@ import Protolude (
   Maybe (Just, Nothing),
   Num,
   putText,
+  (<&>),
  )
 
 import Brillo.Interface.IO.Game as Gl (
@@ -20,7 +21,7 @@ import Brillo.Interface.IO.Game as Gl (
 import Data.Text qualified as T
 
 import TinyFileDialogs (openFileDialog)
-import Types (AppState (..), View (..))
+import Types (AppState (..), ImageData (..), View (ImageView))
 import Utils (isInRect, loadFileIntoState)
 
 
@@ -46,19 +47,18 @@ handleMsg msg appState =
           {- Default path -} "/"
           {- File patterns -} ["*.jpeg", ".jpg", ".png"]
           {- Filter description -} "Image files"
-          {- Allow multiple selects -} False
+          {- Allow multiple selects -} True
 
       case selectedFiles of
-        Just [filePath] -> do
-          loadFileIntoState
-            appState{currentView = ImageView}
-            (T.unpack filePath)
-        Just _files -> do
-          putText "Selecting several files is not supported yet!"
-          -- TODO
-          -- putText $ "Selected file: " <> filePath
-          -- loadAndStart appState filePath
-          pure appState
+        Just files -> do
+          let newState =
+                appState
+                  { currentView = ImageView
+                  , images =
+                      files <&> \filePath ->
+                        ImageToLoad{filePath = T.unpack filePath}
+                  }
+          loadFileIntoState newState
         Nothing -> do
           putText "No file selected"
           pure appState
