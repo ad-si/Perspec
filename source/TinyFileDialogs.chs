@@ -20,13 +20,8 @@ module TinyFileDialogs
 import Protolude (
   Applicative (pure),
   Bool (..),
-  ByteString,
-  Double,
-  Either (..),
   (.),
   Eq ((==)),
-  FilePath,
-  Float,
   die,
   maxBound,
   minBound,
@@ -34,37 +29,17 @@ import Protolude (
   identity,
   Functor (fmap),
   IO,
-  IOException,
   Int,
   Maybe (Just, Nothing),
   Monad ((>>=)),
-  Monoid (mempty),
-  Ord (max, min, (<), (>)),
-  RealFrac (round),
+  Ord,
   Semigroup ((<>)),
-  Text,
-  const,
-  either,
-  exitSuccess,
-  flip,
   fromIntegral,
-  fromMaybe,
-  fromRight,
-  fst,
-  not,
-  putText,
-  realToFrac,
   show,
-  snd,
-  swap,
-  try,
-  when,
   ($),
   (<>),
   (>>),
-  (<$>),
-  Show,Read,Enum,Bounded,
-  (<&>)
+  Show,Read,Enum,Bounded
   )
 
 import Data.List (lookup)
@@ -235,4 +210,9 @@ colorChooser title color = withColor color $ \ptr -> do
   res <- c_colorChooser title Nothing ptr ptr
   case res of
     Nothing -> pure Nothing
-    Just _  -> fmap ((\[r, g, b] -> Just (r, g, b)) . fmap fromIntegral) $ peekArray 3 ptr
+    Just _  -> fmap
+      ((\case
+        [r, g, b] -> Just (r, g, b)
+        _        -> Nothing
+        ) . fmap fromIntegral)
+      (peekArray 3 ptr)
