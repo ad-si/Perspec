@@ -1,57 +1,59 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use maybe" #-}
 module Utils where
 
 import Protolude (
   Bool (..),
   ByteString,
+  Either (..),
+  FilePath,
   Float,
+  IO,
+  Int,
   Maybe (Just, Nothing),
   Monad ((>>=)),
   Monoid (mempty),
   Text,
-  Int,
-  Either(..),
-  IO,
-  FilePath,
   const,
-  fromIntegral,
-  swap,
   either,
-  fromMaybe,
-  (&&),
-  (<=),
-  (+),
-  min,
-  (*),
   fmap,
-  (-),
+  fromIntegral,
+  fromMaybe,
+  min,
+  pure,
+  putText,
   round,
+  show,
+  swap,
+  ($),
+  (&),
+  (&&),
+  (*),
+  (+),
+  (-),
   (/),
+  (<&>),
+  (<=),
   (<>),
   (>=),
-  putText,
-  pure,
-  show,
-  (<&>),
-  ($),
-  (&)
  )
 import Protolude qualified as P
 
-import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
-import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
-import Data.Text qualified as T
-import Codec.Picture (decodePng)
-import Data.FileEmbed (embedFile)
 import Brillo (
-  Picture (Bitmap, BitmapSection),
+  BitmapData (bitmapSize),
+  Picture (Bitmap, BitmapSection, Rotate),
   Point,
   Rectangle (Rectangle, rectPos, rectSize),
-  BitmapData (bitmapSize), Picture ( Rotate),
  )
 import Brillo.Juicy (fromDynamicImage, loadJuicyWithMetadata)
-import System.FilePath ( replaceBaseName, takeBaseName, )
-import Types (AppState(..), View(..))
-import System.FilePath (takeExtension)
+import Codec.Picture (decodePng)
+import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
+import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
+import Data.FileEmbed (embedFile)
+import Data.Text qualified as T
+import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
+import Types (AppState (..), View (..))
 
 
 wordsSprite :: ByteString
@@ -115,7 +117,6 @@ calcInitWindowPos (screenWidth, screenHeight) (appWidth, appHeight) = do
   (round initialX, round initialY)
 
 
-
 -- | Transform from origin in center to origin in top left
 originTopLeft :: Int -> Int -> [Point] -> [Point]
 originTopLeft width height =
@@ -125,6 +126,7 @@ originTopLeft width height =
         , -(y - (fromIntegral height / 2.0))
         )
     )
+
 
 scalePoints :: Float -> [Point] -> [Point]
 scalePoints scaleFac = fmap $
@@ -164,7 +166,6 @@ calculateSizes appState =
           originTopLeft (-imgWidthTrgt) imgHeightTrgt $
             scalePoints (1 / scaleFactor) (getCorners appState)
       }
-
 
 
 imgOrientToRot :: ExifData -> Float
@@ -209,6 +210,7 @@ loadImage filePath = do
     Just (picture, metadata) ->
       pure $ Right (picture, metadata)
 
+
 loadFileIntoState :: AppState -> FilePath -> IO AppState
 loadFileIntoState appState filePath = do
   pictureMetadataEither <- loadImage filePath
@@ -237,7 +239,7 @@ loadFileIntoState appState filePath = do
               , imgHeightOrig = imgHgt
               , rotation = rotation
               , image = Rotate (-rotation) picture
-              , inputPath = Just $ filePath
+              , inputPath = Just filePath
               , outputPath = Just $ getOutPath filePath
               }
 
@@ -247,7 +249,6 @@ loadFileIntoState appState filePath = do
         "with a rotation of " <> show rotation <> " degrees."
 
       pure stateWithSizes
-
     Right _ -> do
       putText $
         "Error: Loaded file is not a Bitmap image. "

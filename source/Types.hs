@@ -17,6 +17,7 @@ import Protolude as P (
   ($),
  )
 
+import Brillo (Picture (Blank), Point)
 import Data.Aeson (
   FromJSON (parseJSON),
   withObject,
@@ -25,7 +26,6 @@ import Data.Aeson (
   (.:),
   (.:?),
  )
-import Brillo (Picture (Blank), Point)
 
 
 data Config = Config

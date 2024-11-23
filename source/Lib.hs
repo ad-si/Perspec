@@ -6,16 +6,16 @@ import Protolude (
   Applicative (pure),
   Bool (..),
   Double,
-  Either(Left, Right),
+  Either (Left, Right),
   Eq ((==)),
   FilePath,
   Float,
   Floating (sqrt),
   Fractional ((/)),
   Functor (fmap),
-  Int,
   IO,
   IOException,
+  Int,
   Maybe (Just, Nothing),
   Monoid (mempty),
   Num ((*), (+), (-)),
@@ -46,16 +46,9 @@ import Protolude (
  )
 import Protolude qualified as P
 
-import Codec.BMP (parseBMP)
-import Data.Aeson qualified as Aeson
-import Data.ByteString.Lazy qualified as BL
-import Data.FileEmbed (embedFile)
-import Data.List as DL (elemIndex, minimum)
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as TSE
 import Brillo (
   Display (InWindow),
-  Picture ( Line, Pictures, Scale, ThickArc, ThickCircle, Translate ),
+  Picture (Line, Pictures, Scale, ThickArc, ThickCircle, Translate),
   Point,
   bitmapOfBMP,
   black,
@@ -76,10 +69,17 @@ import Brillo.Interface.IO.Game as Gl (
   SpecialKey (KeyEnter, KeyEsc),
   playIO,
  )
+import Codec.BMP (parseBMP)
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy qualified as BL
+import Data.FileEmbed (embedFile)
+import Data.List as DL (elemIndex, minimum)
+import Data.Text qualified as T
+import Data.Text.Encoding qualified as TSE
 import Home (handleHomeEvent)
 import System.Directory (getCurrentDirectory)
 import System.Environment (setEnv)
-import System.FilePath ( replaceExtension, (</>), )
+import System.FilePath (replaceExtension, (</>))
 import System.Info (os)
 import System.Process (callProcess, readProcessWithExitCode, spawnProcess)
 
@@ -117,10 +117,14 @@ import Types (
   initialState,
  )
 import Utils (
-  getWordSprite, calcInitWindowPos,
+  calcInitWindowPos,
+  calculateSizes,
+  getCorners,
+  getWordSprite,
   loadFileIntoState,
-  scalePoints, originTopLeft, getCorners, calculateSizes
-  )
+  originTopLeft,
+  scalePoints,
+ )
 
 
 -- | This is replaced with valid licenses during CI build
@@ -233,9 +237,10 @@ appStateToWindow screenSize appState = do
 
   case appState.currentView of
     HomeView -> do
-      InWindow "Perspec - Select a file" appSize
+      InWindow
+        "Perspec - Select a file"
+        appSize
         (calcInitWindowPos screenSize appSize)
-
     ImageView -> do
       case appState.inputPath of
         Nothing -> InWindow "SHOULD NOT BE POSSIBLE" (100, 100) (0, 0)
@@ -249,7 +254,6 @@ appStateToWindow screenSize appState = do
             )
             appSize
             (calcInitWindowPos screenSize appSize)
-
     BannerView ->
       InWindow "Perspec - Banner" (800, 600) (10, 10)
 
@@ -273,7 +277,6 @@ startApp appState = do
         makePicture
         handleEvent
         stepWorld
-
     (_, _) -> do
       playIO
         (appStateToWindow screenSize appState)
@@ -623,8 +626,10 @@ submitSelection appState exportMode = do
             exportMode
 
       if appState.transformApp == ImageMagick
-        then putText $ "Arguments for convert command:\n"
-          <> T.unlines convertArgs
+        then
+          putText $
+            "Arguments for convert command:\n"
+              <> T.unlines convertArgs
         else putText $ "Write file to " <> show appState.outputPath
 
       correctAndWrite
@@ -636,7 +641,6 @@ submitSelection appState exportMode = do
         convertArgs
 
       exitSuccess
-
     (_, _) -> do
       P.die "Input path and output path must be set before submitting"
 
@@ -819,7 +823,7 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
         argsNorm = ("magick" : args) <&> T.unpack
         successMessage =
           "✅ Successfully saved converted image at "
-          <> fixOutputPath exportMode outPath
+            <> fixOutputPath exportMode outPath
 
       -- TODO: Add CLI flag to switch between them
       case conversionMode of
@@ -891,16 +895,17 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
   pure ()
 
+
 loadAndStart :: Config -> Maybe FilePath -> IO ()
-loadAndStart config filePathMb= do
+loadAndStart config filePathMb = do
   let
     isRegistered = True -- (config&licenseKey) `elem` licenses
     stateDraft =
-          initialState
-            { transformApp = config.transformAppFlag
-            , isRegistered = isRegistered
-            , bannerIsVisible = not isRegistered
-            }
+      initialState
+        { transformApp = config.transformAppFlag
+        , isRegistered = isRegistered
+        , bannerIsVisible = not isRegistered
+        }
 
   case filePathMb of
     Nothing -> startApp stateDraft

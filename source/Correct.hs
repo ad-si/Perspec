@@ -1,33 +1,45 @@
-{-# language ApplicativeDo #-}
-{-# language RecordWildCards #-}
-{-# language NamedFieldPuns #-}
-{-# language DataKinds #-}
-
 module Correct where
 
-import Protolude as P
+import Protolude as P (
+  Double,
+  Fractional ((/)),
+  Num (abs, negate, (*)),
+  RealFrac (round),
+  fromMaybe,
+  (.),
+ )
 
 -- hip
-import Graphics.Image hiding ((!))
+import Graphics.Image (Ix2 ((:.)), Sz (Sz), Sz2)
 
 -- hmatrix
 import Numeric.LinearAlgebra (linearSolve, linearSolveSVD, (!), (><))
 
 -- lens
-import Control.Lens hiding (transform)
+import Control.Lens ((^.))
 
 -- linear
-import Linear
+import Linear (
+  Additive ((^+^), (^-^)),
+  M33,
+  R1 (_x),
+  R2 (_y),
+  R3 (_z),
+  R4 (_w),
+  V2 (..),
+  V3 (V3),
+  V4 (..),
+ )
 
 
 determineSize :: V4 (V2 Double) -> Sz2
-determineSize (V4 c1 c2 c3 c4) = Sz ((round height) :. (round width))
+determineSize (V4 c1 c2 c3 c4) = Sz (round height :. round width)
   where
     diagonalA = c3 ^-^ c1
     diagonalB = c4 ^-^ c2
     V2 width height = (abs diagonalA ^+^ abs diagonalB) / 2
 
-
+{- FOURMOLU_DISABLE -}
 -- /* Calculates coefficients of perspective transformation
 --  * which maps (xi,yi) to (ui,vi), (i=1,2,3,4):
 --  *
@@ -81,3 +93,4 @@ calculatePerspectiveTransform s d =
       (V3 (m ! 0 ! 0) (m ! 1 ! 0) (m ! 2 ! 0))
       (V3 (m ! 3 ! 0) (m ! 4 ! 0) (m ! 5 ! 0))
       (V3 (m ! 6 ! 0) (m ! 7 ! 0) 1)
+{- FOURMOLU_ENABLE -}

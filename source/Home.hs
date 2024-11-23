@@ -11,16 +11,16 @@ import Protolude (
   putText,
  )
 
-import Data.Text qualified as T
 import Brillo.Interface.IO.Game as Gl (
   Event (..),
   Key (MouseButton),
   KeyState (Down),
   MouseButton (LeftButton),
  )
+import Data.Text qualified as T
 
 import TinyFileDialogs (openFileDialog)
-import Types (AppState(..), View(..))
+import Types (AppState (..), View (..))
 import Utils (isInRect, loadFileIntoState)
 
 
@@ -50,10 +50,9 @@ handleMsg msg appState =
 
       case selectedFiles of
         Just [filePath] -> do
-          stateWithFile <- loadFileIntoState
-            appState{ currentView = ImageView }
+          loadFileIntoState
+            appState{currentView = ImageView}
             (T.unpack filePath)
-          pure stateWithFile
         Just _files -> do
           putText "Selecting several files is not supported yet!"
           -- TODO
