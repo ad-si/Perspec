@@ -740,12 +740,13 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
       let
         cornersClockwiseFromTopLeft :: V4 (V2 Double)
-        cornersClockwiseFromTopLeft =
+        cornersClockwiseFromTopLeft = do
           let
             toV2 :: (Float, Float) -> V2 Double
             toV2 (x, y) = realToFrac <$> V2 x y
-          in
-            V4 (toV2 tl) (toV2 tr) (toV2 br) (toV2 bl)
+
+          -- TODO: Not clear why order must be reversed here
+          V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
         correctionTransform :: M33 Double
         correctionTransform =
