@@ -22,6 +22,8 @@ import Protolude (
   Ord (max, min, (<), (>)),
   Semigroup ((<>)),
   Text,
+  const,
+  either,
   exitSuccess,
   flip,
   fromIntegral,
@@ -162,9 +164,10 @@ bannerTime = 10 -- seconds
 
 bannerImage :: Picture
 bannerImage =
-  fromRight mempty $
+  either
+    (const mempty)
     bitmapOfBMP
-      <$> parseBMP (BL.fromStrict $(embedFile "images/banner.bmp"))
+    (parseBMP (BL.fromStrict $(embedFile "images/banner.bmp")))
 
 
 -- | Get initial corner positions by shelling out to a Python script
@@ -173,8 +176,8 @@ getInitialCorners appState inPath = do
   currentDir <- getCurrentDirectory
 
   let
-    wdthFrac = fromIntegral $ appState.imgWidthOrig
-    hgtFrac = fromIntegral $ appState.imgHeightOrig
+    wdthFrac = fromIntegral appState.imgWidthOrig
+    hgtFrac = fromIntegral appState.imgHeightOrig
 
     pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
     pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
@@ -629,6 +632,7 @@ submitSelection appState exportMode = do
         inputPath
         outputPath
         projectionMapNorm
+        exportMode
         convertArgs
 
       exitSuccess
@@ -742,6 +746,13 @@ showProjectionMap pMap =
     & T.replace ")" ""
 
 
+fixOutputPath :: ExportMode -> FilePath -> Text
+fixOutputPath exportMode outPath =
+  case exportMode of
+    BlackWhiteExport -> T.pack $ replaceExtension outPath "png"
+    _ -> T.pack outPath
+
+
 getConvertArgs
   :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
 getConvertArgs inPath outPath projMap shape exportMode =
@@ -776,9 +787,7 @@ getConvertArgs inPath outPath projMap shape exportMode =
       GrayscaleExport -> ["-colorspace", "gray", "-normalize"]
       BlackWhiteExport -> ["-auto-threshold", "OTSU", "-monochrome"]
     <> [ "+repage"
-       , case exportMode of
-          BlackWhiteExport -> T.pack $ replaceExtension outPath "png"
-          _ -> T.pack outPath
+       , fixOutputPath exportMode outPath
        ]
 
 
@@ -787,9 +796,10 @@ correctAndWrite
   -> FilePath
   -> FilePath
   -> ProjMap
+  -> ExportMode
   -> [Text]
   -> IO ()
-correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (br, _)) args = do
+correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args = do
   currentDir <- getCurrentDirectory
 
   case transformApp of
@@ -807,7 +817,9 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
 
       let
         argsNorm = ("magick" : args) <&> T.unpack
-        successMessage = "✅ Successfully saved converted image"
+        successMessage =
+          "✅ Successfully saved converted image at "
+          <> fixOutputPath exportMode outPath
 
       -- TODO: Add CLI flag to switch between them
       case conversionMode of
@@ -831,7 +843,7 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
           _ <- spawnProcess magickBin (fmap T.unpack args)
           putText "✅ Successfully initiated conversion"
     Hip -> do
-      uncorrected <- readImageRGBA inputPath
+      uncorrected <- readImageRGBA inPath
 
       let
         cornersClockwiseFromTopLeft :: V4 (V2 Double)
@@ -875,7 +887,7 @@ correctAndWrite transformApp inputPath outputPath ((bl, _), (tl, _), (tr, _), (b
             )
             uncorrected
 
-      writeImage outputPath corrected
+      writeImage outPath corrected
 
   pure ()
 

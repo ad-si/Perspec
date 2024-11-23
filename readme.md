@@ -80,7 +80,7 @@ However, it's necessary to fix the file permissions after download:
 ```sh
 chmod +x \
   ./Perspec.app/Contents/MacOS/Perspec \
-  ./Perspec.app/Contents/Resources/{perspec,script,imagemagick/bin/convert}
+  ./Perspec.app/Contents/Resources/{perspec,script,imagemagick/bin/magick}
 ```
 
 On macOS you can also install it via this [Homebrew](https://brew.sh) tap:
@@ -95,7 +95,7 @@ brew install --cask ad-si/tap/perspec
 Build it from source with Haskell's
 [stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).
 
-Platypus, with 
+Platypus, with
 [command line tools enabled](https://github.com/sveinbjornt/Platypus/blob/master/Documentation/Documentation.md#show-shell-command)
 , is required to build from source.
 
@@ -175,7 +175,7 @@ Improve colors with one of the following steps:
     find . -iname "*.png" | \
     while read -r file
     do
-      convert \
+      magick \
         -verbose \
         "$file" \
         \( +clone -blur 0x60 -brightness-contrast 40 \) \
@@ -221,7 +221,7 @@ mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 Once the corners are marked, the correction is equivalent to:
 
 ```sh
-convert \
+magick \
   images/example.jpg \
   -distort Perspective \
     '8,35 0,0 27,73 0,66 90,72 63,66 67,10 63,0' \

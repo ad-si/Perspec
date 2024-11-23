@@ -18,7 +18,7 @@ Use the `-bench` flag to benchmark [ImageMagick] operations.
 For example:
 
 ```sh
-convert \
+magick \
   doc.jpg \
   -bench 50 \
   -virtual-pixel black \

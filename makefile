@@ -43,7 +43,7 @@ perspec: ~/.local/bin/perspec
 
 
 images/banner.bmp: images/banner.png
-	convert $< $@
+	magick $< $@
 
 
 .PHONY: install
