@@ -76,7 +76,7 @@ import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
 import Home (handleHomeEvent)
 import System.Directory (getCurrentDirectory)
-import System.Environment (setEnv)
+import System.Environment (getEnv, setEnv)
 import System.FilePath (replaceExtension)
 import System.Info (os)
 import System.Process (callProcess, spawnProcess)
@@ -719,7 +719,7 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
         setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
 
       let
-        argsNorm = ("magick" : args) <&> T.unpack
+        argsNorm = args <&> T.unpack
         successMessage =
           "✅ Successfully saved converted image at "
             <> fixOutputPath exportMode outPath
@@ -731,10 +731,20 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
           case resultBundled of
             Right _ -> putText successMessage
-            Left (_ :: IOException) -> do
-              putText "Uses global installation of ImageMagick"
-              resultMagick <- try $ callProcess "magick" (args <&> T.unpack)
+            Left (errLocal:: IOException) -> do
+              P.putErrLn $ P.displayException errLocal
+              putText "Use global installation of ImageMagick"
 
+              -- Add more possible installation paths to PATH
+              path <- getEnv "PATH"
+              setEnv "PATH" $ path <> ":"
+                <> (P.intercalate ":"
+                      [ "/usr/local/bin"
+                      , "/usr/local/sbin"
+                      , "/opt/homebrew/bin"
+                      ])
+
+              resultMagick <- try $ callProcess "magick" argsNorm
               case resultMagick of
                 Right _ -> putText successMessage
                 Left (error :: IOException) -> do
