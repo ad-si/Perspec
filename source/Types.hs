@@ -39,7 +39,7 @@ data Config = Config
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> do
     licenseKey <- o .:? "licenseKey" .!= ""
-    transformAppFlag <- o .:? "transformAppFlag" .!= ImageMagick
+    transformAppFlag <- o .:? "transformAppFlag" .!= Hip
     pure $ Config{..}
 
 
@@ -207,7 +207,7 @@ initialState =
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
     , scaleFactor = 1
-    , transformApp = ImageMagick
+    , transformApp = Hip
     , isRegistered = False
     , bannerIsVisible = False
     , sidebarWidth = sidebarInitialWidth

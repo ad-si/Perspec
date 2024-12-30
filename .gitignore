@@ -9,3 +9,5 @@
 /Perspec.app
 /perspec.cabal
 /scripts/perspectra
+.aider*
+.env

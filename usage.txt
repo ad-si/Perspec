@@ -5,6 +5,7 @@ and rename them to match their page numbers.
 
 Usage:
   perspec gui
+  perspec test
   perspec fix <file>...
   perspec fastfix <file>...
   perspec rename [options] <directory>

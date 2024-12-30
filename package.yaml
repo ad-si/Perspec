@@ -10,6 +10,8 @@ extra-source-files:
   - readme.md
   - changelog.md
   - cbits/tinyfiledialogs.h
+  - cbits/simplecv.h
+  - cbits/perspectivetransform.h
 
 synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
@@ -25,6 +27,7 @@ dependencies:
   - bmp
   - brillo
   - brillo-juicy
+  - brillo-rendering
   - bytestring
   - Color
   - directory
@@ -65,7 +68,10 @@ ghc-options:
 library:
   source-dirs: source
   build-tools: c2hs
-  c-sources: cbits/tinyfiledialogs.c
+  c-sources:
+    - cbits/tinyfiledialogs.c
+    - cbits/simplecv.c
+    - cbits/perspectivetransform.c
   include-dirs: cbits/
   cc-options: -DHSFORCECONSOLE=0
 

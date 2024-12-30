@@ -44,6 +44,9 @@ import Protolude (
   (<$>),
   (<&>),
  )
+import Foreign.Marshal.Utils (new)
+import Foreign.Storable (peek)
+import Foreign.Marshal.Alloc (free)
 import Protolude qualified as P
 
 import Brillo (
@@ -98,7 +101,7 @@ import Graphics.Image (
 
 -- linear
 
-import Correct (calculatePerspectiveTransform, determineSize)
+import Correct (determineSize)
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 import Types (
   AppState (..),
@@ -121,6 +124,8 @@ import Utils (
   getWordSprite,
   loadFileIntoState,
  )
+import SimpleCV (Corners(..), Matrix3x3(..), calculatePerspectiveTransform)
+import GHC.Float (float2Int)
 
 
 -- | This is replaced with valid licenses during CI build
@@ -738,11 +743,11 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
               -- Add more possible installation paths to PATH
               path <- getEnv "PATH"
               setEnv "PATH" $ path <> ":"
-                <> (P.intercalate ":"
+                <> P.intercalate ":"
                       [ "/usr/local/bin"
                       , "/usr/local/sbin"
                       , "/opt/homebrew/bin"
-                      ])
+                      ]
 
               resultMagick <- try $ callProcess "magick" argsNorm
               case resultMagick of
@@ -768,21 +773,48 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
           -- TODO: Not clear why order must be reversed here
           V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
-        correctionTransform :: M33 Double
-        correctionTransform =
-          calculatePerspectiveTransform
-            ( fmap fromIntegral
-                <$> V4
-                  (V2 0 0)
-                  (V2 width 0)
-                  (V2 width height)
-                  (V2 0 height)
-            )
-            cornersClockwiseFromTopLeft
-
         size :: Sz Ix2
         size@(Sz (height :. width)) =
           determineSize cornersClockwiseFromTopLeft
+
+        srcCorners :: Corners
+        srcCorners = Corners
+          { tl_x = 0
+          , tl_y = 0
+          , tr_x = width
+          , tr_y = 0
+          , br_x = width
+          , br_y = height
+          , bl_x = 0
+          , bl_y = height
+          }
+
+        dstCorners :: Corners
+        dstCorners = Corners
+          { tl_x = float2Int $ fst bl
+          , tl_y = float2Int $ snd bl
+          , tr_x = float2Int $ fst br
+          , tr_y = float2Int $ snd br
+          , br_x = float2Int $ fst tr
+          , br_y = float2Int $ snd tr
+          , bl_x = float2Int $ fst tl
+          , bl_y = float2Int $ snd tl
+          }
+
+      srcCornersPtr <- new srcCorners
+      dstCornersPtr <- new dstCorners
+      transMatPtr <- calculatePerspectiveTransform srcCornersPtr dstCornersPtr
+      free srcCornersPtr
+      free dstCornersPtr
+      transMat <- peek transMatPtr
+
+      let
+        correcTransMat :: M33 Double
+        correcTransMat =
+          V3
+            (V3 transMat.m00 transMat.m01 transMat.m02)
+            (V3 transMat.m10 transMat.m11 transMat.m12)
+            (V3 transMat.m20 transMat.m21 transMat.m22)
 
         corrected :: Image (Alpha (SRGB 'Linear)) Double
         corrected =
@@ -791,7 +823,7 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
             ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) ->
                 let
                   V3 colCrd rowCrd p =
-                    correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
+                    correcTransMat !* V3 (fromIntegral icol) (fromIntegral irow) 1
 
                   colCrd' = max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
 
