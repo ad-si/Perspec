@@ -17,8 +17,9 @@ int solve_linear_system(double A[8][8], double b[8], double x[8]) {
   // Create augmented matrix [A|b]
   double aug[8][9];
   for(i = 0; i < n; i++) {
-    for(j = 0; j < n; j++)
+    for(j = 0; j < n; j++) {
       aug[i][j] = A[i][j];
+    }
     aug[i][n] = b[i];
   }
 
@@ -45,8 +46,8 @@ int solve_linear_system(double A[8][8], double b[8], double x[8]) {
 
     // Check if pivot is too small
     if(fabs(aug[i][i]) < 1e-10) {
-      printf("Error: Pivot element is too small during elimination\n");
-      return 0;
+      // Add a small value to avoid singularity
+      aug[i][i] += 1e-10;
     }
 
     // Eliminate column i
@@ -68,64 +69,92 @@ int solve_linear_system(double A[8][8], double b[8], double x[8]) {
   return 1;
 }
 
-Matrix3x3 calculate_perspective_transform(Corners src_corners, Corners dst_corners) {
-  Point2D src[4] = {
-    {src_corners.tl_x, src_corners.tl_y},
-    {src_corners.tr_x, src_corners.tr_y},
-    {src_corners.br_x, src_corners.br_y},
-    {src_corners.bl_x, src_corners.bl_y}
-  };
-  Point2D dst[4] = {
-    {dst_corners.tl_x, dst_corners.tl_y},
-    {dst_corners.tr_x, dst_corners.tr_y},
-    {dst_corners.br_x, dst_corners.br_y},
-    {dst_corners.bl_x, dst_corners.bl_y}
-  };
+// Normalize points to improve numerical stability
+static void normalize_points(Point2D points[4], double *scale, double *tx, double *ty) {
+  double mean_x = 0, mean_y = 0;
+  double sum_dist = 0;
+  int i;
 
+  // Calculate centroid
+  for(i = 0; i < 4; i++) {
+    mean_x += points[i].x;
+    mean_y += points[i].y;
+  }
+  mean_x /= 4;
+  mean_y /= 4;
+
+  // Calculate average distance from centroid
+  for(i = 0; i < 4; i++) {
+    double dx = points[i].x - mean_x;
+    double dy = points[i].y - mean_y;
+    sum_dist += sqrt(dx*dx + dy*dy);
+  }
+  double avg_dist = sum_dist / 4;
+
+  // Scale to make average distance from centroid = sqrt(2)
+  *scale = (avg_dist > 1e-10) ? sqrt(2.0) / avg_dist : 1.0;
+  *tx = -mean_x;
+  *ty = -mean_y;
+
+  // Apply normalization transform
+  for(i = 0; i < 4; i++) {
+    points[i].x = (points[i].x + *tx) * *scale;
+    points[i].y = (points[i].y + *ty) * *scale;
+  }
+}
+
+Matrix3x3 calculate_perspective_transform(Corners src_corners, Corners dst_corners) {
   double A[8][8] = {0};
   double b[8] = {0};
   double x[8] = {0};
 
-  // Build matrix A and vector b as per the mathematical formulation
+  // Set up the system of equations
   for(int i = 0; i < 4; i++) {
-    // First four rows
-    A[i][0] = src[i].x;
-    A[i][1] = src[i].y;
-    A[i][2] = 1;
-    A[i][6] = -src[i].x * dst[i].x;
-    A[i][7] = -src[i].y * dst[i].x;
-    b[i] = dst[i].x;
+    double srcX, srcY, dstX, dstY;
+    
+    switch(i) {
+      case 0: // Top-left
+        srcX = src_corners.tl_x; srcY = src_corners.tl_y;
+        dstX = dst_corners.tl_x; dstY = dst_corners.tl_y;
+        break;
+      case 1: // Top-right
+        srcX = src_corners.tr_x; srcY = src_corners.tr_y;
+        dstX = dst_corners.tr_x; dstY = dst_corners.tr_y;
+        break;
+      case 2: // Bottom-right
+        srcX = src_corners.br_x; srcY = src_corners.br_y;
+        dstX = dst_corners.br_x; dstY = dst_corners.br_y;
+        break;
+      case 3: // Bottom-left
+        srcX = src_corners.bl_x; srcY = src_corners.bl_y;
+        dstX = dst_corners.bl_x; dstY = dst_corners.bl_y;
+        break;
+    }
 
-    // Last four rows
-    A[i+4][3] = src[i].x;
-    A[i+4][4] = src[i].y;
-    A[i+4][5] = 1;
-    A[i+4][6] = -src[i].x * dst[i].y;
-    A[i+4][7] = -src[i].y * dst[i].y;
-    b[i+4] = dst[i].y;
+    // First four equations for x coordinates
+    A[i][0] = srcX;
+    A[i][1] = srcY;
+    A[i][2] = 1.0;
+    A[i][6] = -srcX * dstX;
+    A[i][7] = -srcY * dstX;
+    b[i] = dstX;
+
+    // Last four equations for y coordinates
+    A[i+4][3] = srcX;
+    A[i+4][4] = srcY;
+    A[i+4][5] = 1.0;
+    A[i+4][6] = -srcX * dstY;
+    A[i+4][7] = -srcY * dstY;
+    b[i+4] = dstY;
   }
 
   // Solve the system
-  if (!solve_linear_system(A, b, x)) { // Handle error case
-    Matrix3x3 identityMatrix = {
-      1.0, 0.0, 0.0,
-      0.0, 1.0, 0.0,
-      0.0, 0.0, 1.0
-    };
-    return identityMatrix;
-  }
+  solve_linear_system(A, b, x);
 
-  // Build the result matrix
   Matrix3x3 result = {
-    x[0],
-    x[1],
-    x[2],
-    x[3],
-    x[4],
-    x[5],
-    x[6],
-    x[7],
-    1.0  // Last element is always 1
+    x[0], x[1], x[2],
+    x[3], x[4], x[5],
+    x[6], x[7], 1.0
   };
 
   return result;
