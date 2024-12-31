@@ -779,26 +779,26 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
         srcCorners :: Corners
         srcCorners = Corners
-          { tl_x = 0
-          , tl_y = 0
-          , tr_x = width
-          , tr_y = 0
-          , br_x = width
-          , br_y = height
-          , bl_x = 0
-          , bl_y = height
+          { tl_x = float2Int $ fst tl
+          , tl_y = float2Int $ snd tl
+          , tr_x = float2Int $ fst tr
+          , tr_y = float2Int $ snd tr
+          , br_x = float2Int $ fst br
+          , br_y = float2Int $ snd br
+          , bl_x = float2Int $ fst bl
+          , bl_y = float2Int $ snd bl
           }
 
-        dstCorners :: Corners
+        dstCorners :: Corners 
         dstCorners = Corners
-          { tl_x = float2Int $ fst bl
-          , tl_y = float2Int $ snd bl
-          , tr_x = float2Int $ fst br
-          , tr_y = float2Int $ snd br
-          , br_x = float2Int $ fst tr
-          , br_y = float2Int $ snd tr
-          , bl_x = float2Int $ fst tl
-          , bl_y = float2Int $ snd tl
+          { tl_x = 0
+          , tl_y = 0
+          , tr_x = float2Int $ fromIntegral width
+          , tr_y = 0
+          , br_x = float2Int $ fromIntegral width
+          , br_y = float2Int $ fromIntegral height
+          , bl_x = 0
+          , bl_y = float2Int $ fromIntegral height
           }
 
       srcCornersPtr <- new srcCorners

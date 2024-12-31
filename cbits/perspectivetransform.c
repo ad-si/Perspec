@@ -43,9 +43,11 @@ int solve_linear_system(double A[8][8], double b[8], double x[8]) {
       }
     }
 
-    // Check for singular matrix
-    if(fabs(aug[i][i]) < 1e-10)
+    // Check if pivot is too small
+    if(fabs(aug[i][i]) < 1e-10) {
+      printf("Error: Pivot element is too small during elimination\n");
       return 0;
+    }
 
     // Eliminate column i
     for(j = i + 1; j < n; j++) {
@@ -106,9 +108,9 @@ Matrix3x3 calculate_perspective_transform(Corners src_corners, Corners dst_corne
   // Solve the system
   if (!solve_linear_system(A, b, x)) { // Handle error case
     Matrix3x3 identityMatrix = {
-      1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0
+      1.0, 0.0, 0.0,
+      0.0, 1.0, 0.0,
+      0.0, 0.0, 1.0
     };
     return identityMatrix;
   }
@@ -127,38 +129,4 @@ Matrix3x3 calculate_perspective_transform(Corners src_corners, Corners dst_corne
   };
 
   return result;
-}
-
-
-// Test the perspective transform calculation
-int main() {
-  Corners src = {
-    0, 0,  // Top-left
-    1, 0,  // Top-right
-    1, 1,  // Bottom-right
-    0, 1   // Bottom-left
-  };
-
-  Corners dst = {
-    0, 0,  // Top-left
-    2, 0,  // Top-right
-    2, 2,  // Bottom-right
-    0, 2   // Bottom-left
-  };
-
-  Matrix3x3 trans_mat = calculate_perspective_transform(src, dst);
-
-  const double eps0 = 1e-10;
-
-  assert(fabs(trans_mat.m00 - 2) < eps0);
-  assert(fabs(trans_mat.m01) < eps0);
-  assert(fabs(trans_mat.m02) < eps0);
-  assert(fabs(trans_mat.m10) < eps0);
-  assert(fabs(trans_mat.m11 - 2) < eps0);
-  assert(fabs(trans_mat.m12) < eps0);
-  assert(fabs(trans_mat.m20) < eps0);
-  assert(fabs(trans_mat.m21) < eps0);
-  assert(fabs(trans_mat.m22 - 1) < eps0);
-
-  printf("✅ Test passed\n");
 }

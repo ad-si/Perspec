@@ -3,6 +3,7 @@ module SimpleCV where
 import Protolude (
   Double,
   fromIntegral,
+  floor,
   identity,
   Int,
   IO,
@@ -10,6 +11,7 @@ import Protolude (
   return,
   (*),
   (>>=),
+  (<$>),
  )
 
 import Foreign.C.Types (CUChar)
@@ -45,27 +47,27 @@ data Matrix3x3 = Matrix3x3
 {#pointer *Matrix3x3 as Matrix3x3Ptr foreign -> Matrix3x3#}
 
 instance Storable Corners where
-  sizeOf _ = 8 * sizeOf (0 :: Int)
-  alignment _ = alignment (0 :: Int)
+  sizeOf _ = 8 * sizeOf (0.0 :: Double)
+  alignment _ = alignment (0.0 :: Double)
   peek ptr = do
-    tl_x <- peekByteOff ptr 0
-    tl_y <- peekByteOff ptr 8
-    tr_x <- peekByteOff ptr 16
-    tr_y <- peekByteOff ptr 24
-    br_x <- peekByteOff ptr 32
-    br_y <- peekByteOff ptr 40
-    bl_x <- peekByteOff ptr 48
-    bl_y <- peekByteOff ptr 56
+    tl_x <- floor <$> (peekByteOff ptr 0 :: IO Double)
+    tl_y <- floor <$> (peekByteOff ptr 8 :: IO Double)
+    tr_x <- floor <$> (peekByteOff ptr 16 :: IO Double)
+    tr_y <- floor <$> (peekByteOff ptr 24 :: IO Double)
+    br_x <- floor <$> (peekByteOff ptr 32 :: IO Double)
+    br_y <- floor <$> (peekByteOff ptr 40 :: IO Double)
+    bl_x <- floor <$> (peekByteOff ptr 48 :: IO Double)
+    bl_y <- floor <$> (peekByteOff ptr 56 :: IO Double)
     return Corners{..}
   poke ptr Corners{..} = do
-    pokeByteOff ptr 0 tl_x
-    pokeByteOff ptr 8 tl_y
-    pokeByteOff ptr 16 tr_x
-    pokeByteOff ptr 24 tr_y
-    pokeByteOff ptr 32 br_x
-    pokeByteOff ptr 40 br_y
-    pokeByteOff ptr 48 bl_x
-    pokeByteOff ptr 56 bl_y
+    pokeByteOff ptr 0 (fromIntegral tl_x :: Double)
+    pokeByteOff ptr 8 (fromIntegral tl_y :: Double)
+    pokeByteOff ptr 16 (fromIntegral tr_x :: Double)
+    pokeByteOff ptr 24 (fromIntegral tr_y :: Double)
+    pokeByteOff ptr 32 (fromIntegral br_x :: Double)
+    pokeByteOff ptr 40 (fromIntegral br_y :: Double)
+    pokeByteOff ptr 48 (fromIntegral bl_x :: Double)
+    pokeByteOff ptr 56 (fromIntegral bl_y :: Double)
 
 instance Storable Matrix3x3 where
   sizeOf _ = 9 * sizeOf (0.0 :: Double)
