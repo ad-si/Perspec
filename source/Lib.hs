@@ -48,6 +48,7 @@ import Foreign.Marshal.Utils (new)
 import Foreign.Storable (peek)
 import Foreign.Marshal.Alloc (free)
 import Protolude qualified as P
+import GHC.Float (int2Float)
 
 import Brillo (
   Display (InWindow),
@@ -125,7 +126,6 @@ import Utils (
   loadFileIntoState,
  )
 import SimpleCV (Corners(..), Matrix3x3(..), calculatePerspectiveTransform)
-import GHC.Float (float2Int)
 
 
 -- | This is replaced with valid licenses during CI build
@@ -779,26 +779,26 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
         srcCorners :: Corners
         srcCorners = Corners
-          { tl_x = float2Int $ fst tl
-          , tl_y = float2Int $ snd tl
-          , tr_x = float2Int $ fst tr
-          , tr_y = float2Int $ snd tr
-          , br_x = float2Int $ fst br
-          , br_y = float2Int $ snd br
-          , bl_x = float2Int $ fst bl
-          , bl_y = float2Int $ snd bl
+          { tl_x = fst tl
+          , tl_y = snd tl
+          , tr_x = fst tr
+          , tr_y = snd tr
+          , br_x = fst br
+          , br_y = snd br
+          , bl_x = fst bl
+          , bl_y = snd bl
           }
 
-        dstCorners :: Corners 
+        dstCorners :: Corners
         dstCorners = Corners
           { tl_x = 0
           , tl_y = 0
-          , tr_x = float2Int $ fromIntegral width
+          , tr_x = int2Float width
           , tr_y = 0
-          , br_x = float2Int $ fromIntegral width
-          , br_y = float2Int $ fromIntegral height
+          , br_x = int2Float width
+          , br_y = int2Float height
           , bl_x = 0
-          , bl_y = float2Int $ fromIntegral height
+          , bl_y = int2Float height
           }
 
       srcCornersPtr <- new srcCorners
@@ -807,6 +807,7 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
       free srcCornersPtr
       free dstCornersPtr
       transMat <- peek transMatPtr
+      free transMatPtr
 
       let
         correcTransMat :: M33 Double

@@ -2,8 +2,8 @@ module SimpleCV where
 
 import Protolude (
   Double,
+  Float,
   fromIntegral,
-  floor,
   identity,
   Int,
   IO,
@@ -11,7 +11,6 @@ import Protolude (
   return,
   (*),
   (>>=),
-  (<$>),
  )
 
 import Foreign.C.Types (CUChar)
@@ -22,14 +21,14 @@ import Foreign.Storable (Storable(..))
 #include "perspectivetransform.h"
 
 data Corners = Corners
-  { tl_x :: Int
-  , tl_y :: Int
-  , tr_x :: Int
-  , tr_y :: Int
-  , br_x :: Int
-  , br_y :: Int
-  , bl_x :: Int
-  , bl_y :: Int
+  { tl_x :: Float
+  , tl_y :: Float
+  , tr_x :: Float
+  , tr_y :: Float
+  , br_x :: Float
+  , br_y :: Float
+  , bl_x :: Float
+  , bl_y :: Float
   }
 {#pointer *Corners as CornersPtr foreign -> Corners#}
 
@@ -50,24 +49,24 @@ instance Storable Corners where
   sizeOf _ = 8 * sizeOf (0.0 :: Double)
   alignment _ = alignment (0.0 :: Double)
   peek ptr = do
-    tl_x <- floor <$> (peekByteOff ptr 0 :: IO Double)
-    tl_y <- floor <$> (peekByteOff ptr 8 :: IO Double)
-    tr_x <- floor <$> (peekByteOff ptr 16 :: IO Double)
-    tr_y <- floor <$> (peekByteOff ptr 24 :: IO Double)
-    br_x <- floor <$> (peekByteOff ptr 32 :: IO Double)
-    br_y <- floor <$> (peekByteOff ptr 40 :: IO Double)
-    bl_x <- floor <$> (peekByteOff ptr 48 :: IO Double)
-    bl_y <- floor <$> (peekByteOff ptr 56 :: IO Double)
+    tl_x <- peekByteOff ptr 0
+    tl_y <- peekByteOff ptr 8
+    tr_x <- peekByteOff ptr 16
+    tr_y <- peekByteOff ptr 24
+    br_x <- peekByteOff ptr 32
+    br_y <- peekByteOff ptr 40
+    bl_x <- peekByteOff ptr 48
+    bl_y <- peekByteOff ptr 56
     return Corners{..}
   poke ptr Corners{..} = do
-    pokeByteOff ptr 0 (fromIntegral tl_x :: Double)
-    pokeByteOff ptr 8 (fromIntegral tl_y :: Double)
-    pokeByteOff ptr 16 (fromIntegral tr_x :: Double)
-    pokeByteOff ptr 24 (fromIntegral tr_y :: Double)
-    pokeByteOff ptr 32 (fromIntegral br_x :: Double)
-    pokeByteOff ptr 40 (fromIntegral br_y :: Double)
-    pokeByteOff ptr 48 (fromIntegral bl_x :: Double)
-    pokeByteOff ptr 56 (fromIntegral bl_y :: Double)
+    pokeByteOff ptr 0 tl_x
+    pokeByteOff ptr 8 tl_y
+    pokeByteOff ptr 16 tr_x
+    pokeByteOff ptr 24 tr_y
+    pokeByteOff ptr 32 br_x
+    pokeByteOff ptr 40 br_y
+    pokeByteOff ptr 48 bl_x
+    pokeByteOff ptr 56 bl_y
 
 instance Storable Matrix3x3 where
   sizeOf _ = 9 * sizeOf (0.0 :: Double)
