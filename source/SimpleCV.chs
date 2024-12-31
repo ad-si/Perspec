@@ -2,12 +2,12 @@ module SimpleCV where
 
 import Protolude (
   Double,
-  Float,
   fromIntegral,
   identity,
   Int,
   IO,
   Ptr,
+  Show,
   return,
   (*),
   (>>=),
@@ -21,15 +21,15 @@ import Foreign.Storable (Storable(..))
 #include "perspectivetransform.h"
 
 data Corners = Corners
-  { tl_x :: Float
-  , tl_y :: Float
-  , tr_x :: Float
-  , tr_y :: Float
-  , br_x :: Float
-  , br_y :: Float
-  , bl_x :: Float
-  , bl_y :: Float
-  }
+  { tl_x :: Double
+  , tl_y :: Double
+  , tr_x :: Double
+  , tr_y :: Double
+  , br_x :: Double
+  , br_y :: Double
+  , bl_x :: Double
+  , bl_y :: Double
+  } deriving (Show)
 {#pointer *Corners as CornersPtr foreign -> Corners#}
 
 data Matrix3x3 = Matrix3x3
@@ -42,7 +42,7 @@ data Matrix3x3 = Matrix3x3
   , m20 :: Double
   , m21 :: Double
   , m22 :: Double
-  }
+  } deriving (Show)
 {#pointer *Matrix3x3 as Matrix3x3Ptr foreign -> Matrix3x3#}
 
 instance Storable Corners where

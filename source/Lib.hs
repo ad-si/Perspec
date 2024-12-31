@@ -48,7 +48,7 @@ import Foreign.Marshal.Utils (new)
 import Foreign.Storable (peek)
 import Foreign.Marshal.Alloc (free)
 import Protolude qualified as P
-import GHC.Float (int2Float)
+import GHC.Float (int2Double, float2Double)
 
 import Brillo (
   Display (InWindow),
@@ -777,37 +777,43 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
         size@(Sz (height :. width)) =
           determineSize cornersClockwiseFromTopLeft
 
+        -- TODO: Not clear why order must be reversed here
         srcCorners :: Corners
         srcCorners = Corners
-          { tl_x = fst tl
-          , tl_y = snd tl
-          , tr_x = fst tr
-          , tr_y = snd tr
-          , br_x = fst br
-          , br_y = snd br
-          , bl_x = fst bl
-          , bl_y = snd bl
+          { tl_x = float2Double $ fst bl
+          , tl_y = float2Double $ snd bl
+          , tr_x = float2Double $ fst br
+          , tr_y = float2Double $ snd br
+          , br_x = float2Double $ fst tr
+          , br_y = float2Double $ snd tr
+          , bl_x = float2Double $ fst tl
+          , bl_y = float2Double $ snd tl
           }
 
         dstCorners :: Corners
         dstCorners = Corners
           { tl_x = 0
           , tl_y = 0
-          , tr_x = int2Float width
+          , tr_x = int2Double width
           , tr_y = 0
-          , br_x = int2Float width
-          , br_y = int2Float height
+          , br_x = int2Double width
+          , br_y = int2Double height
           , bl_x = 0
-          , bl_y = int2Float height
+          , bl_y = int2Double height
           }
+
+      putText $ "Source corners: " <> show srcCorners
+      putText $ "Destination corners: " <> show dstCorners
 
       srcCornersPtr <- new srcCorners
       dstCornersPtr <- new dstCorners
-      transMatPtr <- calculatePerspectiveTransform srcCornersPtr dstCornersPtr
+      transMatPtr <- calculatePerspectiveTransform dstCornersPtr srcCornersPtr
       free srcCornersPtr
       free dstCornersPtr
       transMat <- peek transMatPtr
       free transMatPtr
+
+      putText $ "Transformation matrix: " <> show transMat
 
       let
         correcTransMat :: M33 Double

@@ -29,9 +29,9 @@ typedef struct {
   double m22;
 } Matrix3x3;
 
-Matrix3x3 calculate_perspective_transform(
-  Corners,
-  Corners
+Matrix3x3* calculate_perspective_transform(
+  Corners* src_corners,
+  Corners* dst_corners
 );
 
 #endif

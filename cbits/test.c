@@ -69,20 +69,20 @@ int test_perspective_transform() {
     0, 300     // Bottom-left
   };
 
-  Matrix3x3 tmat = calculate_perspective_transform(src, dst);
+  Matrix3x3* tmat = calculate_perspective_transform(&src, &dst);
 
   double eps = 0.001;
   bool test_ok = true;
 
-  if(fabs(tmat.m00 -  0.85256062) > eps){ printf("m00: %f\n", tmat.m00 ); test_ok = false;}
-  if(fabs(tmat.m01 +  0.06089719) > eps){ printf("m01: %f\n", tmat.m01 ); test_ok = false;}
-  if(fabs(tmat.m02 + 79.16634335) > eps){ printf("m02: %f\n", tmat.m02 ); test_ok = false;}
-  if(fabs(tmat.m10 +  0.14503146) > eps){ printf("m10: %f\n", tmat.m10 ); test_ok = false;}
-  if(fabs(tmat.m11 -  0.87018875) > eps){ printf("m11: %f\n", tmat.m11 ); test_ok = false;}
-  if(fabs(tmat.m12 + 72.51572949) > eps){ printf("m12: %f\n", tmat.m12 ); test_ok = false;}
-  if(fabs(tmat.m20 +  0.00022582) > eps){ printf("m20: %f\n", tmat.m20 ); test_ok = false;}
-  if(fabs(tmat.m21 +  0.00044841) > eps){ printf("m21: %f\n", tmat.m21 ); test_ok = false;}
-  if(fabs(tmat.m22 -  1) > eps){ printf("m22: %f\n", tmat.m22 ); test_ok = false;}
+  if(fabs(tmat->m00 -  0.85256062) > eps){ printf("m00: %f\n", tmat->m00 ); test_ok = false;}
+  if(fabs(tmat->m01 +  0.06089719) > eps){ printf("m01: %f\n", tmat->m01 ); test_ok = false;}
+  if(fabs(tmat->m02 + 79.16634335) > eps){ printf("m02: %f\n", tmat->m02 ); test_ok = false;}
+  if(fabs(tmat->m10 +  0.14503146) > eps){ printf("m10: %f\n", tmat->m10 ); test_ok = false;}
+  if(fabs(tmat->m11 -  0.87018875) > eps){ printf("m11: %f\n", tmat->m11 ); test_ok = false;}
+  if(fabs(tmat->m12 + 72.51572949) > eps){ printf("m12: %f\n", tmat->m12 ); test_ok = false;}
+  if(fabs(tmat->m20 +  0.00022582) > eps){ printf("m20: %f\n", tmat->m20 ); test_ok = false;}
+  if(fabs(tmat->m21 +  0.00044841) > eps){ printf("m21: %f\n", tmat->m21 ); test_ok = false;}
+  if(fabs(tmat->m22 -  1) > eps){ printf("m22: %f\n", tmat->m22 ); test_ok = false;}
 
   if (test_ok) {
     printf("✅ Perspective transform test passed\n");
@@ -109,20 +109,20 @@ int test_perspective_transform_float() {
     0, 574.86     // Bottom-left
   };
 
-  Matrix3x3 tmat = calculate_perspective_transform(src, dst);
+  Matrix3x3 *tmat = calculate_perspective_transform(&src, &dst);
 
   double eps = 0.001;
   bool test_ok = true;
 
-  if(fabs(tmat.m00 -   1.08707) > eps){ printf("m00: %f\n", tmat.m00 ); test_ok = false;}
-  if(fabs(tmat.m01 -   0.114438) > eps){ printf("m01: %f\n", tmat.m01 ); test_ok = false;}
-  if(fabs(tmat.m02 + 323.538) > eps){ printf("m02: %f\n", tmat.m02 ); test_ok = false;}
-  if(fabs(tmat.m10 -   0.00445981) > eps){ printf("m10: %f\n", tmat.m10 ); test_ok = false;}
-  if(fabs(tmat.m11 -   1.26121) > eps){ printf("m11: %f\n", tmat.m11 ); test_ok = false;}
-  if(fabs(tmat.m12 + 231.072) > eps){ printf("m12: %f\n", tmat.m12 ); test_ok = false;}
-  if(fabs(tmat.m20 +   0.0000708899) > eps){ printf("m20: %f\n", tmat.m20 ); test_ok = false;}
-  if(fabs(tmat.m21 -   0.000395421) > eps){ printf("m21: %f\n", tmat.m21 ); test_ok = false;}
-  if(fabs(tmat.m22 -   1) > eps){ printf("m22: %f\n", tmat.m22 ); test_ok = false;}
+  if(fabs(tmat->m00 -   1.08707) > eps){ printf("m00: %f\n", tmat->m00 ); test_ok = false;}
+  if(fabs(tmat->m01 -   0.114438) > eps){ printf("m01: %f\n", tmat->m01 ); test_ok = false;}
+  if(fabs(tmat->m02 + 323.538) > eps){ printf("m02: %f\n", tmat->m02 ); test_ok = false;}
+  if(fabs(tmat->m10 -   0.00445981) > eps){ printf("m10: %f\n", tmat->m10 ); test_ok = false;}
+  if(fabs(tmat->m11 -   1.26121) > eps){ printf("m11: %f\n", tmat->m11 ); test_ok = false;}
+  if(fabs(tmat->m12 + 231.072) > eps){ printf("m12: %f\n", tmat->m12 ); test_ok = false;}
+  if(fabs(tmat->m20 +   0.0000708899) > eps){ printf("m20: %f\n", tmat->m20 ); test_ok = false;}
+  if(fabs(tmat->m21 -   0.000395421) > eps){ printf("m21: %f\n", tmat->m21 ); test_ok = false;}
+  if(fabs(tmat->m22 -   1) > eps){ printf("m22: %f\n", tmat->m22 ); test_ok = false;}
 
   if (test_ok) {
     printf("✅ Perspective transform with floats test passed\n");
