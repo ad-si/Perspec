@@ -64,10 +64,10 @@ import Lib (loadAndStart)
 import Rename (getRenamingBatches)
 import SimpleCV (grayscale, otsu_threshold_rgba)
 import Types (
-  Config (transformAppFlag),
+  Config (transformBackendFlag),
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),
-  TransformApp (Hip),
+  TransformBackend (HipBackend),
  )
 import Utils (loadImage)
 
@@ -120,7 +120,7 @@ execWithArgs config cliArgs = do
     let files = args `getAllArgs` argument "file"
     filesAbs <- files & P.mapM makeAbsolute
 
-    loadAndStart (config{transformAppFlag = Hip}) (Just filesAbs)
+    loadAndStart (config{transformBackendFlag = HipBackend}) (Just filesAbs)
 
   when (args `isPresent` command "fix") $ do
     let files = args `getAllArgs` argument "file"

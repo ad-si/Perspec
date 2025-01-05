@@ -30,7 +30,7 @@ import Data.Aeson (
 
 data Config = Config
   { licenseKey :: Text
-  , transformAppFlag :: TransformApp
+  , transformBackendFlag :: TransformBackend
   }
   deriving (Generic, Show)
 
@@ -39,7 +39,7 @@ data Config = Config
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> do
     licenseKey <- o .:? "licenseKey" .!= ""
-    transformAppFlag <- o .:? "transformAppFlag" .!= Hip
+    transformBackendFlag <- o .:? "transformBackendFlag" .!= HipBackend
     pure $ Config{..}
 
 
@@ -107,16 +107,19 @@ data ConversionMode
   | SpawnConversion
 
 
-data TransformApp
-  = ImageMagick
-  | Hip
+data TransformBackend
+  = ImageMagickBackend
+  | HipBackend
+  | SimpleCVBackend
   deriving (Show, Eq)
 
 
-instance FromJSON TransformApp where
-  parseJSON = withText "TransformApp" $ \case
-    "Hip" -> return Hip
-    _ -> return ImageMagick
+instance FromJSON TransformBackend where
+  parseJSON = withText "TransformBackend" $ \case
+    "ImageMagick" -> return ImageMagickBackend
+    "Hip" -> return HipBackend
+    "SimpleCV" -> return SimpleCVBackend
+    _ -> return SimpleCVBackend
 
 
 data RenameMode
@@ -180,7 +183,7 @@ data AppState = AppState
   , appWidth :: Int
   , appHeight :: Int
   , scaleFactor :: Float -- TODO: Should be smaller than 1
-  , transformApp :: TransformApp
+  , transformBackend :: TransformBackend
   , isRegistered :: Bool
   , bannerIsVisible :: Bool
   , sidebarWidth :: Int
@@ -207,7 +210,7 @@ initialState =
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
     , scaleFactor = 1
-    , transformApp = Hip
+    , transformBackend = HipBackend
     , isRegistered = False
     , bannerIsVisible = False
     , sidebarWidth = sidebarInitialWidth

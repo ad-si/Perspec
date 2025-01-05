@@ -102,18 +102,18 @@ import Graphics.Image (
 
 -- linear
 
-import Correct (determineSize)
+import Correct (calculatePerspectiveTransform, determineSize)
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 import Types (
   AppState (..),
-  Config (transformAppFlag),
+  Config (transformBackendFlag),
   ConversionMode (CallConversion, SpawnConversion),
   Corner,
   CornersTup,
   ExportMode (..),
   ImageData (..),
   ProjMap,
-  TransformApp (..),
+  TransformBackend (..),
   UiComponent (Button, Select, text),
   View (..),
   initialState,
@@ -125,7 +125,8 @@ import Utils (
   getWordSprite,
   loadFileIntoState,
  )
-import SimpleCV (Corners(..), Matrix3x3(..), calculatePerspectiveTransform)
+import SimpleCV (Corners(..), Matrix3x3(..))
+import SimpleCV qualified as SCV
 
 
 -- | This is replaced with valid licenses during CI build
@@ -529,7 +530,7 @@ submitSelection appState exportMode = do
             targetShape
             exportMode
 
-      if appState.transformApp == ImageMagick
+      if appState.transformBackend == ImageMagickBackend
         then
           putText $
             "Arguments for convert command:\n"
@@ -537,7 +538,7 @@ submitSelection appState exportMode = do
         else putText $ "Write file to " <> show image.outputPath
 
       correctAndWrite
-        appState.transformApp
+        appState.transformBackend
         image.inputPath
         image.outputPath
         projectionMapNorm
@@ -700,18 +701,19 @@ getConvertArgs inPath outPath projMap shape exportMode =
 
 
 correctAndWrite
-  :: TransformApp
+  :: TransformBackend
   -> FilePath
   -> FilePath
   -> ProjMap
   -> ExportMode
   -> [Text]
   -> IO ()
-correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args = do
+correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args = do
   currentDir <- getCurrentDirectory
 
-  case transformApp of
-    ImageMagick -> do
+  case transformBackend of
+    ImageMagickBackend -> do
+      P.putText "ℹ️ Use ImageMagick backend"
       let
         conversionMode = CallConversion
         magickBin = case os of
@@ -760,7 +762,60 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
         SpawnConversion -> do
           _ <- spawnProcess magickBin (fmap T.unpack args)
           putText "✅ Successfully initiated conversion"
-    Hip -> do
+    --
+    HipBackend -> do
+      P.putText "ℹ️ Use Hip backend"
+      uncorrected <- readImageRGBA inPath
+
+      let
+        cornersClockwiseFromTopLeft :: V4 (V2 Double)
+        cornersClockwiseFromTopLeft = do
+          let
+            toV2 :: (Float, Float) -> V2 Double
+            toV2 (x, y) = realToFrac <$> V2 x y
+
+          -- TODO: Not clear why order must be reversed here
+          V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
+
+        correctionTransform :: M33 Double
+        correctionTransform =
+          calculatePerspectiveTransform
+            ( fmap fromIntegral
+                <$> V4
+                  (V2 0 0)
+                  (V2 width 0)
+                  (V2 width height)
+                  (V2 0 height)
+            )
+            cornersClockwiseFromTopLeft
+
+        size :: Sz Ix2
+        size@(Sz (height :. width)) =
+          determineSize cornersClockwiseFromTopLeft
+
+        corrected :: Image (Alpha (SRGB 'Linear)) Double
+        corrected =
+          uncorrected & transform
+            (size,)
+            ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
+                let
+                  V3 colCrd rowCrd p =
+                    correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
+                  colCrd' =
+                    max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
+                  rowCrd' =
+                    max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
+
+                interpolate Bilinear getPixel (rowCrd', colCrd')
+            )
+
+      case exportMode of
+        UnmodifiedExport ->  writeImage outPath corrected
+        GrayscaleExport -> pure ()
+        BlackWhiteExport -> pure ()
+    --
+    SimpleCVBackend -> do
+      P.putText "ℹ️ Use SimpleCV backend"
       uncorrected <- readImageRGBA inPath
 
       let
@@ -807,7 +862,8 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
       srcCornersPtr <- new srcCorners
       dstCornersPtr <- new dstCorners
-      transMatPtr <- calculatePerspectiveTransform dstCornersPtr srcCornersPtr
+      transMatPtr <-
+        SCV.calculatePerspectiveTransform dstCornersPtr srcCornersPtr
       free srcCornersPtr
       free dstCornersPtr
       transMat <- peek transMatPtr
@@ -825,22 +881,24 @@ correctAndWrite transformApp inPath outPath ((bl, _), (tl, _), (tr, _), (br, _))
 
         corrected :: Image (Alpha (SRGB 'Linear)) Double
         corrected =
-          transform
+          uncorrected & transform
             (size,)
-            ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) ->
+            ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
                 let
                   V3 colCrd rowCrd p =
                     correcTransMat !* V3 (fromIntegral icol) (fromIntegral irow) 1
+                  colCrd' =
+                    max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
+                  rowCrd' =
+                    max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
 
-                  colCrd' = max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
-
-                  rowCrd' = max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
-                in
-                  interpolate Bilinear getPixel (rowCrd', colCrd')
+                interpolate Bilinear getPixel (rowCrd', colCrd')
             )
-            uncorrected
 
-      writeImage outPath corrected
+      case exportMode of
+        UnmodifiedExport -> writeImage outPath corrected
+        GrayscaleExport -> writeImage outPath corrected
+        BlackWhiteExport -> writeImage outPath corrected
 
   pure ()
 
@@ -851,7 +909,7 @@ loadAndStart config filePathsMb = do
     isRegistered = True -- (config&licenseKey) `elem` licenses
     stateDraft =
       initialState
-        { transformApp = config.transformAppFlag
+        { transformBackend = config.transformBackendFlag
         , isRegistered = isRegistered
         , bannerIsVisible = not isRegistered
         }
