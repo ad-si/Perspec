@@ -290,31 +290,27 @@ unsigned char * apply_matrix_3x3(
   }
 
   // Iterate through every pixel in the input image
-  for (int y = 0; y < in_height; ++y) {
-    for (int x = 0; x < in_width; ++x) {
+  for (int in_y = 0; in_y < in_height; ++in_y) {
+    for (int in_x = 0; in_x < in_width; ++in_x) {
       // Apply the transformation to find the corresponding destination pixel
-      double w = tmat->m20 * x + tmat->m21 * y + tmat->m22;
+      double w = tmat->m20 * in_x + tmat->m21 * in_y + tmat->m22;
       if (fabs(w) < 1e-10) continue;  // Skip if w is too close to zero
 
-      double dstX = (tmat->m00 * x + tmat->m01 * y + tmat->m02) / w;
-      double dstY = (tmat->m10 * x + tmat->m11 * y + tmat->m12) / w;
+      double dstX = (tmat->m00 * in_x + tmat->m01 * in_y + tmat->m02) / w;
+      double dstY = (tmat->m10 * in_x + tmat->m11 * in_y + tmat->m12) / w;
 
       // Convert destination coordinates to integers
-      int ix = (int)round(dstX);
-      int iy = (int)round(dstY);
+      int out_x = (int)round(dstX);
+      int out_y = (int)round(dstY);
 
-      // Check bounds
-      // TODO: Fix bounds check
-      if (ix >= 0 && iy >= 0) {
-        // Copy the RGBA values from the input image to the output image
-        int srcIdx = (iy * in_width + ix) * 4;
-        int dstIdx = (y * out_width + x) * 4;
+      // Copy the RGBA values from the input image to the output image
+      int srcIdx = (out_y * in_width + out_x) * 4;
+      int dstIdx = (in_y * out_width + in_x) * 4;
 
-        out_data[dstIdx + 0] = in_data[srcIdx + 0]; // R
-        out_data[dstIdx + 1] = in_data[srcIdx + 1]; // G
-        out_data[dstIdx + 2] = in_data[srcIdx + 2]; // B
-        out_data[dstIdx + 3] = in_data[srcIdx + 3]; // A
-      }
+      out_data[dstIdx + 0] = in_data[srcIdx + 0]; // R
+      out_data[dstIdx + 1] = in_data[srcIdx + 1]; // G
+      out_data[dstIdx + 2] = in_data[srcIdx + 2]; // B
+      out_data[dstIdx + 3] = in_data[srcIdx + 3]; // A
     }
   }
 

@@ -33,11 +33,13 @@ import Linear (
 
 
 determineSize :: V4 (V2 Double) -> Sz2
-determineSize (V4 c1 c2 c3 c4) = Sz (round height :. round width)
-  where
+determineSize (V4 c1 c2 c3 c4) = do
+  let
     diagonalA = c3 ^-^ c1
     diagonalB = c4 ^-^ c2
     V2 width height = (abs diagonalA ^+^ abs diagonalB) / 2
+
+  Sz (round height :. round width)
 
 {- FOURMOLU_DISABLE -}
 -- /* Calculates coefficients of perspective transformation
