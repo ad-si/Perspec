@@ -303,14 +303,21 @@ unsigned char * apply_matrix_3x3(
       int out_x = (int)round(dstX);
       int out_y = (int)round(dstY);
 
-      // Copy the RGBA values from the input image to the output image
-      int srcIdx = (out_y * in_width + out_x) * 4;
-      int dstIdx = (in_y * out_width + in_x) * 4;
+      // Check if the transformed coordinates are within bounds
+      if (out_x >= 0 && out_x < in_width && out_y >= 0 && out_y < in_height) {
+        // Calculate source and destination indices with bounds checking
+        int srcIdx = (out_y * in_width + out_x) * 4;
+        int dstIdx = (in_y * out_width + in_x) * 4;
 
-      out_data[dstIdx + 0] = in_data[srcIdx + 0]; // R
-      out_data[dstIdx + 1] = in_data[srcIdx + 1]; // G
-      out_data[dstIdx + 2] = in_data[srcIdx + 2]; // B
-      out_data[dstIdx + 3] = in_data[srcIdx + 3]; // A
+        // Verify indices are within array bounds
+        if (srcIdx >= 0 && srcIdx + 3 < (in_width * in_height * 4) &&
+            dstIdx >= 0 && dstIdx + 3 < (out_width * out_height * 4)) {
+          out_data[dstIdx + 0] = in_data[srcIdx + 0]; // R
+          out_data[dstIdx + 1] = in_data[srcIdx + 1]; // G
+          out_data[dstIdx + 2] = in_data[srcIdx + 2]; // B
+          out_data[dstIdx + 3] = in_data[srcIdx + 3]; // A
+        }
+      }
     }
   }
 
