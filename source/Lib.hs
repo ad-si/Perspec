@@ -44,15 +44,35 @@ import Protolude (
   (<$>),
   (<&>),
  )
-import Foreign.Marshal.Utils (new)
-import Foreign.Storable (peek)
+
+import Data.ByteString.Lazy qualified as BL
+import Data.FileEmbed (embedFile)
+import Data.List as DL (elemIndex, minimum)
+import Data.Text qualified as T
+import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (free)
+import Foreign.Marshal.Utils (new)
+import Foreign.Ptr (castPtr)
+import Foreign.Storable (peek)
+import GHC.Float (float2Double, int2Double)
 import Protolude qualified as P
-import GHC.Float (int2Double, float2Double)
+import System.Directory (getCurrentDirectory)
+import System.Environment (getEnv, setEnv)
+import System.FilePath (replaceExtension)
+import System.Info (os)
+import System.Process (callProcess, spawnProcess)
 
 import Brillo (
   Display (InWindow),
-  Picture (Line, Pictures, Scale, ThickArc, ThickCircle, Translate, Bitmap),
+  Picture (
+    Bitmap,
+    Line,
+    Pictures,
+    Scale,
+    ThickArc,
+    ThickCircle,
+    Translate
+  ),
   Point,
   bitmapOfBMP,
   black,
@@ -73,19 +93,13 @@ import Brillo.Interface.IO.Game as Gl (
   SpecialKey (KeyEnter, KeyEsc),
   playIO,
  )
+import Brillo.Rendering (BitmapData (..))
 import Codec.BMP (parseBMP)
-import Data.ByteString.Lazy qualified as BL
-import Data.FileEmbed (embedFile)
-import Data.List as DL (elemIndex, minimum)
-import Data.Text qualified as T
-import Home (handleHomeEvent)
-import System.Directory (getCurrentDirectory)
-import System.Environment (getEnv, setEnv)
-import System.FilePath (replaceExtension)
-import System.Info (os)
-import System.Process (callProcess, spawnProcess)
-
--- hip
+import Codec.Picture (
+  DynamicImage (ImageRGBA8),
+  imageFromUnsafePtr,
+  savePngImage,
+ )
 import Graphics.Image (
   Alpha,
   Bilinear (Bilinear),
@@ -99,11 +113,12 @@ import Graphics.Image (
   transform,
   writeImage,
  )
-
--- linear
+import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 
 import Correct (calculatePerspectiveTransform, determineSize)
-import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
+import Home (handleHomeEvent)
+import SimpleCV (Corners (..), applyMatrix3x3)
+import SimpleCV qualified as SCV
 import Types (
   AppState (..),
   Config (transformBackendFlag),
@@ -124,20 +139,8 @@ import Utils (
   getCorners,
   getWordSprite,
   loadFileIntoState,
+  loadImage,
  )
-import SimpleCV (Corners(..))
-import SimpleCV qualified as SCV
-import Brillo (
-  BitmapFormat (BitmapFormat),
-  PixelFormat (PxRGBA),
-  RowOrder (TopToBottom),
- )
-import Brillo.Rendering (BitmapData(..), bitmapOfForeignPtr)
-import Brillo.Interface.Pure.Display (display)
-import Foreign (newForeignPtr_, withForeignPtr, castForeignPtr)
-import Foreign.Ptr (castPtr)
-import SimpleCV (applyMatrix3x3)
-import Utils (loadImage)
 
 
 -- | This is replaced with valid licenses during CI build
@@ -906,28 +909,13 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 height
                 transMatPtr
             resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
-            let grayscalePicture =
-                  bitmapOfForeignPtr
-                    width
-                    height
-                    (BitmapFormat TopToBottom PxRGBA)
-                    resultImgForeignPtr
-                    True
             free transMatPtr
-            display
-              (InWindow "Grayscale" (width, height) (10, 10))
-              (makeColor 0 0 0 0)
-              grayscalePicture
+            let juicyImg = imageFromUnsafePtr width height resultImgForeignPtr
+            savePngImage outPath (ImageRGBA8 juicyImg)
+        --
         Right _ -> do
           free transMatPtr
           P.putText "Unsupported image format"
-
-      -- case exportMode of
-      --   UnmodifiedExport -> writeImage outPath corrected
-      --   GrayscaleExport -> writeImage outPath corrected
-      --   BlackWhiteExport -> writeImage outPath corrected
-
-  pure ()
 
 
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
