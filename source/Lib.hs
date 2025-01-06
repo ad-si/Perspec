@@ -749,18 +749,21 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 
           case resultBundled of
             Right _ -> putText successMessage
-            Left (errLocal:: IOException) -> do
+            Left (errLocal :: IOException) -> do
               P.putErrLn $ P.displayException errLocal
               putText "Use global installation of ImageMagick"
 
               -- Add more possible installation paths to PATH
               path <- getEnv "PATH"
-              setEnv "PATH" $ path <> ":"
-                <> P.intercalate ":"
-                      [ "/usr/local/bin"
-                      , "/usr/local/sbin"
-                      , "/opt/homebrew/bin"
-                      ]
+              setEnv "PATH" $
+                path
+                  <> ":"
+                  <> P.intercalate
+                    ":"
+                    [ "/usr/local/bin"
+                    , "/usr/local/sbin"
+                    , "/opt/homebrew/bin"
+                    ]
 
               resultMagick <- try $ callProcess "magick" argsNorm
               case resultMagick of
@@ -806,22 +809,23 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 
         corrected :: Image (Alpha (SRGB 'Linear)) Double
         corrected =
-          uncorrected & transform
-            (outputSize,)
-            ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
-                let
-                  V3 colCrd rowCrd p =
-                    correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
-                  colCrd' =
-                    max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
-                  rowCrd' =
-                    max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
+          uncorrected
+            & transform
+              (outputSize,)
+              ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
+                  let
+                    V3 colCrd rowCrd p =
+                      correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
+                    colCrd' =
+                      max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
+                    rowCrd' =
+                      max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
 
-                interpolate Bilinear getPixel (rowCrd', colCrd')
-            )
+                  interpolate Bilinear getPixel (rowCrd', colCrd')
+              )
 
       case exportMode of
-        UnmodifiedExport ->  writeImage outPath corrected
+        UnmodifiedExport -> writeImage outPath corrected
         GrayscaleExport -> pure ()
         BlackWhiteExport -> pure ()
     --
@@ -843,28 +847,30 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 
         -- TODO: Not clear why order must be reversed here
         srcCorners :: Corners
-        srcCorners = Corners
-          { tl_x = float2Double $ fst bl
-          , tl_y = float2Double $ snd bl
-          , tr_x = float2Double $ fst br
-          , tr_y = float2Double $ snd br
-          , br_x = float2Double $ fst tr
-          , br_y = float2Double $ snd tr
-          , bl_x = float2Double $ fst tl
-          , bl_y = float2Double $ snd tl
-          }
+        srcCorners =
+          Corners
+            { tl_x = float2Double $ fst bl
+            , tl_y = float2Double $ snd bl
+            , tr_x = float2Double $ fst br
+            , tr_y = float2Double $ snd br
+            , br_x = float2Double $ fst tr
+            , br_y = float2Double $ snd tr
+            , bl_x = float2Double $ fst tl
+            , bl_y = float2Double $ snd tl
+            }
 
         dstCorners :: Corners
-        dstCorners = Corners
-          { tl_x = 0
-          , tl_y = 0
-          , tr_x = int2Double width
-          , tr_y = 0
-          , br_x = int2Double width
-          , br_y = int2Double height
-          , bl_x = 0
-          , bl_y = int2Double height
-          }
+        dstCorners =
+          Corners
+            { tl_x = 0
+            , tl_y = 0
+            , tr_x = int2Double width
+            , tr_y = 0
+            , br_x = int2Double width
+            , br_y = int2Double height
+            , bl_x = 0
+            , bl_y = int2Double height
+            }
 
       putText $ "Source corners: " <> show srcCorners
       putText $ "Destination corners: " <> show dstCorners
@@ -891,10 +897,14 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             srcHeight = P.snd bitmapData.bitmapSize
 
           withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
-            resutlImg <- applyMatrix3x3
-              srcWidth srcHeight ptr
-              width height
-              transMatPtr
+            resutlImg <-
+              applyMatrix3x3
+                srcWidth
+                srcHeight
+                ptr
+                width
+                height
+                transMatPtr
             resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
             let grayscalePicture =
                   bitmapOfForeignPtr
