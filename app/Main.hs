@@ -62,7 +62,7 @@ import Foreign (newForeignPtr_, withForeignPtr, castForeignPtr)
 import Foreign.Ptr (castPtr)
 import Lib (loadAndStart)
 import Rename (getRenamingBatches)
-import SimpleCV (grayscale, otsu_threshold_rgba)
+import SimpleCV (otsu_threshold_rgba)
 import Types (
   Config (transformBackendFlag),
   RenameMode (Even, Odd, Sequential),

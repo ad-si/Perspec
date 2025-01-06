@@ -52,7 +52,7 @@ import GHC.Float (int2Double, float2Double)
 
 import Brillo (
   Display (InWindow),
-  Picture (Line, Pictures, Scale, ThickArc, ThickCircle, Translate),
+  Picture (Line, Pictures, Scale, ThickArc, ThickCircle, Translate, Bitmap),
   Point,
   bitmapOfBMP,
   black,
@@ -125,8 +125,19 @@ import Utils (
   getWordSprite,
   loadFileIntoState,
  )
-import SimpleCV (Corners(..), Matrix3x3(..))
+import SimpleCV (Corners(..))
 import SimpleCV qualified as SCV
+import Brillo (
+  BitmapFormat (BitmapFormat),
+  PixelFormat (PxRGBA),
+  RowOrder (TopToBottom),
+ )
+import Brillo.Rendering (BitmapData(..), bitmapOfForeignPtr)
+import Brillo.Interface.Pure.Display (display)
+import Foreign (newForeignPtr_, withForeignPtr, castForeignPtr)
+import Foreign.Ptr (castPtr)
+import SimpleCV (applyMatrix3x3)
+import Utils (loadImage)
 
 
 -- | This is replaced with valid licenses during CI build
@@ -789,14 +800,14 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             )
             cornersClockwiseFromTopLeft
 
-        size :: Sz Ix2
-        size@(Sz (height :. width)) =
+        outputSize :: Sz Ix2
+        outputSize@(Sz (height :. width)) =
           determineSize cornersClockwiseFromTopLeft
 
         corrected :: Image (Alpha (SRGB 'Linear)) Double
         corrected =
           uncorrected & transform
-            (size,)
+            (outputSize,)
             ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
                 let
                   V3 colCrd rowCrd p =
@@ -816,7 +827,6 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
     --
     SimpleCVBackend -> do
       P.putText "ℹ️ Use SimpleCV backend"
-      uncorrected <- readImageRGBA inPath
 
       let
         cornersClockwiseFromTopLeft :: V4 (V2 Double)
@@ -828,8 +838,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
           -- TODO: Not clear why order must be reversed here
           V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
-        size :: Sz Ix2
-        size@(Sz (height :. width)) =
+        Sz (height :. width) =
           determineSize cornersClockwiseFromTopLeft
 
         -- TODO: Not clear why order must be reversed here
@@ -867,38 +876,46 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
       free srcCornersPtr
       free dstCornersPtr
       transMat <- peek transMatPtr
-      free transMatPtr
 
       putText $ "Transformation matrix: " <> show transMat
 
-      let
-        correcTransMat :: M33 Double
-        correcTransMat =
-          V3
-            (V3 transMat.m00 transMat.m01 transMat.m02)
-            (V3 transMat.m10 transMat.m11 transMat.m12)
-            (V3 transMat.m20 transMat.m21 transMat.m22)
+      pictureMetadataEither <- loadImage inPath
+      case pictureMetadataEither of
+        Left error -> do
+          free transMatPtr
+          P.putText error
+        Right (Bitmap bitmapData, metadata) -> do
+          P.print ("metadata" :: P.Text, metadata)
+          let
+            srcWidth = P.fst bitmapData.bitmapSize
+            srcHeight = P.snd bitmapData.bitmapSize
 
-        corrected :: Image (Alpha (SRGB 'Linear)) Double
-        corrected =
-          uncorrected & transform
-            (size,)
-            ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
-                let
-                  V3 colCrd rowCrd p =
-                    correcTransMat !* V3 (fromIntegral icol) (fromIntegral irow) 1
-                  colCrd' =
-                    max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
-                  rowCrd' =
-                    max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
+          withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
+            resutlImg <- applyMatrix3x3
+              srcWidth srcHeight ptr
+              width height
+              transMatPtr
+            resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
+            let grayscalePicture =
+                  bitmapOfForeignPtr
+                    width
+                    height
+                    (BitmapFormat TopToBottom PxRGBA)
+                    resultImgForeignPtr
+                    True
+            free transMatPtr
+            display
+              (InWindow "Grayscale" (width, height) (10, 10))
+              (makeColor 0 0 0 0)
+              grayscalePicture
+        Right _ -> do
+          free transMatPtr
+          P.putText "Unsupported image format"
 
-                interpolate Bilinear getPixel (rowCrd', colCrd')
-            )
-
-      case exportMode of
-        UnmodifiedExport -> writeImage outPath corrected
-        GrayscaleExport -> writeImage outPath corrected
-        BlackWhiteExport -> writeImage outPath corrected
+      -- case exportMode of
+      --   UnmodifiedExport -> writeImage outPath corrected
+      --   GrayscaleExport -> writeImage outPath corrected
+      --   BlackWhiteExport -> writeImage outPath corrected
 
   pure ()
 

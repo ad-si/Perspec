@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 #include "simplecv.h"
+#include "perspectivetransform.h"
 
 // Avoid using floating point arithmetic by pre-multiplying the weights
 const unsigned char R_WEIGHT = 76;  // 0.299 * 256
@@ -91,6 +92,14 @@ unsigned char *rgba_to_grayscale(
 }
 
 
+/**
+  * Apply a global threshold to the image data.
+  *
+  * @param img_length_px Length of the image data in pixels.
+  * @param data Pointer to the image data.
+  * @param threshold Threshold value.
+  *
+  */
 void apply_global_threshold(
   unsigned int img_length_px,
   unsigned char *data,
@@ -102,6 +111,14 @@ void apply_global_threshold(
 }
 
 
+/**
+  * Convert single channel grayscale image data to
+  * RGBA row-major top-to-bottom image data.
+  *
+  * @param width Width of the image.
+  * @param height Height of the image.
+  * @param data Pointer to the pixel data.
+  */
 unsigned char const * const single_to_multichannel(
   unsigned int width,
   unsigned int height,
@@ -126,6 +143,14 @@ unsigned char const * const single_to_multichannel(
 }
 
 
+/**
+  * Apply Otsu's thresholding algorithm to the image data.
+  *
+  * @param width Width of the image.
+  * @param height Height of the image.
+  * @param data Pointer to the pixel data.
+  * @return Pointer to the monochrome image data.
+  */
 unsigned char const * const otsu_threshold_rgba(
   unsigned int width,
   unsigned int height,

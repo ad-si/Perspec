@@ -24,4 +24,13 @@ Matrix3x3* calculate_perspective_transform(
   Corners* dst_corners
 );
 
+unsigned char * apply_matrix_3x3(
+  int in_width,
+  int in_height,
+  unsigned char* in_data,
+  int out_width,
+  int out_height,
+  Matrix3x3* tmat
+);
+
 #endif

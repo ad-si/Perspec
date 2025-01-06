@@ -39,7 +39,7 @@ data Config = Config
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> do
     licenseKey <- o .:? "licenseKey" .!= ""
-    transformBackendFlag <- o .:? "transformBackendFlag" .!= HipBackend
+    transformBackendFlag <- o .:? "transformBackendFlag" .!= SimpleCVBackend
     pure $ Config{..}
 
 
@@ -210,7 +210,7 @@ initialState =
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
     , scaleFactor = 1
-    , transformBackend = HipBackend
+    , transformBackend = SimpleCVBackend
     , isRegistered = False
     , bannerIsVisible = False
     , sidebarWidth = sidebarInitialWidth

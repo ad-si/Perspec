@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "perspectivetransform.h"
@@ -15,8 +16,11 @@
   #define log(msg) // No operation
 #endif
 
-// Helper function to solve 8x8 linear system using Gaussian elimination
-// Returns 1 on success, 0 on failure
+
+/**
+  * Helper function to solve 8x8 linear system using Gaussian elimination
+  * Returns 1 on success, 0 on failure
+  */
 int solve_linear_system(double A[8][8], double b[8], double x[8]) {
   const int n = 8;
   const double epsilon = 1e-10;
@@ -93,41 +97,15 @@ int solve_linear_system(double A[8][8], double b[8], double x[8]) {
   return 1;
 }
 
-// Normalize points to improve numerical stability
-static void normalize_points(Point2D points[4], double *scale, double *tx, double *ty) {
-  double mean_x = 0, mean_y = 0;
-  double sum_dist = 0;
-  int i;
 
-  // Calculate centroid
-  for(i = 0; i < 4; i++) {
-    mean_x += points[i].x;
-    mean_y += points[i].y;
-  }
-  mean_x /= 4;
-  mean_y /= 4;
-
-  // Calculate average distance from centroid
-  for(i = 0; i < 4; i++) {
-    double dx = points[i].x - mean_x;
-    double dy = points[i].y - mean_y;
-    sum_dist += sqrt(dx*dx + dy*dy);
-  }
-  double avg_dist = sum_dist / 4;
-
-  // Scale to make average distance from centroid = sqrt(2)
-  *scale = (avg_dist > 1e-10) ? sqrt(2.0) / avg_dist : 1.0;
-  *tx = -mean_x;
-  *ty = -mean_y;
-
-  // Apply normalization transform
-  for(i = 0; i < 4; i++) {
-    points[i].x = (points[i].x + *tx) * *scale;
-    points[i].y = (points[i].y + *ty) * *scale;
-  }
-}
-
-Matrix3x3 *calculate_perspective_transform(Corners *src_corners, Corners *dst_corners) {
+/**
+  * Calculate the perspective transformation matrix
+  * from the source and destination corner coordinates.
+  */
+Matrix3x3 *calculate_perspective_transform(
+  Corners *src_corners,
+  Corners *dst_corners
+) {
   // Initialize matrices with zeros
   double A[8][8] = {{0}};
   double b[8] = {0};
@@ -265,4 +243,90 @@ Matrix3x3 *calculate_perspective_transform(Corners *src_corners, Corners *dst_co
   }
 
   return result;
+}
+
+
+/**
+  * Apply the transformation matrix to the input image
+  * and store the result in the output image.
+  * Use bilinear interpolation to calculate final pixel values.
+  */
+unsigned char * apply_matrix_3x3(
+  int in_width,
+  int in_height,
+  unsigned char* in_data,
+  int out_width,
+  int out_height,
+  Matrix3x3* tmat
+) {
+  #ifdef DEBUG_LOGGING
+    printf("Input data:\n");
+    for (int i = 0; i < in_width; i++) {
+      for (int j = 0; j < in_height; j++) {
+        printf("%d ", in_data[(i * in_width + j) * 4]);
+      }
+      printf("\n");
+    }
+  #endif
+
+  // Patch flip matrix if needed
+  if (
+    fabs(tmat->m00 + 1.0) < 1e-9 &&
+    fabs(tmat->m11 + 1.0) < 1e-9 &&
+    tmat->m02 == 0.0 &&
+    tmat->m12 == 0.0
+  ) {
+    tmat->m02 = in_width - 1;
+    tmat->m12 = in_height - 1;
+  }
+
+  unsigned char *out_data = calloc(
+    out_width * out_height * 4,
+    sizeof(unsigned char)
+  );
+
+  if (!out_data) { // Memory allocation failed
+    return NULL;
+  }
+
+  // Iterate through every pixel in the input image
+  for (int y = 0; y < in_height; ++y) {
+    for (int x = 0; x < in_width; ++x) {
+      // Apply the transformation to find the corresponding destination pixel
+      double w = tmat->m20 * x + tmat->m21 * y + tmat->m22;
+      if (fabs(w) < 1e-10) continue;  // Skip if w is too close to zero
+
+      double dstX = (tmat->m00 * x + tmat->m01 * y + tmat->m02) / w;
+      double dstY = (tmat->m10 * x + tmat->m11 * y + tmat->m12) / w;
+
+      // Convert destination coordinates to integers
+      int ix = (int)round(dstX);
+      int iy = (int)round(dstY);
+
+      // Check bounds
+      // TODO: Fix bounds check
+      if (ix >= 0 && iy >= 0) {
+        // Copy the RGBA values from the input image to the output image
+        int srcIdx = (iy * in_width + ix) * 4;
+        int dstIdx = (y * out_width + x) * 4;
+
+        out_data[dstIdx + 0] = in_data[srcIdx + 0]; // R
+        out_data[dstIdx + 1] = in_data[srcIdx + 1]; // G
+        out_data[dstIdx + 2] = in_data[srcIdx + 2]; // B
+        out_data[dstIdx + 3] = in_data[srcIdx + 3]; // A
+      }
+    }
+  }
+
+  #ifdef DEBUG_LOGGING
+    printf("Output data:\n");
+    for (int i = 0; i < out_width; i++) {
+      for (int j = 0; j < out_height; j++) {
+        printf("%d ", out_data[(i * out_width + j) * 4]);
+      }
+      printf("\n");
+    }
+  #endif
+
+  return out_data;
 }

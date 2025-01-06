@@ -112,3 +112,13 @@ instance Storable Matrix3x3 where
   , castPtr `Ptr Corners'  -- ^ Destination points
   } -> `Ptr Matrix3x3' castPtr -- ^ Transformation matrix
 #}
+
+{#fun apply_matrix_3x3 as ^
+  {          `Int'           -- ^ width of the input image
+  ,          `Int'           -- ^ height of the input image
+  , identity `Ptr CUChar'    -- ^ Original image data
+  ,          `Int'           -- ^ width of the output image
+  ,          `Int'           -- ^ height of the output image
+  , castPtr  `Ptr Matrix3x3' -- ^ Transformation matrix
+  } -> `Ptr CUChar' castPtr -- ^ Transformed image data
+#}
