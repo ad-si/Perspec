@@ -251,7 +251,7 @@ Matrix3x3 *calculate_perspective_transform(
   * and store the result in the output image.
   * Use bilinear interpolation to calculate final pixel values.
   */
-unsigned char * apply_matrix_3x3(
+unsigned char *apply_matrix_3x3(
   int in_width,
   int in_height,
   unsigned char* in_data,
@@ -289,33 +289,43 @@ unsigned char * apply_matrix_3x3(
     return NULL;
   }
 
-  // Iterate through every pixel in the input image
-  for (int in_y = 0; in_y < in_height; ++in_y) {
-    for (int in_x = 0; in_x < in_width; ++in_x) {
-      // Apply the transformation to find the corresponding destination pixel
-      double w = tmat->m20 * in_x + tmat->m21 * in_y + tmat->m22;
+  // Iterate through every pixel in the output image
+  for (int out_y = 0; out_y < out_height; ++out_y) {
+    for (int out_x = 0; out_x < out_width; ++out_x) {
+      // Apply the inverse transformation to find the corresponding source pixel
+      double w = tmat->m20 * out_x + tmat->m21 * out_y + tmat->m22;
       if (fabs(w) < 1e-10) continue;  // Skip if w is too close to zero
 
-      double dstX = (tmat->m00 * in_x + tmat->m01 * in_y + tmat->m02) / w;
-      double dstY = (tmat->m10 * in_x + tmat->m11 * in_y + tmat->m12) / w;
+      double srcX = (tmat->m00 * out_x + tmat->m01 * out_y + tmat->m02) / w;
+      double srcY = (tmat->m10 * out_x + tmat->m11 * out_y + tmat->m12) / w;
 
-      // Convert destination coordinates to integers
-      int out_x = (int)round(dstX);
-      int out_y = (int)round(dstY);
+      // Convert source coordinates to integers
+      int x0 = (int)floor(srcX);
+      int y0 = (int)floor(srcY);
+      int x1 = x0 + 1;
+      int y1 = y0 + 1;
 
-      // Check if the transformed coordinates are within bounds
-      if (out_x >= 0 && out_x < in_width && out_y >= 0 && out_y < in_height) {
-        // Calculate source and destination indices with bounds checking
-        int srcIdx = (out_y * in_width + out_x) * 4;
-        int dstIdx = (in_y * out_width + in_x) * 4;
+      // Check if the source coordinates are within bounds
+      if (x0 >= 0 && x0 < in_width && y0 >= 0 && y0 < in_height &&
+          x1 >= 0 && x1 < in_width && y1 >= 0 && y1 < in_height) {
+        // Calculate the weights for bilinear interpolation
+        double dx = srcX - x0;
+        double dy = srcY - y0;
 
-        // Verify indices are within array bounds
-        if (srcIdx >= 0 && srcIdx + 3 < (in_width * in_height * 4) &&
-            dstIdx >= 0 && dstIdx + 3 < (out_width * out_height * 4)) {
-          out_data[dstIdx + 0] = in_data[srcIdx + 0]; // R
-          out_data[dstIdx + 1] = in_data[srcIdx + 1]; // G
-          out_data[dstIdx + 2] = in_data[srcIdx + 2]; // B
-          out_data[dstIdx + 3] = in_data[srcIdx + 3]; // A
+        // Get the four surrounding pixels
+        unsigned char *p00 = &in_data[(y0 * in_width + x0) * 4];
+        unsigned char *p01 = &in_data[(y0 * in_width + x1) * 4];
+        unsigned char *p10 = &in_data[(y1 * in_width + x0) * 4];
+        unsigned char *p11 = &in_data[(y1 * in_width + x1) * 4];
+
+        // Interpolate the pixel values
+        for (int c = 0; c < 4; ++c) {
+          out_data[(out_y * out_width + out_x) * 4 + c] = (unsigned char)(
+            p00[c] * (1 - dx) * (1 - dy) +
+            p01[c] * dx * (1 - dy) +
+            p10[c] * (1 - dx) * dy +
+            p11[c] * dx * dy
+          );
         }
       }
     }
