@@ -1,4 +1,6 @@
-resolver: lts-22.42
+# Only update to lts-23 once HLS supports GHC 9.8.4
+# https://haskell-language-server.readthedocs.io/en/latest/support/ghc-version-support.html
+resolver: lts-22.43
 
 packages:
   - .
@@ -17,7 +19,7 @@ extra-deps:
       - Color
 
   - github: ad-si/Brillo
-    commit: 932dd2c20e713591d4658a8b7cc0b00478d3e70b
+    commit: ab2dc5244194d184740c5d0de909669141dd1313
     subdirs:
       - brillo
       - brillo-algorithms
