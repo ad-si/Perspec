@@ -1,5 +1,4 @@
-#ifndef PERSPECTIVE_TRANSFORM_H
-#define PERSPECTIVE_TRANSFORM_H
+#pragma once
 
 typedef struct {
   double x;
@@ -32,5 +31,3 @@ unsigned char * apply_matrix_3x3(
   int out_height,
   Matrix3x3* tmat
 );
-
-#endif

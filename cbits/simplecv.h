@@ -1,5 +1,4 @@
-#ifndef SIMPLECV_H
-#define SIMPLECV_H
+#pragma once
 
 unsigned char const * const grayscale(
   unsigned int width,
@@ -18,5 +17,3 @@ unsigned char const * const otsu_threshold_rgba(
   unsigned int height,
   unsigned char const * const data
 );
-
-#endif
