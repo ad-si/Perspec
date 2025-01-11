@@ -100,6 +100,13 @@ instance Storable Matrix3x3 where
   } -> `Ptr CUChar' castPtr    -- ^ Grayscale image data
 #}
 
+{#fun grayscale_stretch as ^
+  {               `Int'        -- ^ width
+  ,               `Int'        -- ^ height
+  , identity      `Ptr CUChar' -- ^ Original image data
+  } -> `Ptr CUChar' castPtr    -- ^ Grayscale image data
+#}
+
 {#fun otsu_threshold_rgba
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height

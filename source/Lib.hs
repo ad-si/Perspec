@@ -910,8 +910,23 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 transMatPtr
             resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
             free transMatPtr
-            let juicyImg = imageFromUnsafePtr width height resultImgForeignPtr
-            savePngImage outPath (ImageRGBA8 juicyImg)
+
+            case exportMode of
+              UnmodifiedExport -> do
+                let img = imageFromUnsafePtr width height resultImgForeignPtr
+                savePngImage outPath (ImageRGBA8 img)
+              --
+              GrayscaleExport -> do
+                grayImgPtr <- SCV.grayscaleStretch width height resutlImg
+                grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
+                let grayImg = imageFromUnsafePtr width height grayImgForeignPtr
+                savePngImage outPath (ImageRGBA8 grayImg)
+              --
+              BlackWhiteExport -> do
+                bwImgPtr <- SCV.otsu_threshold_rgba width height resutlImg
+                bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
+                let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
+                savePngImage outPath (ImageRGBA8 bwImg)
         --
         Right _ -> do
           free transMatPtr

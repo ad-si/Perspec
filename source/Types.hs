@@ -39,7 +39,7 @@ data Config = Config
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> do
     licenseKey <- o .:? "licenseKey" .!= ""
-    transformBackendFlag <- o .:? "transformBackendFlag" .!= SimpleCVBackend
+    transformBackendFlag <- o .:? "transformBackend" .!= SimpleCVBackend
     pure $ Config{..}
 
 

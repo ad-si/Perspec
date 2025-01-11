@@ -6,6 +6,12 @@ unsigned char const * const grayscale(
   unsigned char const * const data
 );
 
+unsigned char const * const grayscale_stretch(
+  unsigned int width,
+  unsigned int height,
+  unsigned char const * const data
+);
+
 void apply_global_threshold(
   unsigned int img_length,
   unsigned char * data,

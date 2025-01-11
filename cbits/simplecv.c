@@ -1,10 +1,11 @@
 #include <assert.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
-#include <stdbool.h>
 
 #include "simplecv.h"
 #include "perspectivetransform.h"
@@ -53,6 +54,111 @@ unsigned char const * const grayscale(
 
   return grayscale_data;
 }
+
+
+/**
+ * Convert raw RGBA row-major top-to-bottom image data
+ * to RGBA row-major top-to-bottom grayscale image data
+ * with a stretched contrast range.
+ * Set the 1.5625 % darkest pixels to 0 and the 1.5625 % brightest to 255.
+ * Uses this specific value for speed: x * 1.5625 % = x >> 6
+ * The rest of the pixel values are linearly scaled to the range [0, 255].
+
+ * @param width Width of the image.
+ * @param height Height of the image.
+ * @param data Pointer to the pixel data.
+ * @return Pointer to the grayscale image data.
+ */
+unsigned char const * const grayscale_stretch(
+  unsigned int width,
+  unsigned int height,
+  unsigned char const * const data
+) {
+  unsigned int img_length_byte = width * height * 4;
+  unsigned char *grayscale_data = malloc(img_length_byte);
+
+  if (!grayscale_data) { // Memory allocation failed
+    return NULL;
+  }
+
+  unsigned int img_length_px = width * height;
+  // Ignore 1.5625 % of the pixels
+  unsigned int num_pixels_to_ignore = img_length_px >> 6;
+
+  unsigned char *gray_values = malloc(img_length_px);
+  if (!gray_values) { // Memory allocation failed
+    free(grayscale_data);
+    return NULL;
+  }
+
+  // Process each pixel row by row to get grayscale values
+  for (unsigned int i = 0; i < img_length_px; i++) {
+    unsigned int rgba_index = i * 4;
+
+    unsigned char r = data[rgba_index];
+    unsigned char g = data[rgba_index + 1];
+    unsigned char b = data[rgba_index + 2];
+
+    gray_values[i] = (r * R_WEIGHT + g * G_WEIGHT + b * B_WEIGHT) >> 8;
+  }
+
+  // Use counting sort to find the 1.5625% darkest and brightest pixels
+  unsigned int histogram[256] = {0};
+  for (unsigned int i = 0; i < img_length_px; i++) {
+    histogram[gray_values[i]]++;
+  }
+
+  unsigned int cumulative_count = 0;
+  unsigned char min_val = 0;
+  for (unsigned int i = 0; i < 256; i++) {
+    cumulative_count += histogram[i];
+    if (cumulative_count > num_pixels_to_ignore) {
+      min_val = i;
+      break;
+    }
+  }
+
+  cumulative_count = 0;
+  unsigned char max_val = 255;
+  for (int i = 255; i >= 0; i--) {
+    cumulative_count += histogram[i];
+    if (cumulative_count > num_pixels_to_ignore) {
+      max_val = i;
+      break;
+    }
+  }
+
+  free(gray_values);
+
+  unsigned char range = max_val - min_val;
+
+  // Process each pixel row by row
+  for (unsigned int i = 0; i < img_length_px; i++) {
+    unsigned int rgba_index = i * 4;
+
+    unsigned char r = data[rgba_index];
+    unsigned char g = data[rgba_index + 1];
+    unsigned char b = data[rgba_index + 2];
+
+    unsigned char gray = (r * R_WEIGHT + g * G_WEIGHT + b * B_WEIGHT) >> 8;
+
+    if (gray < min_val) {
+      gray = 0;
+    } else if (gray > max_val) {
+      gray = 255;
+    } else {
+      gray = (gray - min_val) * 255 / range;
+    }
+
+    grayscale_data[rgba_index] = gray;
+    grayscale_data[rgba_index + 1] = gray;
+    grayscale_data[rgba_index + 2] = gray;
+    grayscale_data[rgba_index + 3] = 255;
+  }
+
+  return grayscale_data;
+}
+
 
 /**
  * Convert raw RGBA row-major top-to-bottom image data
