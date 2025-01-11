@@ -8,6 +8,7 @@ import Protolude (
   IO,
   Bool,
   Ptr,
+  realToFrac,
   Show,
   return,
   (*),
@@ -99,6 +100,14 @@ instance Storable Matrix3x3 where
   ,               `Int'        -- ^ height
   , identity      `Ptr CUChar' -- ^ Original image data
   } -> `Ptr CUChar' castPtr    -- ^ Grayscale image data
+#}
+
+{#fun apply_gaussian_blur
+  {               `Int'        -- ^ width
+  ,               `Int'        -- ^ height
+  ,               `Double'     -- ^ radius
+  , identity      `Ptr CUChar' -- ^ Original image data
+  } -> `Ptr CUChar' castPtr    -- ^ Blurred image data
 #}
 
 {#fun grayscale_stretch as ^

@@ -367,3 +367,89 @@ unsigned char const * const otsu_threshold_rgba(
 
   return monochrome_data;
 }
+
+
+/**
+  * Apply gaussian blur to the image data.
+  *
+  * @param width Width of the image.
+  * @param height Height of the image.
+  * @param data Pointer to the pixel data.
+  * @return Pointer to the blurred image data.
+  */
+unsigned char const * const apply_gaussian_blur(
+  unsigned int width,
+  unsigned int height,
+  double radius,
+  unsigned char const * const data
+) {
+  unsigned int img_length_px = width * height;
+  unsigned char *blurred_data = malloc(img_length_px * 4);
+
+  if (!blurred_data) { // Memory allocation failed
+    return NULL;
+  }
+
+  unsigned int kernel_size = 2 * radius + 1;
+  unsigned int kernel_length = kernel_size * kernel_size;
+  float *kernel = malloc(kernel_length * sizeof(float));
+
+  if (!kernel) { // Memory allocation failed
+    free(blurred_data);
+    return NULL;
+  }
+
+  float sigma = radius / 3.0;
+  float sigma_sq = sigma * sigma;
+  float two_sigma_sq = 2 * sigma_sq;
+  float sqrt_two_pi_sigma = sqrt(2 * M_PI) * sigma;
+
+  for (unsigned int i = 0; i < kernel_size; i++) {
+    for (unsigned int j = 0; j < kernel_size; j++) {
+      int x = i - radius;
+      int y = j - radius;
+      kernel[i * kernel_size + j] = exp(-(x * x + y * y) / two_sigma_sq) / sqrt_two_pi_sigma;
+    }
+  }
+
+  for (unsigned int i = 0; i < img_length_px; i++) {
+    unsigned int rgba_index = i * 4;
+    unsigned int x = i % width;
+    unsigned int y = i / width;
+
+    float r_sum = 0.0;
+    float g_sum = 0.0;
+    float b_sum = 0.0;
+    float weight_sum = 0.0;
+
+    for (int j = 0; j < kernel_size; j++) {
+      for (int k = 0; k < kernel_size; k++) {
+        int x_offset = x + j - radius;
+        int y_offset = y + k - radius;
+
+        if (x_offset < 0 || x_offset >= width || y_offset < 0 || y_offset >= height) {
+          continue;
+        }
+
+        unsigned int img_index = y_offset * width + x_offset;
+        unsigned int img_rgba_index = img_index * 4;
+
+        float weight = kernel[j * kernel_size + k];
+        weight_sum += weight;
+
+        r_sum += data[img_rgba_index] * weight;
+        g_sum += data[img_rgba_index + 1] * weight;
+        b_sum += data[img_rgba_index + 2] * weight;
+      }
+    }
+
+    blurred_data[rgba_index] = r_sum / weight_sum;
+    blurred_data[rgba_index + 1] = g_sum / weight_sum;
+    blurred_data[rgba_index + 2] = b_sum / weight_sum;
+    blurred_data[rgba_index + 3] = 255;
+  }
+
+  free(kernel);
+
+  return blurred_data;
+}

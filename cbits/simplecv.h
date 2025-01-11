@@ -2,6 +2,13 @@
 
 #include <stdbool.h>
 
+unsigned char const * const apply_gaussian_blur(
+  unsigned int width,
+  unsigned int height,
+  double radius,
+  unsigned char const * const data
+);
+
 unsigned char const * const grayscale(
   unsigned int width,
   unsigned int height,
