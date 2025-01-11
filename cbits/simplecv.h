@@ -33,3 +33,9 @@ unsigned char const * const otsu_threshold_rgba(
   bool use_double_threshold,
   unsigned char const * const data
 );
+
+unsigned char const * const bw_smooth_smart(
+  unsigned int width,
+  unsigned int height,
+  unsigned char const * const data
+);

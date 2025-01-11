@@ -453,3 +453,65 @@ unsigned char const * const apply_gaussian_blur(
 
   return blurred_data;
 }
+
+
+/**
+  * Convert image to anti-aliased black and white.
+  * 1. Convert the image to grayscale.
+  * 2. Subtract blurred image from the original image to get the high frequencies.
+  * 3. Apply OTSU's threshold to get the optimal threshold.
+  * 4. Apply the threshold + offset to get the anti-aliased image.
+  *
+  * @param width Width of the image.
+  * @param height Height of the image.
+  * @param data Pointer to the pixel data.
+  * @return Pointer to the blurred image data.
+  */
+unsigned char const * const bw_smooth_smart(
+  unsigned int width,
+  unsigned int height,
+  unsigned char const * const data
+) {
+  unsigned char const * const grayscale_data = grayscale(width, height, data);
+
+  // Calculate blur radius dependent on image size
+  // (Empirical formula after testing)
+  double blurRadius = (sqrt((double)width * (double)height)) * 0.1;
+
+  unsigned char const * const blurred_data = apply_gaussian_blur(
+    width,
+    height,
+    blurRadius,
+    grayscale_data
+  );
+
+  unsigned int img_length_px = width * height;
+  unsigned char *high_freq_data = malloc(img_length_px * 4);
+
+  if (!high_freq_data) { // Memory allocation failed
+    free((void *)grayscale_data);
+    free((void *)blurred_data);
+    return NULL;
+  }
+
+  // Subtract blurred image from the original image to get the high frequencies
+  // and invert the high frequencies to get a white background.
+  for (unsigned int i = 0; i < img_length_px; i++) {
+    unsigned int rgba_idx = i * 4;
+    int high_freq_val = 127 + grayscale_data[rgba_idx] - blurred_data[rgba_idx];
+    high_freq_data[rgba_idx] = high_freq_val; // R
+    high_freq_data[rgba_idx + 1] = high_freq_val; // G
+    high_freq_data[rgba_idx + 2] = high_freq_val; // B
+    high_freq_data[rgba_idx + 3] = 255; // A
+  }
+
+  free((void *)grayscale_data);
+  free((void *)blurred_data);
+
+  unsigned char const * const final_data = otsu_threshold_rgba(
+    width, height, true, high_freq_data
+  );
+
+  free(high_freq_data);
+  return final_data;
+}

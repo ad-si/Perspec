@@ -935,7 +935,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 savePngImage outPath (ImageRGBA8 bwImg)
               --
               BlackWhiteSmoothExport -> do
-                bwImgPtr <- SCV.otsu_threshold_rgba width height True resutlImg
+                bwImgPtr <- SCV.bwSmoothSmart width height resutlImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage outPath (ImageRGBA8 bwImg)
