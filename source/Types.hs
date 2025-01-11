@@ -138,6 +138,7 @@ data ExportMode
   = UnmodifiedExport
   | GrayscaleExport
   | BlackWhiteExport
+  | BlackWhiteSmoothExport
 
 
 data UiComponent
@@ -196,7 +197,7 @@ data AppState = AppState
 appInitialWidth, appInitialHeight, sidebarInitialWidth :: Int
 appInitialWidth = 1280
 appInitialHeight = 960
-sidebarInitialWidth = 150
+sidebarInitialWidth = 180
 
 
 initialState :: AppState
@@ -218,19 +219,25 @@ initialState =
     , uiComponents =
         [ Button
             { text = "Save"
-            , width = 110
+            , width = 160
             , height = 30
             , bgColor = 0
             }
         , Button
             { text = "Save Gray"
-            , width = 110
+            , width = 160
             , height = 30
             , bgColor = 0
             }
         , Button
             { text = "Save BW"
-            , width = 110
+            , width = 160
+            , height = 30
+            , bgColor = 0
+            }
+        , Button
+            { text = "Save BW Smooth"
+            , width = 160
             , height = 30
             , bgColor = 0
             }

@@ -6,6 +6,7 @@ import Protolude (
   identity,
   Int,
   IO,
+  Bool,
   Ptr,
   Show,
   return,
@@ -110,6 +111,7 @@ instance Storable Matrix3x3 where
 {#fun otsu_threshold_rgba
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
+  ,               `Bool'       -- ^ whether to use double thresholding
   , identity      `Ptr CUChar' -- ^ Original image data
   } -> `Ptr CUChar' castPtr    -- ^ Thresholded image data
 #}

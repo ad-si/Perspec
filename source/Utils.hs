@@ -83,19 +83,23 @@ getWordSprite spriteText =
     Bitmap bitmapData -> case spriteText of
       "Save" ->
         BitmapSection
-          Rectangle{rectPos = (0, 40), rectSize = (90, 20)}
+          Rectangle{rectPos = (-5, 40), rectSize = (150, 20)}
           bitmapData
       "Save BW" ->
         BitmapSection
-          Rectangle{rectPos = (0, 60), rectSize = (90, 20)}
+          Rectangle{rectPos = (-5, 60), rectSize = (150, 20)}
           bitmapData
       "Save Gray" ->
         BitmapSection
-          Rectangle{rectPos = (0, 80), rectSize = (90, 20)}
+          Rectangle{rectPos = (-5, 80), rectSize = (150, 20)}
           bitmapData
       "Select Files" ->
         BitmapSection
-          Rectangle{rectPos = (0, 140), rectSize = (100, 20)}
+          Rectangle{rectPos = (-5, 140), rectSize = (150, 20)}
+          bitmapData
+      "Save BW Smooth" ->
+        BitmapSection
+          Rectangle{rectPos = (-5, 160), rectSize = (150, 20)}
           bitmapData
       _ -> mempty
     _ -> mempty

@@ -218,6 +218,37 @@ void apply_global_threshold(
 
 
 /**
+  * Applies two thresholds to the image data by blackening pixels
+  * below the lower threshold and whitening pixels above the upper threshold.
+  * Pixels between the two thresholds are scaled to the range [0, 255].
+  *
+  * @param img_length_px Length of the image data in pixels.
+  * @param data Pointer to the image data.
+  * @param lower_threshold Every pixel below this value will be blackened.
+  * @param upper_threshold Every pixel above this value will be whitened.
+  *
+  */
+void apply_double_threshold(
+  unsigned int img_length_px,
+  unsigned char *data,
+  unsigned char lower_threshold,
+  unsigned char upper_threshold
+) {
+  for (unsigned int i = 0; i < img_length_px; i++) {
+    if (data[i] < lower_threshold) {
+      data[i] = 0;
+    }
+    else if (data[i] > upper_threshold) {
+      data[i] = 255;
+    }
+    else {
+      data[i] = (data[i] - lower_threshold) * 255 / (upper_threshold - lower_threshold);
+    }
+  }
+}
+
+
+/**
   * Convert single channel grayscale image data to
   * RGBA row-major top-to-bottom image data.
   *
@@ -254,12 +285,14 @@ unsigned char const * const single_to_multichannel(
   *
   * @param width Width of the image.
   * @param height Height of the image.
+  * @param use_double_threshold Use double thresholding.
   * @param data Pointer to the pixel data.
   * @return Pointer to the monochrome image data.
   */
 unsigned char const * const otsu_threshold_rgba(
   unsigned int width,
   unsigned int height,
+  bool use_double_threshold,
   unsigned char const * const data
 ) {
   unsigned char *grayscale_img = rgba_to_grayscale(width, height, data);
@@ -306,7 +339,23 @@ unsigned char const * const otsu_threshold_rgba(
     }
   }
 
-  apply_global_threshold(img_length_px, grayscale_img, optimal_threshold);
+  const int threshold_range_offset = 16;
+
+  if (use_double_threshold) {
+    apply_double_threshold(
+      img_length_px,
+      grayscale_img,
+      optimal_threshold - threshold_range_offset,
+      optimal_threshold + threshold_range_offset
+    );
+  }
+  else {
+    apply_global_threshold(
+      img_length_px,
+      grayscale_img,
+      optimal_threshold
+    );
+  }
 
   unsigned char const * const monochrome_data = single_to_multichannel(
     width,

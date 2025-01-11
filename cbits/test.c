@@ -17,7 +17,7 @@ int test_otsu_threshold () {
     0,0,0,255, 2,2,2,255, 9,9,9,255, 8,8,8,255
   };
 
-  unsigned char const * const monochrome_data = otsu_threshold_rgba(width, height, data);
+  unsigned char const * const monochrome_data = otsu_threshold_rgba(width, height, false, data);
 
   unsigned char expected_data[64] = {
     0,0,0,255, 0,0,0,255, 255,255,255,255, 255,255,255,255,

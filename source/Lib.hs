@@ -592,6 +592,8 @@ handleImageViewEvent event appState =
           submitSelection appState GrayscaleExport
         Just (Button{text = "Save BW"}) ->
           submitSelection appState BlackWhiteExport
+        Just (Button{text = "Save BW Smooth"}) ->
+          submitSelection appState BlackWhiteSmoothExport
         _ -> do
           let
             point = appCoordToImgCoord appState clickedPoint
@@ -709,6 +711,9 @@ getConvertArgs inPath outPath projMap shape exportMode =
       UnmodifiedExport -> []
       GrayscaleExport -> ["-colorspace", "gray", "-normalize"]
       BlackWhiteExport -> ["-auto-threshold", "OTSU", "-monochrome"]
+      -- TODO: Use the correct algorithm as seen in
+      --       https://github.com/ad-si/dotfiles/blob/master/bin/level
+      BlackWhiteSmoothExport -> ["-auto-threshold", "OTSU", "-monochrome"]
     <> [ "+repage"
        , fixOutputPath exportMode outPath
        ]
@@ -831,6 +836,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
         UnmodifiedExport -> writeImage outPath corrected
         GrayscaleExport -> pure ()
         BlackWhiteExport -> pure ()
+        BlackWhiteSmoothExport -> pure ()
     --
     SimpleCVBackend -> do
       P.putText "ℹ️ Use SimpleCV backend"
@@ -923,7 +929,13 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 savePngImage outPath (ImageRGBA8 grayImg)
               --
               BlackWhiteExport -> do
-                bwImgPtr <- SCV.otsu_threshold_rgba width height resutlImg
+                bwImgPtr <- SCV.otsu_threshold_rgba width height False resutlImg
+                bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
+                let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
+                savePngImage outPath (ImageRGBA8 bwImg)
+              --
+              BlackWhiteSmoothExport -> do
+                bwImgPtr <- SCV.otsu_threshold_rgba width height True resutlImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage outPath (ImageRGBA8 bwImg)

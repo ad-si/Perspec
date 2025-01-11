@@ -4,7 +4,7 @@
 module Main where
 
 import Protolude (
-  Bool (True),
+  Bool (True, False),
   Char,
   Either (Left, Right),
   IO,
@@ -97,7 +97,7 @@ execWithArgs config cliArgs = do
           height = P.snd bitmapData.bitmapSize
         withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
           -- resutlImg <- grayscale width height ptr
-          resutlImg <- otsu_threshold_rgba width height ptr
+          resutlImg <- otsu_threshold_rgba width height False ptr
           resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
           let grayscalePicture =
                 bitmapOfForeignPtr

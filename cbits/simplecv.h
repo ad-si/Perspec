@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 unsigned char const * const grayscale(
   unsigned int width,
   unsigned int height,
@@ -21,5 +23,6 @@ void apply_global_threshold(
 unsigned char const * const otsu_threshold_rgba(
   unsigned int width,
   unsigned int height,
+  bool use_double_threshold,
   unsigned char const * const data
 );
