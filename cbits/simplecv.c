@@ -391,8 +391,7 @@ unsigned char const * const apply_gaussian_blur(
   }
 
   unsigned int kernel_size = 2 * radius + 1;
-  unsigned int kernel_length = kernel_size * kernel_size;
-  float *kernel = malloc(kernel_length * sizeof(float));
+  float *kernel = malloc(kernel_size * sizeof(float));
 
   if (!kernel) { // Memory allocation failed
     free(blurred_data);
@@ -405,48 +404,74 @@ unsigned char const * const apply_gaussian_blur(
   float sqrt_two_pi_sigma = sqrt(2 * M_PI) * sigma;
 
   for (unsigned int i = 0; i < kernel_size; i++) {
-    for (unsigned int j = 0; j < kernel_size; j++) {
-      int x = i - radius;
-      int y = j - radius;
-      kernel[i * kernel_size + j] = exp(-(x * x + y * y) / two_sigma_sq) / sqrt_two_pi_sigma;
-    }
+    int x = i - radius;
+    kernel[i] = exp(-(x * x) / two_sigma_sq) / sqrt_two_pi_sigma;
   }
 
-  for (unsigned int i = 0; i < img_length_px; i++) {
-    unsigned int rgba_index = i * 4;
-    unsigned int x = i % width;
-    unsigned int y = i / width;
+  // Apply the kernel in the horizontal direction
+  for (unsigned int y = 0; y < height; y++) {
+    for (unsigned int x = 0; x < width; x++) {
+      float r_sum = 0.0;
+      float g_sum = 0.0;
+      float b_sum = 0.0;
+      float weight_sum = 0.0;
 
-    float r_sum = 0.0;
-    float g_sum = 0.0;
-    float b_sum = 0.0;
-    float weight_sum = 0.0;
-
-    for (int j = 0; j < kernel_size; j++) {
-      for (int k = 0; k < kernel_size; k++) {
-        int x_offset = x + j - radius;
-        int y_offset = y + k - radius;
-
-        if (x_offset < 0 || x_offset >= width || y_offset < 0 || y_offset >= height) {
+      for (int k = -radius; k <= radius; k++) {
+        int x_offset = x + k;
+        if (x_offset < 0 || x_offset >= width) {
           continue;
         }
 
-        unsigned int img_index = y_offset * width + x_offset;
+        unsigned int img_index = y * width + x_offset;
         unsigned int img_rgba_index = img_index * 4;
 
-        float weight = kernel[j * kernel_size + k];
+        float weight = kernel[k + (int)radius];
         weight_sum += weight;
 
         r_sum += data[img_rgba_index] * weight;
         g_sum += data[img_rgba_index + 1] * weight;
         b_sum += data[img_rgba_index + 2] * weight;
       }
-    }
 
-    blurred_data[rgba_index] = r_sum / weight_sum;
-    blurred_data[rgba_index + 1] = g_sum / weight_sum;
-    blurred_data[rgba_index + 2] = b_sum / weight_sum;
-    blurred_data[rgba_index + 3] = 255;
+      unsigned int rgba_index = (y * width + x) * 4;
+      blurred_data[rgba_index] = r_sum / weight_sum;
+      blurred_data[rgba_index + 1] = g_sum / weight_sum;
+      blurred_data[rgba_index + 2] = b_sum / weight_sum;
+      blurred_data[rgba_index + 3] = 255;
+    }
+  }
+
+  // Apply the kernel in the vertical direction
+  for (unsigned int x = 0; x < width; x++) {
+    for (unsigned int y = 0; y < height; y++) {
+      float r_sum = 0.0;
+      float g_sum = 0.0;
+      float b_sum = 0.0;
+      float weight_sum = 0.0;
+
+      for (int k = -radius; k <= radius; k++) {
+        int y_offset = y + k;
+        if (y_offset < 0 || y_offset >= height) {
+          continue;
+        }
+
+        unsigned int img_index = y_offset * width + x;
+        unsigned int img_rgba_index = img_index * 4;
+
+        float weight = kernel[k + (int)radius];
+        weight_sum += weight;
+
+        r_sum += blurred_data[img_rgba_index] * weight;
+        g_sum += blurred_data[img_rgba_index + 1] * weight;
+        b_sum += blurred_data[img_rgba_index + 2] * weight;
+      }
+
+      unsigned int rgba_index = (y * width + x) * 4;
+      blurred_data[rgba_index] = r_sum / weight_sum;
+      blurred_data[rgba_index + 1] = g_sum / weight_sum;
+      blurred_data[rgba_index + 2] = b_sum / weight_sum;
+      blurred_data[rgba_index + 3] = 255;
+    }
   }
 
   free(kernel);
