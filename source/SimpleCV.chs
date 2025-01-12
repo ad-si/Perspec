@@ -141,9 +141,10 @@ instance Storable Matrix3x3 where
   } -> `Ptr CUChar' castPtr -- ^ Transformed image data
 #}
 
-{#fun bw_smooth_smart as ^
+{#fun bw_smart as ^
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
+  ,               `Bool'       -- ^ whether to use double thresholding
   , identity      `Ptr CUChar' -- ^ Original image data
   } -> `Ptr CUChar' castPtr    -- ^ Anti-aliased black and white image data
 #}

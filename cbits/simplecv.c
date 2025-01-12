@@ -285,7 +285,7 @@ unsigned char const * const single_to_multichannel(
   *
   * @param width Width of the image.
   * @param height Height of the image.
-  * @param use_double_threshold Use double thresholding.
+  * @param use_double_threshold Whether to use double thresholding.
   * @param data Pointer to the pixel data.
   * @return Pointer to the monochrome image data.
   */
@@ -492,9 +492,10 @@ unsigned char const * const apply_gaussian_blur(
   * @param data Pointer to the pixel data.
   * @return Pointer to the blurred image data.
   */
-unsigned char const * const bw_smooth_smart(
+unsigned char const * const bw_smart(
   unsigned int width,
   unsigned int height,
+  bool use_double_threshold,
   unsigned char const * const data
 ) {
   unsigned char const * const grayscale_data = grayscale(width, height, data);
@@ -534,7 +535,7 @@ unsigned char const * const bw_smooth_smart(
   free((void *)blurred_data);
 
   unsigned char const * const final_data = otsu_threshold_rgba(
-    width, height, true, high_freq_data
+    width, height, use_double_threshold, high_freq_data
   );
 
   free(high_freq_data);
