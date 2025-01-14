@@ -66,7 +66,7 @@ import Brillo (
   Display (InWindow),
   Picture (
     Bitmap,
-    Line,
+    ThickLineSmooth,
     Pictures,
     Scale,
     ThickArc,
@@ -235,6 +235,11 @@ drawCorner (x, y) =
     (color gridColor $ ThickCircle cornCircRadius cornCircThickness)
 
 
+gridLineThickness :: Float
+gridLineThickness = 2
+
+
+-- TODO: Use thick lines for line-loop
 drawEdges :: [Point] -> Picture
 drawEdges points =
   color gridColor $ lineLoop points
@@ -256,17 +261,19 @@ drawGrid [p1, p2, p3, p4] =
 
     getGridLineVert num =
       color gridColor $
-        Line
+        ThickLineSmooth
           [ getLinePoint numSegments num p1 p2
           , getLinePoint numSegments num p4 p3
           ]
+          gridLineThickness
 
     getGridLineHor num =
       color gridColor $
-        Line
+        ThickLineSmooth
           [ getLinePoint numSegments num p1 p4
           , getLinePoint numSegments num p2 p3
           ]
+          gridLineThickness
   in
     Pictures $
       ([1 .. numGridLines] <&> getGridLineVert)
