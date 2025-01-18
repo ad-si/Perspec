@@ -258,5 +258,9 @@ Perspec automatically interpolates missing parts by using the closest pixel.
 
 ## Related
 
+- [Hasscan] -  OpenCV document scanner in Haskell.
+
+[Hasscan]: https://github.com/mryndzionek/hasscan
+
 Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning)
 for an extensive list of related projects.
