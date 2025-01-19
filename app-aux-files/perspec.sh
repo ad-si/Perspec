@@ -1,6 +1,6 @@
 #! /usr/bin/env sh
 
-if test $# == 0
+if test $# = 0
 then
 
 # Lines must contain at least one space or they are discarded
@@ -25,13 +25,5 @@ printf "
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  "
 
-else
-  # TODO: Loop should not be necessary,
-  #   but Perspec doesn't support several files at once yet
-  #   ./perspec fix "$@"
-
-  for file in "$@"
-  do
-    ./perspec fix "$file"
-  done
+else ./perspec fix "$@"
 fi

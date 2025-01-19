@@ -6,7 +6,7 @@
 /magick
 /ml-test
 /Perspec_macOS_*
-/Perspec.app
+/Perspec*.app
 /perspec.cabal
 /scripts/perspectra
 .aider*

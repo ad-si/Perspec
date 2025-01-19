@@ -81,7 +81,7 @@ jobs:
       - name: Download bundable ImageMagick AppImage
         run:
           curl -L -O
-            https://download.imagemagick.org/ImageMagick/download/binaries/magick &&
+            https://imagemagick.org/archive/binaries/magick &&
           chmod +x ./magick
 
       - name: Build Perspec CLI tool

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>CFBundleName</key>
+    <string>PerspecSimple</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.adriansieber.PerspecSimple</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleExecutable</key>
+    <string>PerspecSimple</string>
+    <key>CFBundleDisplayName</key>
+    <string>PerspecSimple</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+      <key>NSAllowsArbitraryLoads</key>
+      <true />
+    </dict>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+      <dict>
+        <key>CFBundleTypeExtensions</key>
+        <array>
+          <string>jpg</string>
+          <string>jpeg</string>
+          <string>png</string>
+          <string>gif</string>
+        </array>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSItemContentTypes</key>
+        <array>
+          <string>public.item</string>
+          <string>public.folder</string>
+        </array>
+      </dict>
+    </array>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSUIElement</key>
+    <false />
+    <key>CFBundleIconFile</key>
+    <string>AppIcon.icns</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.11.0</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2025 Adrian Sieber</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.2.0.0-2025-01-18t22:36</string>
+  </dict>
+</plist>

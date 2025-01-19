@@ -10,9 +10,47 @@ test:
 	stack test
 
 
-Perspec.app: ~/.local/bin/perspec imagemagick
+# TODO: Don't show icon in dock (https://stackoverflow.com/a/25462666/1850340)
+Perspec.app: ~/.local/bin/perspec
 	platypus \
 		--name Perspec \
+		--app-icon images/icon.icns \
+		--interface-type 'None' \
+		--app-version 0.2.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
+		--author "Adrian Sieber" \
+		--bundled-file ~/.local/bin/perspec \
+		--bundled-file app-aux-files/Credits.html \
+		--bundled-file scripts \
+		--bundle-identifier com.adriansieber.Perspec \
+		--droppable \
+		--optimize-nib \
+		--overwrite \
+		--quit-after-execution \
+		--suffixes 'png|jpg|jpeg|bmp|gif|tiff|tif' \
+		--interpreter '/bin/dash' \
+		app-aux-files/perspec-gui.sh \
+		$@
+
+
+# TODO: Fix crash after dropping image
+# TODO: Implement drag & drop for dock icon (WIP at macos-app-wrapper)
+PerspecSimple.app: ~/.local/bin/perspec
+	mkdir -p $@
+	mkdir -p $@/Contents
+
+	mkdir -p $@/Contents/MacOS
+	cp $< $@/Contents/MacOS/PerspecSimple
+
+	mkdir -p $@/Contents/Resources
+	cp app-aux-files/Info.plist $@/Contents
+	cp images/icon.icns $@/Contents/Resources/AppIcon.icns
+	cp app-aux-files/Credits.html $@/Contents/Resources
+	cp $< $@/Contents/Resources
+
+
+PerspecWithMagick.app: ~/.local/bin/perspec imagemagick
+	platypus \
+		--name PerspecWithMagick \
 		--app-icon images/icon.icns \
 		--interface-type 'Text Window' \
 		--app-version 0.2.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
@@ -21,11 +59,13 @@ Perspec.app: ~/.local/bin/perspec imagemagick
 		--bundled-file app-aux-files/Credits.html \
 		--bundled-file imagemagick \
 		--bundled-file scripts \
-		--bundle-identifier org.adrian.Perspec \
+		--bundle-identifier com.adriansieber.PerspecWithMagick \
 		--droppable \
 		--optimize-nib \
-		--xml-property-lists \
 		--overwrite \
+		--quit-after-execution \
+		--suffixes 'png|jpg|jpeg|bmp|gif|tiff|tif' \
+		--interpreter '/bin/dash' \
 		app-aux-files/perspec.sh \
 		$@
 
