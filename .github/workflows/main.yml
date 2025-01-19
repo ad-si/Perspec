@@ -80,12 +80,15 @@ jobs:
       - name: Install dependencies
         run:
           sudo apt-get install
-            freeglut3-dev
             imagemagick
+            libblas-dev
+            libblas3
             libfuse2
             libgl1-mesa-dev
             libglfw3
             libglu1-mesa-dev
+            liblapack-dev
+            liblapack3
             libxcursor-dev
             libxi-dev
             libxinerama-dev
