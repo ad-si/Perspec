@@ -92,11 +92,12 @@ jobs:
             libxrandr-dev
             libxxf86vm-dev
 
-      - name: Download bundable ImageMagick AppImage
+      - name: Download bundable ImageMagick AppImage and install globally
         run:
           curl -L -O
             https://imagemagick.org/archive/binaries/magick &&
           chmod +x ./magick
+          cp ./magick /usr/local/bin/magick
 
       - name: Build Perspec CLI tool
         run: make perspec
