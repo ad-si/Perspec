@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Replace case with maybe" #-}
 
 module Main where
 
@@ -22,7 +25,8 @@ import Protolude (
  )
 import Protolude qualified as P
 
-import Data.Text as T (isInfixOf, pack, unpack)
+import Data.Text (pack, unpack)
+import Data.Text qualified as T
 import Data.Yaml (decodeFileEither, prettyPrintParseException)
 import System.Console.Docopt as Docopt (
   Arguments,
@@ -48,12 +52,15 @@ import System.Directory (
  )
 import System.FilePath ((</>))
 
+import Control.Arrow ((>>>))
 import Lib (loadAndStart)
 import Rename (getRenamingBatches)
 import Types (
   Config,
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),
+  TransformBackend (HipBackend, ImageMagickBackend, SimpleCVBackend),
+  transformBackendFlag,
  )
 
 
@@ -66,8 +73,23 @@ getArgOrExit = getArgOrExitWith patterns
 
 
 execWithArgs :: Config -> [[Char]] -> IO ()
-execWithArgs config cliArgs = do
+execWithArgs confFromFile cliArgs = do
   args <- parseArgsOrExit patterns cliArgs
+
+  let config = case args `getArg` longOption "backend" of
+        Nothing -> confFromFile
+        Just backend ->
+          confFromFile
+            { transformBackendFlag =
+                backend
+                  & ( T.pack
+                        >>> T.toLower
+                        >>> \case
+                          "hip" -> HipBackend
+                          "imagemagick" -> ImageMagickBackend
+                          _ -> SimpleCVBackend
+                    )
+            }
 
   when (args `isPresent` command "gui") $ do
     loadAndStart config Nothing

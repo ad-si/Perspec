@@ -4,11 +4,15 @@ Correct the perspective of photos
 and rename them to match their page numbers.
 
 Usage:
-  perspec gui
-  perspec fix <file>...
+  perspec gui [--backend=<str>]
+  perspec fix [--backend=<str>] <file>...
   perspec rename [options] <directory>
 
 Options:
+  --backend=<str>  Image manipulation backend to use
+                        (SimpleCV, Hip, ImageMagick)
+
+Rename Options:
   --start-with=<int>  First page number
   --even              The directory contains only even page numbers
   --odd               The directory contains only odd page numbers
