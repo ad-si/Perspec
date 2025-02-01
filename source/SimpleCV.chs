@@ -8,16 +8,21 @@ import Protolude (
   IO,
   Bool,
   Ptr,
+  show,
   realToFrac,
   Show,
   return,
   (*),
+  ($),
+  (<>),
   (>>=),
  )
 
+import Data.Text as T
 import Foreign.C.Types (CUChar)
 import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable(..))
+import Text.Printf (printf)
 
 #include "simplecv.h"
 #include "perspectivetransform.h"
@@ -34,6 +39,13 @@ data Corners = Corners
   } deriving (Show)
 {#pointer *Corners as CornersPtr foreign -> Corners#}
 
+
+prettyShowCorners :: Corners -> Text
+prettyShowCorners Corners{..} =
+  (show (tl_x, tl_y) <> " " <> show (tr_x, tr_y)) <> "\n" <>
+  (show (bl_x, bl_y) <> " " <> show (br_x, br_y))
+
+
 data Matrix3x3 = Matrix3x3
   { m00 :: Double
   , m01 :: Double
@@ -46,6 +58,18 @@ data Matrix3x3 = Matrix3x3
   , m22 :: Double
   } deriving (Show)
 {#pointer *Matrix3x3 as Matrix3x3Ptr foreign -> Matrix3x3#}
+
+
+prettyShowMatrix3x3 :: Matrix3x3 -> Text
+prettyShowMatrix3x3 Matrix3x3{..} =
+  let
+    fNum num = printf "% .5f " num
+  in
+    T.pack $
+      fNum m00 <> " " <> fNum m01 <> " " <> fNum m02 <> "\n" <>
+      fNum m10 <> " " <> fNum m11 <> " " <> fNum m12 <> "\n" <>
+      fNum m20 <> " " <> fNum m21 <> " " <> fNum m22
+
 
 instance Storable Corners where
   sizeOf _ = 8 * sizeOf (0.0 :: Double)

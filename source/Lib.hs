@@ -66,11 +66,11 @@ import Brillo (
   Display (InWindow),
   Picture (
     Bitmap,
-    ThickLineSmooth,
     Pictures,
     Scale,
     ThickArc,
     ThickCircle,
+    ThickLineSmooth,
     Translate
   ),
   Point,
@@ -117,7 +117,7 @@ import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 
 import Correct (calculatePerspectiveTransform, determineSize)
 import Home (handleHomeEvent)
-import SimpleCV (Corners (..), applyMatrix3x3)
+import SimpleCV (Corners (..), applyMatrix3x3, prettyShowCorners, prettyShowMatrix3x3)
 import SimpleCV qualified as SCV
 import Types (
   AppState (..),
@@ -140,6 +140,7 @@ import Utils (
   getWordSprite,
   loadFileIntoState,
   loadImage,
+  prettyPrintArray,
  )
 
 
@@ -221,7 +222,7 @@ stepWorld :: Float -> AppState -> IO AppState
 stepWorld _ appState =
   if not appState.isRegistered
     && ( fromIntegral appState.tickCounter
-          < (bannerTime * fromIntegral ticksPerSecond)
+           < (bannerTime * fromIntegral ticksPerSecond)
        )
     then pure appState{tickCounter = appState.tickCounter + 1}
     else pure appState{bannerIsVisible = False}
@@ -377,34 +378,34 @@ makePicture appState =
                   <&> Translate (-(sidebarWidthInteg / 2.0)) 0
               )
                 <> [ drawSidebar
-                      appWidthInteg
-                      appState.appHeight
-                      appState.sidebarWidth
+                       appWidthInteg
+                       appState.appHeight
+                       appState.sidebarWidth
                    ]
                 <> P.zipWith
                   (drawUiComponent appState)
                   appState.uiComponents
                   [0 ..]
                 <> [ if appState.bannerIsVisible
-                      then Scale 0.5 0.5 bannerImage
-                      else mempty
+                       then Scale 0.5 0.5 bannerImage
+                       else mempty
                    , if appState.bannerIsVisible
-                      then
-                        Translate 300 (-250) $
-                          Scale 0.2 0.2 $
-                            ThickArc
-                              0 -- Start angle
-                              -- End angle
-                              ( ( fromIntegral appState.tickCounter
-                                    / (bannerTime * fromIntegral ticksPerSecond)
-                                )
-                                  * 360
-                              )
-                              50 -- Radius
-                              100 -- Thickness
-                              -- \$
-                              --     -
-                      else mempty
+                       then
+                         Translate 300 (-250) $
+                           Scale 0.2 0.2 $
+                             ThickArc
+                               0 -- Start angle
+                               -- End angle
+                               ( ( fromIntegral appState.tickCounter
+                                     / (bannerTime * fromIntegral ticksPerSecond)
+                                 )
+                                   * 360
+                               )
+                               50 -- Radius
+                               100 -- Thickness
+                               -- \$
+                               --     -
+                       else mempty
                    ]
     BannerView -> pure $ Pictures []
 
@@ -551,12 +552,10 @@ submitSelection appState exportMode = do
             targetShape
             exportMode
 
-      if appState.transformBackend == ImageMagickBackend
-        then
-          putText $
-            "Arguments for convert command:\n"
-              <> T.unlines convertArgs
-        else putText $ "Write file to " <> show image.outputPath
+      when (appState.transformBackend == ImageMagickBackend) $ do
+        putText $
+          "Arguments for convert command:\n"
+            <> T.unlines convertArgs
 
       correctAndWrite
         appState.transformBackend
@@ -888,8 +887,11 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             , bl_y = int2Double height
             }
 
-      putText $ "Source corners: " <> show srcCorners
-      putText $ "Destination corners: " <> show dstCorners
+      putText "\nSource Corners:"
+      putText $ prettyShowCorners srcCorners
+
+      putText "\nDestination Corners:"
+      putText $ dstCorners & prettyShowCorners & T.replace ".0" ""
 
       srcCornersPtr <- new srcCorners
       dstCornersPtr <- new dstCorners
@@ -899,15 +901,18 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
       free dstCornersPtr
       transMat <- peek transMatPtr
 
-      putText $ "Transformation matrix: " <> show transMat
+      putText "\nTransformation Matrix:"
+      putText $ prettyShowMatrix3x3 transMat
 
       pictureMetadataEither <- loadImage inPath
       case pictureMetadataEither of
         Left error -> do
           free transMatPtr
           P.putText error
-        Right (Bitmap bitmapData, metadata) -> do
-          P.print ("metadata" :: P.Text, metadata)
+        Right (Bitmap bitmapData, metadatas) -> do
+          P.putText "" -- Line break
+          prettyPrintArray metadatas
+
           let
             srcWidth = P.fst bitmapData.bitmapSize
             srcHeight = P.snd bitmapData.bitmapSize
@@ -948,6 +953,9 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
+
+            putText $ "\n✅ Wrote file to:"
+            P.putStrLn pngOutPath
         --
         Right _ -> do
           free transMatPtr

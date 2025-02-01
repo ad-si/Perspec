@@ -51,7 +51,9 @@ import Brillo.Juicy (fromDynamicImage, loadJuicyWithMetadata)
 import Codec.Picture (decodePng)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
+import Control.Arrow ((>>>))
 import Data.Aeson qualified as Aeson
+import Data.Bifunctor (bimap)
 import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.Text qualified as T
@@ -61,47 +63,59 @@ import System.FilePath (replaceBaseName, takeBaseName, takeExtension, (</>))
 import System.Info (os)
 import System.Process (readProcessWithExitCode)
 
+import Brillo.Data.Picture (Picture (Scale))
 import Types (AppState (..), Coordinate (..), Corner, ImageData (..), View (..))
 
 
-wordsSprite :: ByteString
-wordsSprite = $(embedFile "images/words.png")
+-- | Embed the words sprite image with a scale factor of 2
+wordsSprite :: (ByteString, Float)
+wordsSprite = ($(embedFile "images/words@2x.png"), 2)
 
 
 wordsPic :: Picture
 wordsPic =
-  fromMaybe
-    mempty
-    ( either (const Nothing) Just (decodePng wordsSprite)
-        >>= fromDynamicImage
-    )
+  fromMaybe mempty $
+    either (const Nothing) Just (decodePng $ P.fst wordsSprite)
+      >>= fromDynamicImage
 
 
+{-| `rectPos` is the position of the content
+`rectSize` ist the size of the content
+-}
 getWordSprite :: Text -> Picture
-getWordSprite spriteText =
+getWordSprite spriteText = do
+  let
+    scaleFactor = 1 / P.snd wordsSprite
+    scaleVal = fromIntegral >>> (* P.snd wordsSprite) >>> round
+    scaleRect rect =
+      Rectangle
+        { rectPos = bimap scaleVal scaleVal rect.rectPos
+        , rectSize = bimap scaleVal scaleVal rect.rectSize
+        }
   case wordsPic of
-    Bitmap bitmapData -> case spriteText of
-      "Save" ->
-        BitmapSection
-          Rectangle{rectPos = (-5, 40), rectSize = (150, 20)}
-          bitmapData
-      "Save BW" ->
-        BitmapSection
-          Rectangle{rectPos = (-5, 60), rectSize = (150, 20)}
-          bitmapData
-      "Save Gray" ->
-        BitmapSection
-          Rectangle{rectPos = (-5, 80), rectSize = (150, 20)}
-          bitmapData
-      "Select Files" ->
-        BitmapSection
-          Rectangle{rectPos = (-5, 140), rectSize = (150, 20)}
-          bitmapData
-      "Save BW Smooth" ->
-        BitmapSection
-          Rectangle{rectPos = (-5, 160), rectSize = (150, 20)}
-          bitmapData
-      _ -> mempty
+    Bitmap bitmapData ->
+      Scale scaleFactor scaleFactor $ case spriteText of
+        "Save" ->
+          BitmapSection
+            (scaleRect Rectangle{rectPos = (0, 40), rectSize = (40, 20)})
+            bitmapData
+        "Save BW" ->
+          BitmapSection
+            (scaleRect Rectangle{rectPos = (0, 60), rectSize = (74, 20)})
+            bitmapData
+        "Save Gray" ->
+          BitmapSection
+            (scaleRect Rectangle{rectPos = (0, 80), rectSize = (84, 20)})
+            bitmapData
+        "Select Files" ->
+          BitmapSection
+            (scaleRect Rectangle{rectPos = (0, 140), rectSize = (92, 20)})
+            bitmapData
+        "Save BW Smooth" ->
+          BitmapSection
+            (scaleRect Rectangle{rectPos = (0, 160), rectSize = (140, 20)})
+            bitmapData
+        _ -> mempty
     _ -> mempty
 
 
@@ -371,3 +385,21 @@ loadFileIntoState appState = do
                 "Error: Loaded file is not a Bitmap image. "
                   <> "This error should not be possible."
               pure appState
+
+
+prettyPrintArray :: (P.Show a) => a -> IO ()
+prettyPrintArray =
+  show
+    >>> T.replace "[" "\n[ "
+    >>> T.replace "]" "\n] "
+    >>> T.replace "," "\n, "
+    >>> P.putText
+
+
+prettyPrintRecord :: (P.Show a) => a -> IO ()
+prettyPrintRecord =
+  show
+    >>> T.replace "{" "\n{ "
+    >>> T.replace "}" "\n} "
+    >>> T.replace "," "\n,"
+    >>> P.putText
