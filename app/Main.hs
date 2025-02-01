@@ -1,10 +1,10 @@
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Main where
 
 import Protolude (
-  Bool (True, False),
+  Bool (True),
   Char,
   Either (Left, Right),
   IO,
@@ -48,28 +48,13 @@ import System.Directory (
  )
 import System.FilePath ((</>))
 
-import Brillo (
-  BitmapFormat (BitmapFormat),
-  Picture (Bitmap),
-  PixelFormat (PxRGBA),
-  RowOrder (TopToBottom),
- )
-import Brillo.Rendering (BitmapData(..), bitmapOfForeignPtr)
-import Brillo.Data.Color (makeColor)
-import Brillo.Data.Display (Display (InWindow))
-import Brillo.Interface.Pure.Display (display)
-import Foreign (newForeignPtr_, withForeignPtr, castForeignPtr)
-import Foreign.Ptr (castPtr)
 import Lib (loadAndStart)
 import Rename (getRenamingBatches)
-import SimpleCV (otsu_threshold_rgba)
 import Types (
-  Config (transformBackendFlag),
+  Config,
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),
-  TransformBackend (HipBackend),
  )
-import Utils (loadImage)
 
 
 patterns :: Docopt
@@ -84,43 +69,8 @@ execWithArgs :: Config -> [[Char]] -> IO ()
 execWithArgs config cliArgs = do
   args <- parseArgsOrExit patterns cliArgs
 
-  when (args `isPresent` command "test") $ do
-    pictureMetadataEither <- loadImage "/Users/adrian/Dropbox/Projects/Perspec/images/doc.jpg"
-
-    case pictureMetadataEither of
-      Left error -> do
-        P.putText error
-      Right (Bitmap bitmapData, metadata) -> do
-        P.print ("metadata" :: P.Text, metadata)
-        let
-          width = P.fst bitmapData.bitmapSize
-          height = P.snd bitmapData.bitmapSize
-        withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
-          -- resutlImg <- grayscale width height ptr
-          resutlImg <- otsu_threshold_rgba width height False ptr
-          resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
-          let grayscalePicture =
-                bitmapOfForeignPtr
-                  width
-                  height
-                  (BitmapFormat TopToBottom PxRGBA)
-                  resultImgForeignPtr
-                  True
-          display
-            (InWindow "Grayscale" (width, height) (10, 10))
-            (makeColor 0 0 0 0)
-            grayscalePicture
-      Right _ ->
-        P.putText "Unsupported image format"
-
   when (args `isPresent` command "gui") $ do
     loadAndStart config Nothing
-
-  when (args `isPresent` command "fastfix") $ do
-    let files = args `getAllArgs` argument "file"
-    filesAbs <- files & P.mapM makeAbsolute
-
-    loadAndStart (config{transformBackendFlag = HipBackend}) (Just filesAbs)
 
   when (args `isPresent` command "fix") $ do
     let files = args `getAllArgs` argument "file"

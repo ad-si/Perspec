@@ -6,20 +6,35 @@ import Test.Hspec (
   pendingWith,
   shouldBe,
   shouldContain,
+  shouldSatisfy,
  )
 
 import Protolude (
-  Either (Right),
+  Bool (False, True),
+  Either (Left, Right),
   IO,
   Maybe (Just, Nothing),
+  pure,
   show,
   ($),
+  (&&),
+  (==),
  )
+import Protolude qualified as P
 
-import Brillo.Data.Bitmap (bitmapSize)
-import Brillo.Data.Picture (Picture (Bitmap))
+import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
+import Foreign.Ptr (castPtr)
+
+import Brillo (
+  BitmapFormat (BitmapFormat),
+  Picture (Bitmap),
+  PixelFormat (PxRGBA),
+  RowOrder (TopToBottom),
+ )
+import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
 import Rename (getRenamingBatches)
+import SimpleCV (otsu_threshold_rgba)
 import Types (
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),
@@ -58,6 +73,38 @@ main = hspec $ do
           -- or in hsexif: https://github.com/emmanueltouzery/hsexif/issues/19
 
           _ -> expectationFailure "File should have been loaded"
+
+      it "converts an RGBA image to binary" $ do
+        pictureMetadataEither <- loadImage "./images/doc.jpg"
+
+        _ <- pictureMetadataEither `shouldSatisfy` P.isRight
+
+        case pictureMetadataEither of
+          Left _ -> pure ()
+          Right (Bitmap bitmapData, _metadata) -> do
+            let
+              width = P.fst bitmapData.bitmapSize
+              height = P.snd bitmapData.bitmapSize
+            withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $
+              \ptr -> do
+                resutlImg <- otsu_threshold_rgba width height False ptr
+                resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
+                let binaryPic =
+                      bitmapOfForeignPtr
+                        width
+                        height
+                        (BitmapFormat TopToBottom PxRGBA)
+                        resultImgForeignPtr
+                        True
+
+                binaryPic
+                  `shouldSatisfy` \case
+                    Bitmap bmpData ->
+                      P.fst bmpData.bitmapSize == width
+                        && P.snd bmpData.bitmapSize == height
+                    _ -> False
+          Right _ ->
+            P.putText "Unsupported image format"
 
     describe "Rename" $ do
       it "renames files according to natural sort and avoids collisions" $ do
