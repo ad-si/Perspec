@@ -305,26 +305,32 @@ unsigned char *apply_matrix_3x3(
       int x1 = x0 + 1;
       int y1 = y0 + 1;
 
-      // Check if the source coordinates are within bounds
-      if (x0 >= 0 && x0 < in_width && y0 >= 0 && y0 < in_height &&
-          x1 >= 0 && x1 < in_width && y1 >= 0 && y1 < in_height) {
-        // Calculate the weights for bilinear interpolation
+      // Verify that the anchor pixel is inside the source image
+      if (x0 >= 0 && x0 < in_width && y0 >= 0 && y0 < in_height) {
+
+        // Clamp the neighbor coordinates so that a (degenerated)
+        // bilinear interpolation can be applied at the image borders.
+        int x1c = (x1 < in_width)  ? x1 : x0;
+        int y1c = (y1 < in_height) ? y1 : y0;
+
         double dx = srcX - x0;
         double dy = srcY - y0;
 
-        // Get the four surrounding pixels
-        unsigned char *p00 = &in_data[(y0 * in_width + x0) * 4];
-        unsigned char *p01 = &in_data[(y0 * in_width + x1) * 4];
-        unsigned char *p10 = &in_data[(y1 * in_width + x0) * 4];
-        unsigned char *p11 = &in_data[(y1 * in_width + x1) * 4];
+        // If a neighbour got clamped we force the corresponding weight to 0
+        if (x1c == x0) dx = 0.0;
+        if (y1c == y0) dy = 0.0;
 
-        // Interpolate the pixel values
+        unsigned char *p00 = &in_data[(y0  * in_width + x0 ) * 4];
+        unsigned char *p01 = &in_data[(y0  * in_width + x1c) * 4];
+        unsigned char *p10 = &in_data[(y1c * in_width + x0 ) * 4];
+        unsigned char *p11 = &in_data[(y1c * in_width + x1c) * 4];
+
         for (int c = 0; c < 4; ++c) {
           out_data[(out_y * out_width + out_x) * 4 + c] = (unsigned char)(
             p00[c] * (1 - dx) * (1 - dy) +
-            p01[c] * dx * (1 - dy) +
-            p10[c] * (1 - dx) * dy +
-            p11[c] * dx * dy
+            p01[c] * dx       * (1 - dy) +
+            p10[c] * (1 - dx) * dy       +
+            p11[c] * dx       * dy
           );
         }
       }
