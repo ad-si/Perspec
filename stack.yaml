@@ -1,6 +1,6 @@
 # Only update to lts-23 once HLS supports GHC 9.8.4
 # https://haskell-language-server.readthedocs.io/en/latest/support/ghc-version-support.html
-resolver: lts-22.43
+resolver: lts-23.18
 
 packages:
   - .
