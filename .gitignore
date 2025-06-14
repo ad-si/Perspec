@@ -11,3 +11,4 @@
 /scripts/perspectra
 .aider*
 .env
+.direnv
