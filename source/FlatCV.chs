@@ -1,4 +1,4 @@
-module SimpleCV where
+module FlatCV where
 
 import Protolude (
   Double,
@@ -24,8 +24,7 @@ import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable(..))
 import Text.Printf (printf)
 
-#include "simplecv.h"
-#include "perspectivetransform.h"
+#include "flatcv.h"
 
 data Corners = Corners
   { tl_x :: Double

@@ -39,7 +39,7 @@ data Config = Config
 instance FromJSON Config where
   parseJSON = withObject "config" $ \o -> do
     licenseKey <- o .:? "licenseKey" .!= ""
-    transformBackendFlag <- o .:? "transformBackend" .!= SimpleCVBackend
+    transformBackendFlag <- o .:? "transformBackend" .!= FlatCVBackend
     pure $ Config{..}
 
 
@@ -110,7 +110,7 @@ data ConversionMode
 data TransformBackend
   = ImageMagickBackend
   | HipBackend
-  | SimpleCVBackend
+  | FlatCVBackend
   deriving (Show, Eq)
 
 
@@ -118,8 +118,8 @@ instance FromJSON TransformBackend where
   parseJSON = withText "TransformBackend" $ \case
     "ImageMagick" -> return ImageMagickBackend
     "Hip" -> return HipBackend
-    "SimpleCV" -> return SimpleCVBackend
-    _ -> return SimpleCVBackend
+    "FlatCV" -> return FlatCVBackend
+    _ -> return FlatCVBackend
 
 
 data RenameMode
@@ -211,7 +211,7 @@ initialState =
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
     , scaleFactor = 1
-    , transformBackend = SimpleCVBackend
+    , transformBackend = FlatCVBackend
     , isRegistered = False
     , bannerIsVisible = False
     , sidebarWidth = sidebarInitialWidth

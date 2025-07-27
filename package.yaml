@@ -10,8 +10,7 @@ extra-source-files:
   - readme.md
   - changelog.md
   - cbits/tinyfiledialogs.h
-  - cbits/simplecv.h
-  - cbits/perspectivetransform.h
+  - cbits/flatcv.h
 
 synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
@@ -70,8 +69,7 @@ library:
   build-tools: c2hs
   c-sources:
     - cbits/tinyfiledialogs.c
-    - cbits/simplecv.c
-    - cbits/perspectivetransform.c
+    - cbits/flatcv.c
   include-dirs: cbits/
   cc-options: -DHSFORCECONSOLE=0
 

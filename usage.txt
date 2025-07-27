@@ -10,7 +10,7 @@ Usage:
 
 Options:
   --backend=<str>  Image manipulation backend to use
-                        (SimpleCV, Hip, ImageMagick)
+                        (FlatCV, Hip, ImageMagick)
 
 Rename Options:
   --start-with=<int>  First page number

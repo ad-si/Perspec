@@ -117,8 +117,8 @@ import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 
 import Correct (calculatePerspectiveTransform, determineSize)
 import Home (handleHomeEvent)
-import SimpleCV (Corners (..), applyMatrix3x3, prettyShowCorners, prettyShowMatrix3x3)
-import SimpleCV qualified as SCV
+import FlatCV (Corners (..), applyMatrix3x3, prettyShowCorners, prettyShowMatrix3x3)
+import FlatCV qualified as SCV
 import Types (
   AppState (..),
   Config (transformBackendFlag),
@@ -844,8 +844,8 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
         BlackWhiteExport -> pure ()
         BlackWhiteSmoothExport -> pure ()
     --
-    SimpleCVBackend -> do
-      P.putText "ℹ️ Use SimpleCV backend"
+    FlatCVBackend -> do
+      P.putText "ℹ️ Use FlatCV backend"
 
       let
         cornersClockwiseFromTopLeft :: V4 (V2 Double)

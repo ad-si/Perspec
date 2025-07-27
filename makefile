@@ -5,8 +5,6 @@ help: makefile
 
 .PHONY: test
 test:
-	gcc -Wall cbits/test.c cbits/simplecv.c cbits/perspectivetransform.c -o test_bin && ./test_bin
-	gcc -Wall cbits/simplecv.c cbits/perspectivetransform.c cbits/apply_test.c -o apply_test && ./apply_test
 	stack test
 
 
