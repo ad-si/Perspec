@@ -202,7 +202,7 @@ mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 - [x] Rescale image on viewport change
 - [x] Handle JPEG rotation
 - [x] Draw lines between corners to simplify guessing of clipped corners
-- [x] Bundle Imagemagick
+- [x] Bundle ImageMagick
 - [x] Better error if wrong file format is dropped (images/error-message.jpg)
 - [x] Center Perspec window on screen
 - [x] Drag'n'Drop for corner markers
@@ -232,13 +232,13 @@ magick \
 ### Grayscale Conversion
 
 Converts image to grayscale and normalizes the range of values afterwards.
-(Uses Imagemagick's `-colorspace gray -normalize`)
+(Uses ImageMagick's `-colorspace gray -normalize`)
 
 
 ### BW Conversion
 
 Converts image to binary format with OTSU's method.
-(Uses Imagemagick's `-auto-threshold OTSU -monochrome`)
+(Uses ImageMagick's `-auto-threshold OTSU -monochrome`)
 
 
 ### Interpolation of Missing Parts
@@ -258,7 +258,7 @@ Perspec automatically interpolates missing parts by using the closest pixel.
 
 ## Related
 
-- [Hasscan] -  OpenCV document scanner in Haskell.
+- [Hasscan] - OpenCV document scanner in Haskell.
 
 [Hasscan]: https://github.com/mryndzionek/hasscan
 
