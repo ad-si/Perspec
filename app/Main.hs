@@ -59,7 +59,7 @@ import Types (
   Config,
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),
-  TransformBackend (HipBackend, ImageMagickBackend, FlatCVBackend),
+  TransformBackend (FlatCVBackend, HipBackend, ImageMagickBackend),
   transformBackendFlag,
  )
 

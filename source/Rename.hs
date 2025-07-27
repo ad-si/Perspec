@@ -58,12 +58,12 @@ mapWithIndex startNum renameMode sortOrder function elements =
     mappings
 
 
-getRenamingBatches
-  :: Maybe Int
-  -> RenameMode
-  -> SortOrder
-  -> [Text]
-  -> [[(Text, Text)]]
+getRenamingBatches ::
+  Maybe Int ->
+  RenameMode ->
+  SortOrder ->
+  [Text] ->
+  [[(Text, Text)]]
 getRenamingBatches startNumberMb renameMode sortOrder files =
   let
     filesSorted :: [Text]

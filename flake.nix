@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     utils.url = "github:numtide/flake-utils";
   };
 
@@ -21,9 +21,11 @@
             bash
             coreutils
             gnumake
+            haskellPackages.fourmolu
+            haskellPackages.haskell-language-server
+            haskellPackages.stack
             imagemagick
             libllvm
-            stack
           ];
         };
         formatter = pkgs.nixfmt-tree; # Format this file with `nix fmt`

@@ -33,8 +33,8 @@ import Brillo (
  )
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
-import Rename (getRenamingBatches)
 import FlatCV (otsu_threshold_rgba)
+import Rename (getRenamingBatches)
 import Types (
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),

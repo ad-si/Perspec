@@ -116,9 +116,14 @@ import Graphics.Image (
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 
 import Correct (calculatePerspectiveTransform, determineSize)
-import Home (handleHomeEvent)
-import FlatCV (Corners (..), applyMatrix3x3, prettyShowCorners, prettyShowMatrix3x3)
+import FlatCV (
+  Corners (..),
+  applyMatrix3x3,
+  prettyShowCorners,
+  prettyShowMatrix3x3,
+ )
 import FlatCV qualified as SCV
+import Home (handleHomeEvent)
 import Types (
   AppState (..),
   Config (transformBackendFlag),
@@ -222,7 +227,7 @@ stepWorld :: Float -> AppState -> IO AppState
 stepWorld _ appState =
   if not appState.isRegistered
     && ( fromIntegral appState.tickCounter
-           < (bannerTime * fromIntegral ticksPerSecond)
+          < (bannerTime * fromIntegral ticksPerSecond)
        )
     then pure appState{tickCounter = appState.tickCounter + 1}
     else pure appState{bannerIsVisible = False}
@@ -378,34 +383,34 @@ makePicture appState =
                   <&> Translate (-(sidebarWidthInteg / 2.0)) 0
               )
                 <> [ drawSidebar
-                       appWidthInteg
-                       appState.appHeight
-                       appState.sidebarWidth
+                      appWidthInteg
+                      appState.appHeight
+                      appState.sidebarWidth
                    ]
                 <> P.zipWith
                   (drawUiComponent appState)
                   appState.uiComponents
                   [0 ..]
                 <> [ if appState.bannerIsVisible
-                       then Scale 0.5 0.5 bannerImage
-                       else mempty
+                      then Scale 0.5 0.5 bannerImage
+                      else mempty
                    , if appState.bannerIsVisible
-                       then
-                         Translate 300 (-250) $
-                           Scale 0.2 0.2 $
-                             ThickArc
-                               0 -- Start angle
-                               -- End angle
-                               ( ( fromIntegral appState.tickCounter
-                                     / (bannerTime * fromIntegral ticksPerSecond)
-                                 )
-                                   * 360
-                               )
-                               50 -- Radius
-                               100 -- Thickness
-                               -- \$
-                               --     -
-                       else mempty
+                      then
+                        Translate 300 (-250) $
+                          Scale 0.2 0.2 $
+                            ThickArc
+                              0 -- Start angle
+                              -- End angle
+                              ( ( fromIntegral appState.tickCounter
+                                    / (bannerTime * fromIntegral ticksPerSecond)
+                                )
+                                  * 360
+                              )
+                              50 -- Radius
+                              100 -- Thickness
+                              -- \$
+                              --     -
+                      else mempty
                    ]
     BannerView -> pure $ Pictures []
 
@@ -497,8 +502,8 @@ appCoordToImgCoord appState point =
   )
 
 
-checkSidebarRectHit
-  :: (Int, Int) -> Int -> Int -> (Int, Int) -> (Float, Float) -> Bool
+checkSidebarRectHit ::
+  (Int, Int) -> Int -> Int -> (Int, Int) -> (Float, Float) -> Bool
 checkSidebarRectHit
   (appW, appH)
   sidebarW
@@ -684,8 +689,8 @@ fixOutputPath exportMode outPath =
     _ -> T.pack outPath
 
 
-getConvertArgs
-  :: FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
+getConvertArgs ::
+  FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
 getConvertArgs inPath outPath projMap shape exportMode =
   [ T.pack inPath
   , "-auto-orient"
@@ -725,14 +730,14 @@ getConvertArgs inPath outPath projMap shape exportMode =
        ]
 
 
-correctAndWrite
-  :: TransformBackend
-  -> FilePath
-  -> FilePath
-  -> ProjMap
-  -> ExportMode
-  -> [Text]
-  -> IO ()
+correctAndWrite ::
+  TransformBackend ->
+  FilePath ->
+  FilePath ->
+  ProjMap ->
+  ExportMode ->
+  [Text] ->
+  IO ()
 correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args = do
   currentDir <- getCurrentDirectory
 
