@@ -233,12 +233,27 @@ stepWorld _ appState =
     else pure appState{bannerIsVisible = False}
 
 
-drawCorner :: Point -> Picture
-drawCorner (x, y) =
+drawCorner :: Gl.Color -> Point -> Picture
+drawCorner cornerColor (x, y) =
   Translate
     x
     y
-    (color gridColor $ ThickCircle cornCircRadius cornCircThickness)
+    (color cornerColor $ ThickCircle cornCircRadius cornCircThickness)
+
+
+drawCornersWithColors :: [Point] -> [Picture]
+drawCornersWithColors corners = do
+  let
+    redColor = makeColor 1 0.2 0.2 0.8
+    greenColor = makeColor 0.2 1 0.2 0.8
+    blueColor = makeColor 0.2 0.2 1 0.8
+    magentaColor = makeColor 1 0.2 1 0.8
+    -- Order: top-left, top-right, bottom-right, bottom-left
+    cornerColors = [redColor, greenColor, blueColor, magentaColor]
+
+  -- Reverse corners list,
+  -- because AppState.corners stores them in reverse order of addition
+  P.zipWith drawCorner cornerColors (P.reverse corners)
 
 
 gridLineThickness :: Float
@@ -378,7 +393,7 @@ makePicture appState =
                   , appState.corners & drawEdges
                   , appState.corners & drawGrid
                   ]
-                    <> (appState.corners <&> drawCorner)
+                    <> drawCornersWithColors appState.corners
                 )
                   <&> Translate (-(sidebarWidthInteg / 2.0)) 0
               )
@@ -807,7 +822,10 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             toV2 :: (Float, Float) -> V2 Double
             toV2 (x, y) = realToFrac <$> V2 x y
 
-          -- TODO: Not clear why order must be reversed here
+          -- Map from AppState corner variables (tl, tr, br, bl)
+          -- to clockwise order from top-left.
+          -- AppState.corners are stored in reverse order,
+          -- so we map: bl->tl, br->tr, tr->br, tl->bl
           V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
         correctionTransform :: M33 Double
@@ -859,36 +877,42 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             toV2 :: (Float, Float) -> V2 Double
             toV2 (x, y) = realToFrac <$> V2 x y
 
-          -- TODO: Not clear why order must be reversed here
+          -- Map from AppState corner variables (tl, tr, br, bl)
+          -- to clockwise order from top-left.
+          -- AppState.corners are stored in reverse order,
+          -- so we map: bl->tl, br->tr, tr->br, tl->bl.
           V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
         Sz (height :. width) =
           determineSize cornersClockwiseFromTopLeft
 
-        -- TODO: Not clear why order must be reversed here
+        -- Map AppState corner variables to logical coordinate positions
+        -- AppState.corners are stored in reverse order,
+        -- so we map: bl->tl, br->tr, tr->br, tl->bl
         srcCorners :: Corners
         srcCorners =
           Corners
-            { tl_x = float2Double $ fst bl
+            { tl_x = float2Double $ fst bl -- bl from AppState maps to tl
             , tl_y = float2Double $ snd bl
-            , tr_x = float2Double $ fst br
+            , tr_x = float2Double $ fst br -- br from AppState maps to tr
             , tr_y = float2Double $ snd br
-            , br_x = float2Double $ fst tr
+            , br_x = float2Double $ fst tr -- tr from AppState maps to br
             , br_y = float2Double $ snd tr
-            , bl_x = float2Double $ fst tl
+            , bl_x = float2Double $ fst tl -- tl from AppState maps to bl
             , bl_y = float2Double $ snd tl
             }
 
+        -- Target rectangle in standard coordinate system (origin at top-left)
         dstCorners :: Corners
         dstCorners =
           Corners
-            { tl_x = 0
+            { tl_x = 0 -- top-left: (0,0)
             , tl_y = 0
-            , tr_x = int2Double width
+            , tr_x = int2Double width -- top-right: (width,0)
             , tr_y = 0
-            , br_x = int2Double width
+            , br_x = int2Double width -- bottom-right: (width,height)
             , br_y = int2Double height
-            , bl_x = 0
+            , bl_x = 0 -- bottom-left: (0,height)
             , bl_y = int2Double height
             }
 

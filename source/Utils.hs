@@ -179,6 +179,9 @@ getCorners appState =
         transToOrigTopLeft
           image.widthTarget
           image.heightTarget
+          -- Reverse corners,
+          -- because AppState.corners stores them in reverse order of addition.
+          -- This converts them to clockwise from top-left for transformation.
           (P.reverse $ corners appState)
 
 
