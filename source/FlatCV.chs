@@ -118,14 +118,14 @@ instance Storable Matrix3x3 where
     pokeByteOff ptr 56 m21
     pokeByteOff ptr 64 m22
 
-{#fun grayscale
+{#fun fcv_grayscale
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
   , identity      `Ptr CUChar' -- ^ Original image data
   } -> `Ptr CUChar' castPtr    -- ^ Grayscale image data
 #}
 
-{#fun apply_gaussian_blur
+{#fun fcv_apply_gaussian_blur
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
   ,               `Double'     -- ^ radius
@@ -133,14 +133,14 @@ instance Storable Matrix3x3 where
   } -> `Ptr CUChar' castPtr    -- ^ Blurred image data
 #}
 
-{#fun grayscale_stretch as ^
+{#fun fcv_grayscale_stretch as ^
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
   , identity      `Ptr CUChar' -- ^ Original image data
   } -> `Ptr CUChar' castPtr    -- ^ Grayscale image data
 #}
 
-{#fun otsu_threshold_rgba
+{#fun fcv_otsu_threshold_rgba
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
   ,               `Bool'       -- ^ whether to use double thresholding
@@ -148,13 +148,13 @@ instance Storable Matrix3x3 where
   } -> `Ptr CUChar' castPtr    -- ^ Thresholded image data
 #}
 
-{#fun calculate_perspective_transform as ^
+{#fun fcv_calculate_perspective_transform as ^
   { castPtr `Ptr Corners'  -- ^ Source points
   , castPtr `Ptr Corners'  -- ^ Destination points
   } -> `Ptr Matrix3x3' castPtr -- ^ Transformation matrix
 #}
 
-{#fun apply_matrix_3x3 as ^
+{#fun fcv_apply_matrix_3x3 as ^
   {          `Int'           -- ^ width of the input image
   ,          `Int'           -- ^ height of the input image
   , identity `Ptr CUChar'    -- ^ Original image data
@@ -164,7 +164,7 @@ instance Storable Matrix3x3 where
   } -> `Ptr CUChar' castPtr -- ^ Transformed image data
 #}
 
-{#fun bw_smart as ^
+{#fun fcv_bw_smart as ^
   {               `Int'        -- ^ width
   ,               `Int'        -- ^ height
   ,               `Bool'       -- ^ whether to use double thresholding

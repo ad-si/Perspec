@@ -118,11 +118,11 @@ import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 import Correct (calculatePerspectiveTransform, determineSize)
 import FlatCV (
   Corners (..),
-  applyMatrix3x3,
+  fcvApplyMatrix3x3,
   prettyShowCorners,
   prettyShowMatrix3x3,
  )
-import FlatCV qualified as SCV
+import FlatCV qualified as FCV
 import Home (handleHomeEvent)
 import Types (
   AppState (..),
@@ -901,7 +901,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
       srcCornersPtr <- new srcCorners
       dstCornersPtr <- new dstCorners
       transMatPtr <-
-        SCV.calculatePerspectiveTransform dstCornersPtr srcCornersPtr
+        FCV.fcvCalculatePerspectiveTransform dstCornersPtr srcCornersPtr
       free srcCornersPtr
       free dstCornersPtr
       transMat <- peek transMatPtr
@@ -924,7 +924,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 
           withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
             resutlImg <-
-              applyMatrix3x3
+              fcvApplyMatrix3x3
                 srcWidth
                 srcHeight
                 ptr
@@ -942,19 +942,19 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 savePngImage pngOutPath (ImageRGBA8 img)
               --
               GrayscaleExport -> do
-                grayImgPtr <- SCV.grayscaleStretch width height resutlImg
+                grayImgPtr <- FCV.fcvGrayscaleStretch width height resutlImg
                 grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
                 let grayImg = imageFromUnsafePtr width height grayImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 grayImg)
               --
               BlackWhiteExport -> do
-                bwImgPtr <- SCV.bwSmart width height False resutlImg
+                bwImgPtr <- FCV.fcvBwSmart width height False resutlImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
               --
               BlackWhiteSmoothExport -> do
-                bwImgPtr <- SCV.bwSmart width height True resutlImg
+                bwImgPtr <- FCV.fcvBwSmart width height True resutlImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)

@@ -33,7 +33,7 @@ import Brillo (
  )
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
-import FlatCV (otsu_threshold_rgba)
+import FlatCV (fcv_otsu_threshold_rgba)
 import Rename (getRenamingBatches)
 import Types (
   RenameMode (Even, Odd, Sequential),
@@ -87,7 +87,7 @@ main = hspec $ do
               height = P.snd bitmapData.bitmapSize
             withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $
               \ptr -> do
-                resutlImg <- otsu_threshold_rgba width height False ptr
+                resutlImg <- fcv_otsu_threshold_rgba width height False ptr
                 resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
                 let binaryPic =
                       bitmapOfForeignPtr
