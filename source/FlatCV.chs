@@ -18,7 +18,8 @@ import Protolude (
   (>>=),
  )
 
-import Data.Text as T
+import Data.Text qualified as T
+import Data.Text (Text)
 import Foreign.C.Types (CUChar)
 import Foreign.Ptr (castPtr)
 import Foreign.Storable (Storable(..))

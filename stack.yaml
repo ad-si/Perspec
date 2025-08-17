@@ -1,6 +1,10 @@
-# Only update to lts-23 once HLS supports GHC 9.8.4
+# Check if HLS supports the LTS release before upgrading
+# and also set the correct GHC version in `flake.nix`.
 # https://haskell-language-server.readthedocs.io/en/latest/support/ghc-version-support.html
-resolver: lts-23.18
+resolver: lts-23.27
+
+# Necessary as the Nix Flake sets the GHC version
+system-ghc: true
 
 packages:
   - .

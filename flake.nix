@@ -19,12 +19,17 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             bash
+            blas
             coreutils
             gnumake
+            haskell.compiler.ghc984
+            haskellPackages.cabal-fmt
+            haskellPackages.cabal-install
             haskellPackages.fourmolu
             haskellPackages.haskell-language-server
             haskellPackages.stack
             imagemagick
+            lapack
             libllvm
           ];
         };
