@@ -243,8 +243,8 @@ imgOrientToRot = \case
 back into the original un-rotated bitmap coordinate system
 before computing the perspective transform.
 -}
-getAdjustedSrcCorners :: Corners -> Int -> Int -> Float -> Corners
-getAdjustedSrcCorners srcCorners srcWidth srcHeight rotation =
+applyRotationToCorners :: Corners -> Int -> Int -> Float -> Corners
+applyRotationToCorners srcCorners srcWidth srcHeight rotation =
   let
     w = int2Double srcWidth
     h = int2Double srcHeight

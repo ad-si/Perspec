@@ -141,9 +141,9 @@ import Types (
   initialState,
  )
 import Utils (
+  applyRotationToCorners,
   calcInitWindowPos,
   calculateSizes,
-  getAdjustedSrcCorners,
   getCorners,
   getWordSprite,
   imgOrientToRot,
@@ -817,115 +817,76 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
     --
     HipBackend -> do
       P.putText "ℹ️ Use Hip backend"
-      uncorrected <- readImageRGBA inPath
+      pictureMetadataEither <- loadImage inPath
+      case pictureMetadataEither of
+        Left error -> do
+          P.putText error
+        Right (Bitmap _bitmapData, metadatas) -> do
+          uncorrected <- readImageRGBA inPath
 
-      let
-        cornersClockwiseFromTopLeft :: V4 (V2 Double)
-        cornersClockwiseFromTopLeft = do
           let
-            toV2 :: (Float, Float) -> V2 Double
-            toV2 (x, y) = realToFrac <$> V2 x y
+            cornersClockwiseFromTopLeft :: V4 (V2 Double)
+            cornersClockwiseFromTopLeft = do
+              let
+                toV2 :: (Float, Float) -> V2 Double
+                toV2 (x, y) = realToFrac <$> V2 x y
 
-          -- Map from AppState corner variables (tl, tr, br, bl)
-          -- to clockwise order from top-left.
-          -- AppState.corners are stored in reverse order,
-          -- so we map: bl->tl, br->tr, tr->br, tl->bl
-          V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
+              -- Map from AppState corner variables (tl, tr, br, bl)
+              -- to clockwise order from top-left.
+              -- AppState.corners are stored in reverse order,
+              -- so we map: bl->tl, br->tr, tr->br, tl->bl
+              V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
-        correctionTransform :: M33 Double
-        correctionTransform =
-          calculatePerspectiveTransform
-            ( fmap fromIntegral
-                <$> V4
-                  (V2 0 0)
-                  (V2 width 0)
-                  (V2 width height)
-                  (V2 0 height)
-            )
-            cornersClockwiseFromTopLeft
+            correctionTransform :: M33 Double
+            correctionTransform =
+              calculatePerspectiveTransform
+                ( fmap fromIntegral
+                    <$> V4
+                      (V2 0 0)
+                      (V2 width 0)
+                      (V2 width height)
+                      (V2 0 height)
+                )
+                cornersClockwiseFromTopLeft
 
-        outputSize :: Sz Ix2
-        outputSize@(Sz (height :. width)) =
-          determineSize cornersClockwiseFromTopLeft
+            -- Extract EXIF rotation
+            rotation :: Float
+            rotation =
+              P.maybe 0 imgOrientToRot $
+                lookup (Exif TagOrientation) metadatas
 
-        corrected :: Image (Alpha (SRGB 'Linear)) Double
-        corrected =
-          uncorrected
-            & transform
-              (outputSize,)
-              ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
-                  let
-                    V3 colCrd rowCrd p =
-                      correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
-                    colCrd' =
-                      max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
-                    rowCrd' =
-                      max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
+            outputSize :: Sz Ix2
+            outputSize@(Sz (height :. width)) =
+              determineSize rotation cornersClockwiseFromTopLeft
 
-                  interpolate Bilinear getPixel (rowCrd', colCrd')
-              )
+            corrected :: Image (Alpha (SRGB 'Linear)) Double
+            corrected =
+              uncorrected
+                & transform
+                  (outputSize,)
+                  ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
+                      let
+                        V3 colCrd rowCrd p =
+                          correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
+                        colCrd' =
+                          max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
+                        rowCrd' =
+                          max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
 
-      case exportMode of
-        UnmodifiedExport -> writeImage outPath corrected
-        GrayscaleExport -> pure ()
-        BlackWhiteExport -> pure ()
-        BlackWhiteSmoothExport -> pure ()
+                      interpolate Bilinear getPixel (rowCrd', colCrd')
+                  )
+
+          case exportMode of
+            UnmodifiedExport -> writeImage outPath corrected
+            GrayscaleExport -> pure ()
+            BlackWhiteExport -> pure ()
+            BlackWhiteSmoothExport -> pure ()
+        --
+        Right _ -> do
+          P.putText "Unsupported image format"
     --
     FlatCVBackend -> do
       P.putText "ℹ️ Use FlatCV backend"
-
-      let
-        cornersClockwiseFromTopLeft :: V4 (V2 Double)
-        cornersClockwiseFromTopLeft = do
-          let
-            toV2 :: (Float, Float) -> V2 Double
-            toV2 (x, y) = realToFrac <$> V2 x y
-
-          -- Map from AppState corner variables (tl, tr, br, bl)
-          -- to clockwise order from top-left.
-          -- AppState.corners are stored in reverse order,
-          -- so we map: bl->tl, br->tr, tr->br, tl->bl.
-          V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
-
-        Sz (height :. width) =
-          determineSize cornersClockwiseFromTopLeft
-
-        -- Map AppState corner variables to logical coordinate positions
-        -- AppState.corners are stored in reverse order,
-        -- so we map: bl->tl, br->tr, tr->br, tl->bl
-        srcCorners :: Corners
-        srcCorners =
-          Corners
-            { tl_x = float2Double $ fst bl -- bl from AppState maps to tl
-            , tl_y = float2Double $ snd bl
-            , tr_x = float2Double $ fst br -- br from AppState maps to tr
-            , tr_y = float2Double $ snd br
-            , br_x = float2Double $ fst tr -- tr from AppState maps to br
-            , br_y = float2Double $ snd tr
-            , bl_x = float2Double $ fst tl -- tl from AppState maps to bl
-            , bl_y = float2Double $ snd tl
-            }
-
-        -- Target rectangle in standard coordinate system (origin at top-left)
-        dstCorners :: Corners
-        dstCorners =
-          Corners
-            { tl_x = 0 -- top-left: (0,0)
-            , tl_y = 0
-            , tr_x = int2Double width -- top-right: (width,0)
-            , tr_y = 0
-            , br_x = int2Double width -- bottom-right: (width,height)
-            , br_y = int2Double height
-            , bl_x = 0 -- bottom-left: (0,height)
-            , bl_y = int2Double height
-            }
-
-      putText "\nOriginal Source Corners:"
-      putText $ prettyShowCorners srcCorners
-
-      putText "\nDestination Corners:"
-      putText $ dstCorners & prettyShowCorners & T.replace ".0" ""
-
       pictureMetadataEither <- loadImage inPath
       case pictureMetadataEither of
         Left error -> do
@@ -935,10 +896,56 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
           prettyPrintArray metadatas
 
           let
+            cornersClockwiseFromTopLeft :: V4 (V2 Double)
+            cornersClockwiseFromTopLeft = do
+              let
+                toV2 :: (Float, Float) -> V2 Double
+                toV2 (x, y) = realToFrac <$> V2 x y
+
+              -- Map from AppState corner variables (tl, tr, br, bl)
+              -- to clockwise order from top-left.
+              -- AppState.corners are stored in reverse order,
+              -- so we map: bl->tl, br->tr, tr->br, tl->bl.
+              V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
+
             -- Extract EXIF rotation
+            rotation :: Float
             rotation =
               P.maybe 0 imgOrientToRot $
                 lookup (Exif TagOrientation) metadatas
+
+            Sz (height :. width) =
+              determineSize rotation cornersClockwiseFromTopLeft
+
+            -- Map AppState corner variables to logical coordinate positions
+            -- AppState.corners are stored in reverse order,
+            -- so we map: bl->tl, br->tr, tr->br, tl->bl
+            srcCorners :: Corners
+            srcCorners =
+              Corners
+                { tl_x = float2Double $ fst bl -- bl from AppState maps to tl
+                , tl_y = float2Double $ snd bl
+                , tr_x = float2Double $ fst br -- br from AppState maps to tr
+                , tr_y = float2Double $ snd br
+                , br_x = float2Double $ fst tr -- tr from AppState maps to br
+                , br_y = float2Double $ snd tr
+                , bl_x = float2Double $ fst tl -- tl from AppState maps to bl
+                , bl_y = float2Double $ snd tl
+                }
+
+            -- Target rectangle in standard coordinate system (origin at top-left)
+            dstCorners :: Corners
+            dstCorners =
+              Corners
+                { tl_x = 0 -- top-left: (0,0)
+                , tl_y = 0
+                , tr_x = int2Double width -- top-right: (width,0)
+                , tr_y = 0
+                , br_x = int2Double width -- bottom-right: (width,height)
+                , br_y = int2Double height
+                , bl_x = 0 -- bottom-left: (0,height)
+                , bl_y = int2Double height
+                }
 
             rawWidth = P.fst bitmapData.bitmapSize
             rawHeight = P.snd bitmapData.bitmapSize
@@ -947,15 +954,21 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 then (rawHeight, rawWidth)
                 else (rawWidth, rawHeight)
 
+            adjustedSrcCorners =
+              applyRotationToCorners srcCorners srcWidth srcHeight rotation
+
+          putText "\nOriginal Source Corners:"
+          putText $ prettyShowCorners srcCorners
+
+          putText "\nDestination Corners:"
+          putText $ dstCorners & prettyShowCorners & T.replace ".0" ""
+
           putText $ "\nEXIF Rotation: " <> show rotation
 
-          putText $ show (srcCorners, srcWidth, srcHeight, rotation)
-
           putText "\nAdjusted Source Corners:"
-          let adjustedCorners = getAdjustedSrcCorners srcCorners srcWidth srcHeight rotation
-          putText $ prettyShowCorners adjustedCorners
+          putText $ prettyShowCorners adjustedSrcCorners
 
-          srcCornersPtr <- new adjustedCorners
+          srcCornersPtr <- new adjustedSrcCorners
           dstCornersPtr <- new dstCorners
           transMatPtr <-
             FCV.fcvCalculatePerspectiveTransform dstCornersPtr srcCornersPtr
@@ -967,15 +980,15 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
           putText $ prettyShowMatrix3x3 transMat
 
           withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
-            resutlImg <-
+            resultImg <-
               fcvApplyMatrix3x3
-                srcWidth
-                srcHeight
+                rawWidth
+                rawHeight
                 ptr
                 width
                 height
                 transMatPtr
-            resultImgForeignPtr <- newForeignPtr_ (castPtr resutlImg)
+            resultImgForeignPtr <- newForeignPtr_ (castPtr resultImg)
             free transMatPtr
 
             let pngOutPath = replaceExtension outPath "png"
@@ -986,19 +999,19 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 savePngImage pngOutPath (ImageRGBA8 img)
               --
               GrayscaleExport -> do
-                grayImgPtr <- FCV.fcvGrayscaleStretch width height resutlImg
+                grayImgPtr <- FCV.fcvGrayscaleStretch width height resultImg
                 grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
                 let grayImg = imageFromUnsafePtr width height grayImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 grayImg)
               --
               BlackWhiteExport -> do
-                bwImgPtr <- FCV.fcvBwSmart width height False resutlImg
+                bwImgPtr <- FCV.fcvBwSmart width height False resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
               --
               BlackWhiteSmoothExport -> do
-                bwImgPtr <- FCV.fcvBwSmart width height True resutlImg
+                bwImgPtr <- FCV.fcvBwSmart width height True resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
