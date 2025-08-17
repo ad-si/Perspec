@@ -117,7 +117,7 @@ import Graphics.Image (
  )
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 
-import Correct (calculatePerspectiveTransform, determineSize)
+import Correct (calculatePerspectiveTransform, determineOutputSize)
 import FlatCV (
   Corners (..),
   fcvApplyMatrix3x3,
@@ -566,6 +566,7 @@ submitSelection appState exportMode = do
 
       putText $ "Target shape: " <> show targetShape
       putText $ "Marked corners: " <> show cornerTuple
+      putText $ "Projection map: " <> show projectionMapNorm
 
       let
         convertArgs =
@@ -749,6 +750,7 @@ getConvertArgs inPath outPath projMap shape exportMode =
        ]
 
 
+-- TODO: Projection map output coordinates must be used and not recalculated
 correctAndWrite ::
   TransformBackend ->
   FilePath ->
@@ -821,7 +823,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
       case pictureMetadataEither of
         Left error -> do
           P.putText error
-        Right (Bitmap _bitmapData, metadatas) -> do
+        Right (Bitmap _bitmapData, _metadatas) -> do
           uncorrected <- readImageRGBA inPath
 
           let
@@ -849,29 +851,27 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 )
                 cornersClockwiseFromTopLeft
 
-            -- Extract EXIF rotation
-            rotation :: Float
-            rotation =
-              P.maybe 0 imgOrientToRot $
-                lookup (Exif TagOrientation) metadatas
-
             outputSize :: Sz Ix2
             outputSize@(Sz (height :. width)) =
-              determineSize rotation cornersClockwiseFromTopLeft
+              determineOutputSize cornersClockwiseFromTopLeft
 
             corrected :: Image (Alpha (SRGB 'Linear)) Double
             corrected =
               uncorrected
                 & transform
                   (outputSize,)
-                  ( \(Sz (sourceHeight :. sourceWidth)) getPixel (Ix2 irow icol) -> do
+                  ( \(Sz (srcHeigh :. srcWidth)) getPixel (Ix2 irow icol) -> do
                       let
                         V3 colCrd rowCrd p =
-                          correctionTransform !* V3 (fromIntegral icol) (fromIntegral irow) 1
+                          correctionTransform
+                            !* V3
+                              (fromIntegral icol)
+                              (fromIntegral irow)
+                              1
                         colCrd' =
-                          max 0 (min (colCrd / p) (fromIntegral $ sourceWidth - 1))
+                          max 0 (min (colCrd / p) (fromIntegral $ srcWidth - 1))
                         rowCrd' =
-                          max 0 (min (rowCrd / p) (fromIntegral $ sourceHeight - 1))
+                          max 0 (min (rowCrd / p) (fromIntegral $ srcHeigh - 1))
 
                       interpolate Bilinear getPixel (rowCrd', colCrd')
                   )
@@ -915,7 +915,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 lookup (Exif TagOrientation) metadatas
 
             Sz (height :. width) =
-              determineSize rotation cornersClockwiseFromTopLeft
+              determineOutputSize cornersClockwiseFromTopLeft
 
             -- Map AppState corner variables to logical coordinate positions
             -- AppState.corners are stored in reverse order,
@@ -933,19 +933,55 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 , bl_y = float2Double $ snd tl
                 }
 
-            -- Target rectangle in standard coordinate system (origin at top-left)
+            -- Target rectangle in origin top-left coordinate system.
+            -- For a 90 degree rotation, the corners will are shifted clockwise.
             dstCorners :: Corners
             dstCorners =
-              Corners
-                { tl_x = 0 -- top-left: (0,0)
-                , tl_y = 0
-                , tr_x = int2Double width -- top-right: (width,0)
-                , tr_y = 0
-                , br_x = int2Double width -- bottom-right: (width,height)
-                , br_y = int2Double height
-                , bl_x = 0 -- bottom-left: (0,height)
-                , bl_y = int2Double height
-                }
+              case P.round rotation `P.mod` 360 :: Int of
+                90 ->
+                  Corners
+                    { tl_x = 0
+                    , tl_y = int2Double height
+                    , tr_x = 0
+                    , tr_y = 0
+                    , br_x = int2Double width
+                    , br_y = 0
+                    , bl_x = int2Double width
+                    , bl_y = int2Double height
+                    }
+                180 ->
+                  Corners
+                    { tl_x = 0
+                    , tl_y = 0
+                    , tr_x = int2Double width
+                    , tr_y = 0
+                    , br_x = int2Double width
+                    , br_y = int2Double height
+                    , bl_x = 0
+                    , bl_y = int2Double height
+                    }
+                270 ->
+                  Corners
+                    { tl_x = int2Double width
+                    , tl_y = 0
+                    , tr_x = int2Double width
+                    , tr_y = int2Double height
+                    , br_x = 0
+                    , br_y = int2Double height
+                    , bl_x = 0
+                    , bl_y = 0
+                    }
+                _ ->
+                  Corners
+                    { tl_x = int2Double width
+                    , tl_y = int2Double height
+                    , tr_x = 0
+                    , tr_y = int2Double height
+                    , br_x = 0
+                    , br_y = 0
+                    , bl_x = int2Double width
+                    , bl_y = 0
+                    }
 
             rawWidth = P.fst bitmapData.bitmapSize
             rawHeight = P.snd bitmapData.bitmapSize
@@ -1016,7 +1052,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
 
-            putText $ "\n✅ Wrote file to:"
+            putText "\n✅ Wrote file to:"
             P.putStrLn pngOutPath
         --
         Right _ -> do

@@ -2,15 +2,12 @@ module Correct where
 
 import Protolude (
   Double,
-  Float,
   Fractional ((/)),
   Num (abs, negate, (*)),
   RealFrac (round),
   fromMaybe,
   (.),
-  (==),
  )
-import Protolude qualified as P
 
 -- hip
 import Graphics.Image (Ix2 ((:.)), Sz (Sz), Sz2)
@@ -35,16 +32,14 @@ import Linear (
  )
 
 
-determineSize :: Float -> V4 (V2 Double) -> Sz2
-determineSize rotation (V4 c1 c2 c3 c4) = do
+determineOutputSize :: V4 (V2 Double) -> Sz2
+determineOutputSize (V4 c1 c2 c3 c4) = do
   let
     diagonalA = c3 ^-^ c1
     diagonalB = c4 ^-^ c2
     V2 width height = (abs diagonalA ^+^ abs diagonalB) / 2
 
-  if (round rotation `P.mod` 180) == (90 :: P.Int)
-    then Sz (round width :. round height)
-    else Sz (round height :. round width)
+  Sz (round height :. round width)
 
 {- FOURMOLU_DISABLE -}
 -- /* Calculates coefficients of perspective transformation
