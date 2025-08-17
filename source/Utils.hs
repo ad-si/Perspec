@@ -195,33 +195,35 @@ calculateSizes :: AppState -> AppState
 calculateSizes appState =
   case appState.images of
     [] -> appState
-    image : otherImages -> do
-      let
-        imgViewWidth = appState.appWidth - appState.sidebarWidth
-        imgViewHeight = appState.appHeight
+    image : otherImages -> case image of
+      ImageToLoad _ -> appState
+      ImageData{} -> do
+        let
+          imgViewWidth = appState.appWidth - appState.sidebarWidth
+          imgViewHeight = appState.appHeight
 
-        imgWidthFrac = fromIntegral image.width
-        imgHeightFrac = fromIntegral image.height
+          imgWidthFrac = fromIntegral image.width
+          imgHeightFrac = fromIntegral image.height
 
-        scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
-        scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
+          scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
+          scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
 
-        scaleFactor = min scaleFactorX scaleFactorY
-        imgWidthTrgt = round $ scaleFactor * imgWidthFrac
-        imgHeightTrgt = round $ scaleFactor * imgHeightFrac
+          scaleFactor = min scaleFactorX scaleFactorY
+          imgWidthTrgt = round $ scaleFactor * imgWidthFrac
+          imgHeightTrgt = round $ scaleFactor * imgHeightFrac
 
-      appState
-        { images =
-            image
-              { widthTarget = imgWidthTrgt
-              , heightTarget = imgHeightTrgt
-              }
-              : otherImages
-        , scaleFactor
-        , corners =
-            transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
-              scalePoints (1 / scaleFactor) (getCorners appState)
-        }
+        appState
+          { images =
+              image
+                { widthTarget = imgWidthTrgt
+                , heightTarget = imgHeightTrgt
+                }
+                : otherImages
+          , scaleFactor
+          , corners =
+              transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
+                scalePoints (1 / scaleFactor) (getCorners appState)
+          }
 
 
 -- | Rotation angle in degrees of each EXIF orientation

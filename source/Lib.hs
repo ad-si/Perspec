@@ -951,14 +951,14 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                     }
                 180 ->
                   Corners
-                    { tl_x = 0
-                    , tl_y = 0
-                    , tr_x = int2Double width
-                    , tr_y = 0
-                    , br_x = int2Double width
-                    , br_y = int2Double height
-                    , bl_x = 0
-                    , bl_y = int2Double height
+                    { tl_x = int2Double width
+                    , tl_y = int2Double height
+                    , tr_x = 0
+                    , tr_y = int2Double height
+                    , br_x = 0
+                    , br_y = 0
+                    , bl_x = int2Double width
+                    , bl_y = 0
                     }
                 270 ->
                   Corners
@@ -973,14 +973,14 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                     }
                 _ ->
                   Corners
-                    { tl_x = int2Double width
-                    , tl_y = int2Double height
-                    , tr_x = 0
-                    , tr_y = int2Double height
-                    , br_x = 0
-                    , br_y = 0
-                    , bl_x = int2Double width
-                    , bl_y = 0
+                    { tl_x = 0
+                    , tl_y = 0
+                    , tr_x = int2Double width
+                    , tr_y = 0
+                    , br_x = int2Double width
+                    , br_y = int2Double height
+                    , bl_x = 0
+                    , bl_y = int2Double height
                     }
 
             rawWidth = P.fst bitmapData.bitmapSize
