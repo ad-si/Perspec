@@ -40,6 +40,7 @@ import Types (
   SortOrder (Ascending, Descending),
  )
 import Utils (loadImage)
+import UtilsSpec qualified
 
 
 main :: IO ()
@@ -262,3 +263,5 @@ main = hspec $ do
             ]
 
         getRenamingBatches (Just 1) Odd Descending files `shouldBe` batches
+
+  UtilsSpec.spec

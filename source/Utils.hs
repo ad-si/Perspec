@@ -6,6 +6,7 @@ module Utils where
 import Protolude (
   Bool (..),
   ByteString,
+  Double,
   Either (..),
   FilePath,
   Float,
@@ -58,12 +59,14 @@ import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TSE
+import GHC.Float (int2Double)
 import System.Directory (getCurrentDirectory)
 import System.FilePath (replaceBaseName, takeBaseName, takeExtension, (</>))
 import System.Info (os)
 import System.Process (readProcessWithExitCode)
 
 import Brillo.Data.Picture (Picture (Scale))
+import FlatCV (Corners (..))
 import Types (AppState (..), Coordinate (..), Corner, ImageData (..), View (..))
 
 
@@ -221,18 +224,90 @@ calculateSizes appState =
         }
 
 
+-- | Rotation angle in degrees of each EXIF orientation
 imgOrientToRot :: ExifData -> Float
 imgOrientToRot = \case
-  ExifShort 6 -> -90
   ExifShort 1 -> 0
-  ExifShort 8 -> 90
+  ExifShort 2 -> 0 -- TODO: + horizontally flipped
   ExifShort 3 -> 180
-  -- TODO: Also apply mirroring to image
-  ExifShort 5 -> -90
-  ExifShort 2 -> 0
-  ExifShort 7 -> 90
-  ExifShort 4 -> 180
+  ExifShort 4 -> 180 -- TODO: + horizontally flipped
+  ExifShort 5 -> 90 -- TODO: + horizontally flipped
+  ExifShort 6 -> -90
+  ExifShort 7 -> -90 -- TODO: + horizontally flipped
+  ExifShort 8 -> 90
   _ -> 0
+
+
+{-| Map user-selected corner coordinates
+(taken from the auto-rotated display image)
+back into the original un-rotated bitmap coordinate system
+before computing the perspective transform.
+-}
+getAdjustedSrcCorners :: Corners -> Int -> Int -> Float -> Corners
+getAdjustedSrcCorners srcCorners srcWidth srcHeight rotation =
+  let
+    w = int2Double srcWidth
+    h = int2Double srcHeight
+
+    rotatePoint90 :: (Double, Double) -> (Double, Double)
+    rotatePoint90 (x, y) = (h - y, x)
+
+    rotatePoint180 :: (Double, Double) -> (Double, Double)
+    rotatePoint180 (x, y) = (w - x, h - y)
+
+    rotatePoint270 :: (Double, Double) -> (Double, Double)
+    rotatePoint270 (x, y) = (y, w - x)
+  in
+    case P.round rotation :: Int of
+      90 ->
+        let
+          (tl_x, tl_y) = rotatePoint90 (srcCorners.bl_x, srcCorners.bl_y)
+          (tr_x, tr_y) = rotatePoint90 (srcCorners.tl_x, srcCorners.tl_y)
+          (br_x, br_y) = rotatePoint90 (srcCorners.tr_x, srcCorners.tr_y)
+          (bl_x, bl_y) = rotatePoint90 (srcCorners.br_x, srcCorners.br_y)
+        in
+          Corners{..}
+      -270 ->
+        let
+          (tl_x, tl_y) = rotatePoint90 (srcCorners.bl_x, srcCorners.bl_y)
+          (tr_x, tr_y) = rotatePoint90 (srcCorners.tl_x, srcCorners.tl_y)
+          (br_x, br_y) = rotatePoint90 (srcCorners.tr_x, srcCorners.tr_y)
+          (bl_x, bl_y) = rotatePoint90 (srcCorners.br_x, srcCorners.br_y)
+        in
+          Corners{..}
+      -90 ->
+        let
+          (tl_x, tl_y) = rotatePoint270 (srcCorners.tr_x, srcCorners.tr_y)
+          (tr_x, tr_y) = rotatePoint270 (srcCorners.br_x, srcCorners.br_y)
+          (br_x, br_y) = rotatePoint270 (srcCorners.bl_x, srcCorners.bl_y)
+          (bl_x, bl_y) = rotatePoint270 (srcCorners.tl_x, srcCorners.tl_y)
+        in
+          Corners{..}
+      270 ->
+        let
+          (tl_x, tl_y) = rotatePoint270 (srcCorners.tr_x, srcCorners.tr_y)
+          (tr_x, tr_y) = rotatePoint270 (srcCorners.br_x, srcCorners.br_y)
+          (br_x, br_y) = rotatePoint270 (srcCorners.bl_x, srcCorners.bl_y)
+          (bl_x, bl_y) = rotatePoint270 (srcCorners.tl_x, srcCorners.tl_y)
+        in
+          Corners{..}
+      180 ->
+        let
+          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
+          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
+          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
+          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+        in
+          Corners{..}
+      -180 ->
+        let
+          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
+          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
+          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
+          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+        in
+          Corners{..}
+      _ -> srcCorners
 
 
 loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))

@@ -2,6 +2,7 @@ module FlatCV where
 
 import Protolude (
   Double,
+  Eq,
   fromIntegral,
   identity,
   Int,
@@ -36,7 +37,7 @@ data Corners = Corners
   , br_y :: Double
   , bl_x :: Double
   , bl_y :: Double
-  } deriving (Show)
+  } deriving (Show, Eq)
 {#pointer *Corners as CornersPtr foreign -> Corners#}
 
 

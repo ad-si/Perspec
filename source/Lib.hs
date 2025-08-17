@@ -100,6 +100,8 @@ import Codec.Picture (
   imageFromUnsafePtr,
   savePngImage,
  )
+import Codec.Picture.Metadata (Keys (Exif), lookup)
+import Codec.Picture.Metadata.Exif (ExifTag (..))
 import Graphics.Image (
   Alpha,
   Bilinear (Bilinear),
@@ -141,8 +143,10 @@ import Types (
 import Utils (
   calcInitWindowPos,
   calculateSizes,
+  getAdjustedSrcCorners,
   getCorners,
   getWordSprite,
+  imgOrientToRot,
   loadFileIntoState,
   loadImage,
   prettyPrintArray,
@@ -916,35 +920,51 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             , bl_y = int2Double height
             }
 
-      putText "\nSource Corners:"
+      putText "\nOriginal Source Corners:"
       putText $ prettyShowCorners srcCorners
 
       putText "\nDestination Corners:"
       putText $ dstCorners & prettyShowCorners & T.replace ".0" ""
 
-      srcCornersPtr <- new srcCorners
-      dstCornersPtr <- new dstCorners
-      transMatPtr <-
-        FCV.fcvCalculatePerspectiveTransform dstCornersPtr srcCornersPtr
-      free srcCornersPtr
-      free dstCornersPtr
-      transMat <- peek transMatPtr
-
-      putText "\nTransformation Matrix:"
-      putText $ prettyShowMatrix3x3 transMat
-
       pictureMetadataEither <- loadImage inPath
       case pictureMetadataEither of
         Left error -> do
-          free transMatPtr
           P.putText error
         Right (Bitmap bitmapData, metadatas) -> do
           P.putText "" -- Line break
           prettyPrintArray metadatas
 
           let
-            srcWidth = P.fst bitmapData.bitmapSize
-            srcHeight = P.snd bitmapData.bitmapSize
+            -- Extract EXIF rotation
+            rotation =
+              P.maybe 0 imgOrientToRot $
+                lookup (Exif TagOrientation) metadatas
+
+            rawWidth = P.fst bitmapData.bitmapSize
+            rawHeight = P.snd bitmapData.bitmapSize
+            (srcWidth, srcHeight) =
+              if (P.round rotation `P.mod` 180) == (90 :: Int)
+                then (rawHeight, rawWidth)
+                else (rawWidth, rawHeight)
+
+          putText $ "\nEXIF Rotation: " <> show rotation
+
+          putText $ show (srcCorners, srcWidth, srcHeight, rotation)
+
+          putText "\nAdjusted Source Corners:"
+          let adjustedCorners = getAdjustedSrcCorners srcCorners srcWidth srcHeight rotation
+          putText $ prettyShowCorners adjustedCorners
+
+          srcCornersPtr <- new adjustedCorners
+          dstCornersPtr <- new dstCorners
+          transMatPtr <-
+            FCV.fcvCalculatePerspectiveTransform dstCornersPtr srcCornersPtr
+          free srcCornersPtr
+          free dstCornersPtr
+          transMat <- peek transMatPtr
+
+          putText "\nTransformation Matrix:"
+          putText $ prettyShowMatrix3x3 transMat
 
           withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
             resutlImg <-
@@ -987,7 +1007,6 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             P.putStrLn pngOutPath
         --
         Right _ -> do
-          free transMatPtr
           P.putText "Unsupported image format"
 
 
