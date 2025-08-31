@@ -162,7 +162,7 @@ uint8_t *fcv_binary_closing_disk(
   // Step 2: Erosion of the dilated image
   uint8_t *result = binary_erosion_disk(dilated, width, height, radius);
 
-  // Free int32_termediate result
+  // Free intermediate result
   free(dilated);
 
   return result;
@@ -524,6 +524,11 @@ uint8_t *fcv_apply_gaussian_blur(
         uint32_t img_index = y * width + x_offset;
         uint32_t img_rgba_index = img_index * 4;
 
+        // Bounds check for array access
+        if (img_rgba_index + 2 >= img_length_px * 4) {
+          continue;
+        }
+
         float weight = kernel[k + (int32_t)radius];
         weight_sum += weight;
 
@@ -604,6 +609,7 @@ uint8_t *fcv_apply_gaussian_blur(
  *
  * @param width Width of the image.
  * @param height Height of the image.
+ * @param use_double_threshold Whether to use double thresholding.
  * @param data Pointer to the pixel data.
  * @return Pointer to the blurred image data.
  */
@@ -668,7 +674,7 @@ uint8_t *fcv_bw_smart(
 }
 
 /**
- * Resize an image by given resize factors using bilinear int32_terpolation.
+ * Resize an image by given resize factors using bilinear interpolation.
  *
  * @param width Width of the input image.
  * @param height Height of the input image.
@@ -825,12 +831,12 @@ uint8_t *fcv_resize(
           uint8_t p10 = data[(y1 * width + x0) * 4 + c];
           uint8_t p11 = data[(y1 * width + x1) * 4 + c];
 
-          double int32_terpolated = p00 * (1 - dx) * (1 - dy) +
-                                    p01 * dx * (1 - dy) + p10 * (1 - dx) * dy +
-                                    p11 * dx * dy;
+          double interpolated = p00 * (1 - dx) * (1 - dy) +
+                                p01 * dx * (1 - dy) + p10 * (1 - dx) * dy +
+                                p11 * dx * dy;
 
           resized_data[(out_y * *out_width + out_x) * 4 + c] =
-            (uint8_t)(int32_terpolated + 0.5);
+            (uint8_t)(interpolated + 0.5);
         }
 
         resized_data[(out_y * *out_width + out_x) * 4 + 3] = 255;
@@ -935,12 +941,16 @@ uint8_t *fcv_convert_to_binary(
 #include "parse_hex_color.h"
 #include "perspectivetransform.h"
 #include "sobel_edge_detection.h"
+#include "sort_corners.h"
 #include "watershed_segmentation.h"
+
+#ifdef DEBUG_LOGGING
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+#endif
 #else
 #include "flatcv.h"
 #endif
-
-// #define DEBUG_LOGGING
 
 /** Count number of distinct colors in RGBA image
  * 1. Convert to grayscale
@@ -949,19 +959,16 @@ uint8_t *fcv_convert_to_binary(
  * 4. Create elevation map with Sobel
  * 5. Flatten elevation map at center seed to avoid being trapped in a local
  * minimum
- * 6. `watershed(image=elevation_map, markers=markers)`
+ * 6. Add black border to flood from all directions at once
+ * 7. `watershed(image=elevation_map, markers=markers)`
  *     Set center as marker for foreground basin and border for background basin
- * 7. Check region count equals 2
- * 8. Smooth result
- *     1. TODO: Add border to avoid connection with image boundaries
- *     1. Perform binary closing
- *     1. TODO: Remove border
- * 9. Use Foerstner corner detector (Harris detector corners are shifted
- * inwards)
- * 10. TODO: Sort corners
- * 11. TODO: Select 4 corners with the largest angle while maint32_taining their
- * order
- * 12. Normalize corners based on scale ratio
+ * 8. Check region count equals 2
+ * 9. Smooth result with binary closing
+ * 10. Use Foerstner corner detector
+ *     (Harris detector corners are shifted inwards)
+ * 11. Sort corners
+ * 12. Select 4 corners with the largest angle while maintaining their order
+ * 13. Normalize corners based on scale ratio
  */
 int32_t count_colors(const uint8_t *image, int32_t width, int32_t height) {
   assert(image != NULL);
@@ -1075,19 +1082,21 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
     .channels = 4,
     .data = resized_image
   };
-  write_debug_img(out_img, "temp_2_resized_image.png");
+  write_debug_img(out_img, "temp_1_resized_image.png");
 #endif
 
   // 3. Apply Gaussian blur
   uint8_t const *blurred_image =
     fcv_apply_gaussian_blur(out_width, out_height, 3.0, resized_image);
-  // Don't free resized_image here, as it is used for debugging later
+#ifndef DEBUG_LOGGING
+  free((void *)resized_image);
+#endif
   if (!blurred_image) {
     fprintf(stderr, "Error: Failed to apply Gaussian blur\n");
     exit(EXIT_FAILURE);
   }
 
-  // 5. Create elevation map with Sobel edge detection
+  // 4. Create elevation map with Sobel edge detection
   uint8_t *elevation_map = (uint8_t *)
     fcv_sobel_edge_detection(out_width, out_height, 4, blurred_image);
   free((void *)blurred_image);
@@ -1096,7 +1105,7 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
     exit(EXIT_FAILURE);
   }
 
-  // 6. Flatten elevation map at center to not get trapped in a local minimum
+  // 5. Flatten elevation map at center to not get trapped in a local minimum
   fcv_draw_disk(
     out_width,
     out_height,
@@ -1108,10 +1117,31 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
     elevation_map
   );
 
+  // 6. Add black border to flood from all directions at once
+  uint32_t bordered_width, bordered_height;
+  uint8_t *bordered_elevation_map = fcv_add_border(
+    out_width,
+    out_height,
+    1,        // Single channel grayscale
+    "000000", // Black border
+    1,        // Border width of 1 pixel
+    elevation_map,
+    &bordered_width,
+    &bordered_height
+  );
+
+  free(elevation_map);
+  if (!bordered_elevation_map) {
+    fprintf(stderr, "Error: Failed to add black border to elevation map\n");
+    exit(EXIT_FAILURE);
+  }
+
 #ifdef DEBUG_LOGGING
-  out_img.data = elevation_map;
+  out_img.data = bordered_elevation_map;
   out_img.channels = 1; // Grayscale
-  write_debug_img(out_img, "temp_6_elevation_map.png");
+  out_img.width = bordered_width;
+  out_img.height = bordered_height;
+  write_debug_img(out_img, "temp_2_elevation_map.png");
 #endif
 
   // 7. Perform watershed segmentation
@@ -1119,31 +1149,49 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
   Point2D *markers = malloc(num_markers * sizeof(Point2D));
   if (!markers) {
     fprintf(stderr, "Error: Failed to allocate memory for markers\n");
-    free((void *)elevation_map);
+    free((void *)bordered_elevation_map);
     exit(EXIT_FAILURE);
   }
   // Set center as foreground marker and upper left corner as background marker
-  markers[0] = (Point2D){.x = out_width / 2.0, .y = out_height / 2.0};
+  // Adjust for the added border (border width = 1)
+  markers[0] = (Point2D){.x = bordered_width / 2.0, .y = bordered_height / 2.0};
   markers[1] = (Point2D){.x = 0, .y = 0};
 
-  uint8_t *segmented_image = fcv_watershed_segmentation(
-    out_width,
-    out_height,
-    elevation_map,
+  uint8_t *segmented_image_wide = fcv_watershed_segmentation(
+    bordered_width,
+    bordered_height,
+    bordered_elevation_map,
     markers,
     num_markers,
     false // No boundaries
   );
-  free((void *)elevation_map);
+  free((void *)bordered_elevation_map);
   free((void *)markers);
 
+  // Remove 1 pixel border from segmented image
+  uint8_t *segmented_image = malloc(out_width * out_height * 4);
+  if (!segmented_image) {
+    fprintf(stderr, "Error: Failed to allocate memory for segmented image\n");
+    free((void *)segmented_image_wide);
+    exit(EXIT_FAILURE);
+  }
+  for (uint32_t y = 1; y < bordered_height - 1; y++) {
+    memcpy(
+      &segmented_image[(y - 1) * out_width * 4],
+      &segmented_image_wide[(y * bordered_width + 1) * 4],
+      out_width * 4
+    );
+  }
+
 #ifdef DEBUG_LOGGING
-  out_img.data = segmented_image;
+  out_img.width = out_width;
+  out_img.height = out_height;
   out_img.channels = 4;
-  write_debug_img(out_img, "temp_7_watershed.png");
+  out_img.data = segmented_image;
+  write_debug_img(out_img, "temp_3_watershed.png");
 #endif
 
-  // Check if the image has exactly 2 regions (foreground and background)
+  // 8. Check if the image has exactly 2 regions (foreground and background)
   int32_t region_count = count_colors(segmented_image, out_width, out_height);
   if (region_count != 2) {
     fprintf(stderr, "Error: Expected 2 regions, found %d\n", region_count);
@@ -1165,10 +1213,10 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
 #ifdef DEBUG_LOGGING
   out_img.data = segmented_binary;
   out_img.channels = 1;
-  write_debug_img(out_img, "temp_7_watershed_binary.png");
+  write_debug_img(out_img, "temp_4_watershed_binary.png");
 #endif
 
-  // 8. Smooth the result
+  // 9. Smooth the result
   uint8_t *segmented_closed = fcv_binary_closing_disk(
     segmented_binary,
     out_width,
@@ -1183,10 +1231,10 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
 
 #ifdef DEBUG_LOGGING
   out_img.data = segmented_closed;
-  write_debug_img(out_img, "temp_8_segmented_closed.png");
+  write_debug_img(out_img, "temp_5_segmented_closed.png");
 #endif
 
-  // 9. Find corners in the closed image
+  // 10. Find corners in the closed image
   uint8_t *corner_response = fcv_foerstner_corner(
     out_width,
     out_height,
@@ -1213,33 +1261,201 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
 
 #ifdef DEBUG_LOGGING
   out_img.data = w_channel;
-  write_debug_img(out_img, "temp_9_corner_response.png");
+  write_debug_img(out_img, "temp_6_corner_response.png");
 #endif
   free(w_channel);
 
   // 10. Find corner peaks using thresholds
-  CornerPeaks *peaks = fcv_corner_peaks(
-    out_width,
-    out_height,
-    corner_response,
-    16,  // Minimum distance between peaks
-    0.5, // accuracy_thresh
-    0.3  // roundness_thresh
-  );
+  // Gradually decrease thresholds until it finds at least 4 corners
+  CornerPeaks *peaks = NULL;
+  double accuracy_thresh = 0.5;
+  double roundness_thresh = 0.3;
+  const double thresh_decrement = 0.05;
+  const double min_thresh = 0.01;
+
+  do {
+    if (peaks) {
+      free(peaks->points);
+      free(peaks);
+    }
+
+    peaks = fcv_corner_peaks(
+      out_width,
+      out_height,
+      corner_response,
+      16, // Minimum distance between peaks
+      accuracy_thresh,
+      roundness_thresh
+    );
+
+    if (!peaks || peaks->count < 4) {
+      accuracy_thresh -= thresh_decrement;
+      roundness_thresh -= thresh_decrement;
+
+      // Prevent thresholds from going negative
+      if (accuracy_thresh < min_thresh) {
+        accuracy_thresh = min_thresh;
+      }
+      if (roundness_thresh < min_thresh) {
+        roundness_thresh = min_thresh;
+      }
+    }
+
+  } while (peaks && peaks->count < 4 &&
+           (accuracy_thresh > min_thresh || roundness_thresh > min_thresh));
   free((void *)corner_response);
   if (!peaks) {
     fprintf(stderr, "Error: Failed to find corner peaks\n");
     exit(EXIT_FAILURE);
   }
 
+  // First, sort all corners to get them in clockwise order
+  Point2D *sorted_result = malloc(peaks->count * sizeof(Point2D));
+  sort_corners(
+    width,
+    height,
+    out_width,
+    out_height,
+    peaks->points,
+    peaks->count,
+    sorted_result
+  );
+
+  // Scale corners back to original image dimensions
+  double scale_x = (double)width / out_width;
+  double scale_y = (double)height / out_height;
+
+  Corners sorted_corners;
+
+  if (peaks->count > 4) {
+    // Calculate angles for each corner using cross product method
+    double *angles = malloc(peaks->count * sizeof(double));
+    typedef struct {
+      uint32_t index;
+      double angle_abs;
+    } AngleIndex;
+    AngleIndex *angle_indices = malloc(peaks->count * sizeof(AngleIndex));
+
+    for (uint32_t i = 0; i < peaks->count; i++) {
+      // Get the three consecutive points for angle calculation
+      Point2D prev = sorted_result[(i - 1 + peaks->count) % peaks->count];
+      Point2D curr = sorted_result[i];
+      Point2D next = sorted_result[(i + 1) % peaks->count];
+
+      // Calculate vectors from current point
+      double a_x = prev.x - curr.x;
+      double a_y = prev.y - curr.y;
+      double b_x = next.x - curr.x;
+      double b_y = next.y - curr.y;
+
+      // Calculate lengths of vectors
+      double a_len = sqrt(a_x * a_x + a_y * a_y);
+      double b_len = sqrt(b_x * b_x + b_y * b_y);
+
+      if (a_len == 0 || b_len == 0) {
+        angles[i] = 0;
+      }
+      else {
+        // Calculate cross product (z-component in 2D)
+        double cross_product = (a_x * b_y - a_y * b_x) / (a_len * b_len);
+        // Clamp to [-1, 1] to avoid numerical errors
+        if (cross_product > 1.0) {
+          cross_product = 1.0;
+        }
+        if (cross_product < -1.0) {
+          cross_product = -1.0;
+        }
+
+        // Calculate angle in degrees
+        angles[i] = asin(cross_product) * 180.0 / M_PI;
+      }
+
+      angle_indices[i].index = i;
+      angle_indices[i].angle_abs = fabs(angles[i]);
+    }
+
+    // Sort indices by descending angle magnitude
+    for (uint32_t i = 0; i < peaks->count - 1; i++) {
+      for (uint32_t j = 0; j < peaks->count - 1 - i; j++) {
+        if (angle_indices[j].angle_abs < angle_indices[j + 1].angle_abs) {
+          AngleIndex temp = angle_indices[j];
+          angle_indices[j] = angle_indices[j + 1];
+          angle_indices[j + 1] = temp;
+        }
+      }
+    }
+
+    // Take top 4 indices and sort them to maintain original clockwise order
+    uint32_t top_4_indices[4];
+    for (uint32_t i = 0; i < 4; i++) {
+      top_4_indices[i] = angle_indices[i].index;
+    }
+
+    // Sort the top 4 indices to maintain original clockwise order
+    for (uint32_t i = 0; i < 3; i++) {
+      for (uint32_t j = 0; j < 3 - i; j++) {
+        if (top_4_indices[j] > top_4_indices[j + 1]) {
+          uint32_t temp = top_4_indices[j];
+          top_4_indices[j] = top_4_indices[j + 1];
+          top_4_indices[j + 1] = temp;
+        }
+      }
+    }
+
+    // Create final corners struct directly from selected corners in clockwise
+    // order The first sorted corner becomes top-left, and we maintain clockwise
+    // sequence
+    sorted_corners =
+      (Corners){.tl_x = sorted_result[top_4_indices[0]].x * scale_x,
+                .tl_y = sorted_result[top_4_indices[0]].y * scale_y,
+                .tr_x = sorted_result[top_4_indices[1]].x * scale_x,
+                .tr_y = sorted_result[top_4_indices[1]].y * scale_y,
+                .br_x = sorted_result[top_4_indices[2]].x * scale_x,
+                .br_y = sorted_result[top_4_indices[2]].y * scale_y,
+                .bl_x = sorted_result[top_4_indices[3]].x * scale_x,
+                .bl_y = sorted_result[top_4_indices[3]].y * scale_y};
+
+    free(angles);
+    free(angle_indices);
+  }
+  else {
+    // Use all available corners if we have 4 or fewer, already in clockwise
+    // order
+    sorted_corners =
+      (Corners){.tl_x = sorted_result[0].x * scale_x,
+                .tl_y = sorted_result[0].y * scale_y,
+                .tr_x = sorted_result[1 % peaks->count].x * scale_x,
+                .tr_y = sorted_result[1 % peaks->count].y * scale_y,
+                .br_x = sorted_result[2 % peaks->count].x * scale_x,
+                .br_y = sorted_result[2 % peaks->count].y * scale_y,
+                .bl_x = sorted_result[3 % peaks->count].x * scale_x,
+                .bl_y = sorted_result[3 % peaks->count].y * scale_y};
+  }
+
+  free(sorted_result);
+
 #ifdef DEBUG_LOGGING
-  // Draw corner peaks on the resized image
-  for (int32_t i = 0; i < peaks->count; i++) {
+  // Print peaks for debugging
+  fprintf(stderr, "Peaks:\n");
+  fprintf(stderr, "%.0f,%.0f\n", sorted_corners.tl_x, sorted_corners.tl_y);
+  fprintf(stderr, "%.0f,%.0f\n", sorted_corners.tr_x, sorted_corners.tr_y);
+  fprintf(stderr, "%.0f,%.0f\n", sorted_corners.br_x, sorted_corners.br_y);
+  fprintf(stderr, "%.0f,%.0f\n", sorted_corners.bl_x, sorted_corners.bl_y);
+  // Draw corner peaks on the grayscale and resized image
+  for (uint32_t i = 0; i < peaks->count; i++) {
+    // Print peak coordinates for debugging
+    fprintf(
+      stderr,
+      "Peak %u: (%.1f, %.1f)\n",
+      i,
+      peaks->points[i].x,
+      peaks->points[i].y
+    );
     fcv_draw_circle(
       out_width,
       out_height,
-      4,        // RGBA
-      "FF0000", // Red color for corners
+      4,        // GRAY as RGBA (each value is the same)
+      "FFFF00", // Yellow color for corners
       2,        // Radius
       peaks->points[i].x,
       peaks->points[i].y,
@@ -1247,29 +1463,86 @@ fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height) {
     );
   }
 
-  out_img.data = resized_image;
-  out_img.channels = 4;
-  write_debug_img(out_img, "temp_10_corners.png");
-#endif
-  free((void *)resized_image);
+  // Draw sorted corners with different colors to distinguish from peaks.
+  // Reuse the scale variables from above.
+  // (Inverted for drawing on resized image.)
+  double draw_scale_x = (double)out_width / width;
+  double draw_scale_y = (double)out_height / height;
 
-  // Scale corners back to original image dimensions
-  double scale_x = (double)width / out_width;
-  double scale_y = (double)height / out_height;
+  // Draw top-left corner in red
+  fcv_draw_circle(
+    out_width,
+    out_height,
+    4,
+    "FF0000", // Red color for top-left
+    3,        // Slightly larger radius to distinguish from peaks
+    sorted_corners.tl_x * draw_scale_x,
+    sorted_corners.tl_y * draw_scale_y,
+    (uint8_t *)resized_image
+  );
 
-  Corners corners = {
-    .tl_x = peaks->points[0].x * scale_x,
-    .tl_y = peaks->points[0].y * scale_y,
-    .tr_x = peaks->points[1].x * scale_x,
-    .tr_y = peaks->points[1].y * scale_y,
-    .br_x = peaks->points[2].x * scale_x,
-    .br_y = peaks->points[2].y * scale_y,
-    .bl_x = peaks->points[3].x * scale_x,
-    .bl_y = peaks->points[3].y * scale_y
+  // Draw top-right corner in green
+  fcv_draw_circle(
+    out_width,
+    out_height,
+    4,
+    "00FF00", // Green color for top-right
+    3,
+    sorted_corners.tr_x * draw_scale_x,
+    sorted_corners.tr_y * draw_scale_y,
+    (uint8_t *)resized_image
+  );
+
+  // Draw bottom-right corner in blue
+  fcv_draw_circle(
+    out_width,
+    out_height,
+    4,
+    "0000FF", // Blue color for bottom-right
+    3,
+    sorted_corners.br_x * draw_scale_x,
+    sorted_corners.br_y * draw_scale_y,
+    (uint8_t *)resized_image
+  );
+
+  // Draw bottom-left corner in magenta
+  fcv_draw_circle(
+    out_width,
+    out_height,
+    4,
+    "FF00FF", // Magenta color for bottom-left
+    3,
+    sorted_corners.bl_x * draw_scale_x,
+    sorted_corners.bl_y * draw_scale_y,
+    (uint8_t *)resized_image
+  );
+
+  Image corners_img = {
+    .width = out_width,
+    .height = out_height,
+    .channels = 4,
+    .data = resized_image
   };
+  write_debug_img(corners_img, "temp_7_corners.png");
+  free((void *)resized_image);
+#endif
 
   free(peaks);
-  return corners;
+  return sorted_corners;
+}
+
+/**
+ * Wrapper function that allocates corners on heap for FFI.
+ */
+Corners *
+fcv_detect_corners_ptr(const uint8_t *image, int32_t width, int32_t height) {
+  Corners corners = fcv_detect_corners(image, width, height);
+  Corners *result = malloc(sizeof(Corners));
+  if (result == NULL) {
+    return NULL;
+  }
+  *result = corners;
+  return result;
 }
 // File: src/corner_peaks.c
 #include <assert.h>
@@ -1565,7 +1838,7 @@ void fcv_set_circle_pixel(
 }
 
 /**
- * Helper function to draw 8 symmetric point32_ts of a circle
+ * Helper function to draw 8 symmetric points of a circle
  */
 void fcv_draw_circle_points(
   uint8_t *data,
@@ -1663,7 +1936,7 @@ void fcv_draw_circle(
   int32_t y = radius_int32_t;
   int32_t d = 3 - 2 * radius_int32_t;
 
-  // Initial point32_ts
+  // Initial points
   fcv_draw_circle_points(data, width, height, channels, cx, cy, x, y, r, g, b);
 
   while (y >= x) {
@@ -1746,6 +2019,85 @@ void fcv_draw_disk(
     }
     fcv_fill_disk_lines(data, width, height, channels, cx, cy, x, y, r, g, b);
   }
+}
+
+/**
+ * Add a colored border around an image.
+ * Returns a new image with the border added.
+ *
+ * @param width Width of the input image.
+ * @param height Height of the input image.
+ * @param channels Number of channels in the image (1, 3, or 4).
+ * @param hex_color Hex color code for the border (e.g., "FF0000" for red).
+ * @param border_width Width of the border in pixels.
+ * @param input_data Pointer to the input pixel data.
+ * @param output_width Pointer to store the output image width.
+ * @param output_height Pointer to store the output image height.
+ * @return Pointer to the new image data with border, or NULL on failure.
+ */
+uint8_t *fcv_add_border(
+  uint32_t width,
+  uint32_t height,
+  uint32_t channels,
+  const char *hex_color,
+  uint32_t border_width,
+  uint8_t *input_data,
+  uint32_t *output_width,
+  uint32_t *output_height
+) {
+  if (!input_data || !output_width || !output_height || border_width == 0) {
+    return NULL;
+  }
+
+  // Parse border color
+  uint8_t r, g, b;
+  fcv_parse_hex_color(hex_color, &r, &g, &b);
+
+  // Calculate output dimensions
+  *output_width = width + 2 * border_width;
+  *output_height = height + 2 * border_width;
+
+  // Allocate memory for output image
+  size_t output_size = *output_width * *output_height * channels;
+  uint8_t *output_data = malloc(output_size);
+  if (!output_data) {
+    return NULL;
+  }
+
+  // Fill the entire output image with border color
+  for (uint32_t y = 0; y < *output_height; y++) {
+    for (uint32_t x = 0; x < *output_width; x++) {
+      uint32_t pixel_index = (y * *output_width + x) * channels;
+
+      if (channels == 1) {
+        // Grayscale: use luminance formula
+        output_data[pixel_index] = (uint8_t)(0.299 * r + 0.587 * g + 0.114 * b);
+      }
+      else if (channels >= 3) {
+        output_data[pixel_index] = r;     // R
+        output_data[pixel_index + 1] = g; // G
+        output_data[pixel_index + 2] = b; // B
+        if (channels == 4) {
+          output_data[pixel_index + 3] = 255; // A
+        }
+      }
+    }
+  }
+
+  // Copy the original image into the center
+  for (uint32_t y = 0; y < height; y++) {
+    for (uint32_t x = 0; x < width; x++) {
+      uint32_t src_index = (y * width + x) * channels;
+      uint32_t dst_index =
+        ((y + border_width) * *output_width + (x + border_width)) * channels;
+
+      for (uint32_t c = 0; c < channels; c++) {
+        output_data[dst_index + c] = input_data[src_index + c];
+      }
+    }
+  }
+
+  return output_data;
 }
 // File: src/extract_document.c
 #include <math.h>
@@ -1912,7 +2264,82 @@ uint8_t *fcv_extract_document_auto(
   }
 
   return result;
-}// File: src/foerstner_corner.c
+}
+// File: src/flip.c
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifndef FLATCV_AMALGAMATION
+#include "flip.h"
+#else
+#include "flatcv.h"
+#endif
+
+/**
+ * Flip an image horizontally (mirror along vertical axis).
+ *
+ * @param width Width of the image.
+ * @param height Height of the image.
+ * @param data Pointer to the pixel data.
+ * @return Pointer to the flipped image data.
+ */
+uint8_t *
+fcv_flip_x(uint32_t width, uint32_t height, uint8_t const *const data) {
+  uint32_t img_length_byte = width * height * 4;
+  uint8_t *flipped_data = malloc(img_length_byte);
+
+  if (!flipped_data) { // Memory allocation failed
+    return NULL;
+  }
+
+  for (uint32_t y = 0; y < height; y++) {
+    for (uint32_t x = 0; x < width; x++) {
+      uint32_t src_index = (y * width + x) * 4;
+      uint32_t dst_index = (y * width + (width - 1 - x)) * 4;
+
+      flipped_data[dst_index] = data[src_index];         // R
+      flipped_data[dst_index + 1] = data[src_index + 1]; // G
+      flipped_data[dst_index + 2] = data[src_index + 2]; // B
+      flipped_data[dst_index + 3] = data[src_index + 3]; // A
+    }
+  }
+
+  return flipped_data;
+}
+
+/**
+ * Flip an image vertically (mirror along horizontal axis).
+ *
+ * @param width Width of the image.
+ * @param height Height of the image.
+ * @param data Pointer to the pixel data.
+ * @return Pointer to the flipped image data.
+ */
+uint8_t *
+fcv_flip_y(uint32_t width, uint32_t height, uint8_t const *const data) {
+  uint32_t img_length_byte = width * height * 4;
+  uint8_t *flipped_data = malloc(img_length_byte);
+
+  if (!flipped_data) { // Memory allocation failed
+    return NULL;
+  }
+
+  for (uint32_t y = 0; y < height; y++) {
+    for (uint32_t x = 0; x < width; x++) {
+      uint32_t src_index = (y * width + x) * 4;
+      uint32_t dst_index = ((height - 1 - y) * width + x) * 4;
+
+      flipped_data[dst_index] = data[src_index];         // R
+      flipped_data[dst_index + 1] = data[src_index + 1]; // G
+      flipped_data[dst_index + 2] = data[src_index + 2]; // B
+      flipped_data[dst_index + 3] = data[src_index + 3]; // A
+    }
+  }
+
+  return flipped_data;
+}
+// File: src/foerstner_corner.c
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -2133,6 +2560,204 @@ uint8_t *fcv_foerstner_corner(
 
   return result;
 }
+// File: src/histogram.c
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifndef FLATCV_AMALGAMATION
+#include "histogram.h"
+#else
+#include "flatcv.h"
+#endif
+
+/**
+ * Generate a histogram visualization image from input image data.
+ * For grayscale images, creates a single histogram.
+ * For RGB(A) images, creates overlapping histograms for each channel.
+ *
+ * @param width Width of the input image.
+ * @param height Height of the input image.
+ * @param channels Number of channels in the input image (1, 3, or 4).
+ * @param data Pointer to the input pixel data.
+ * @param out_width Pointer to store the output histogram width.
+ * @param out_height Pointer to store the output histogram height.
+ * @return Pointer to the histogram image data (RGBA format).
+ */
+uint8_t *fcv_generate_histogram(
+  uint32_t width,
+  uint32_t height,
+  uint32_t channels,
+  uint8_t const *const data,
+  uint32_t *out_width,
+  uint32_t *out_height
+) {
+  if (!data || !out_width || !out_height) {
+    return NULL;
+  }
+
+  // Output histogram dimensions
+  const uint32_t hist_width = 256;  // One pixel per brightness value
+  const uint32_t hist_height = 200; // Fixed height for visualization
+
+  *out_width = hist_width;
+  *out_height = hist_height;
+
+  uint32_t img_size = width * height;
+  uint32_t output_size = (*out_width) * (*out_height) * 4;
+
+  // Allocate output image (initialized to black background)
+  uint8_t *output = calloc(output_size, sizeof(uint8_t));
+  if (!output) {
+    return NULL;
+  }
+
+  // Initialize with black background and full alpha
+  for (uint32_t i = 0; i < (*out_width) * (*out_height); i++) {
+    output[i * 4 + 3] = 255; // Alpha channel
+  }
+
+  // Count histograms for each channel
+  uint32_t hist_r[256] = {0};
+  uint32_t hist_g[256] = {0};
+  uint32_t hist_b[256] = {0};
+  uint32_t hist_gray[256] = {0};
+
+  bool is_grayscale = (channels == 1);
+  if (channels == 4) {
+    // Check if it's actually grayscale (all RGB channels equal)
+    is_grayscale = true;
+    for (uint32_t i = 0; i < img_size && is_grayscale; i++) {
+      uint32_t idx = i * 4;
+      if (data[idx] != data[idx + 1] || data[idx] != data[idx + 2]) {
+        is_grayscale = false;
+      }
+    }
+  }
+
+  if (is_grayscale) {
+    // Single channel or grayscale image
+    for (uint32_t i = 0; i < img_size; i++) {
+      uint8_t value;
+      if (channels == 1) {
+        value = data[i];
+      }
+      else {
+        // Use the red channel for grayscale RGBA
+        value = data[i * 4];
+      }
+      hist_gray[value]++;
+    }
+  }
+  else {
+    // RGB or RGBA image - count each channel
+    for (uint32_t i = 0; i < img_size; i++) {
+      uint32_t idx = i * channels;
+      hist_r[data[idx]]++;
+      if (channels >= 3) {
+        hist_g[data[idx + 1]]++;
+        hist_b[data[idx + 2]]++;
+      }
+    }
+  }
+
+  // Find maximum count for scaling
+  uint32_t max_count = 0;
+  if (is_grayscale) {
+    for (int i = 0; i < 256; i++) {
+      if (hist_gray[i] > max_count) {
+        max_count = hist_gray[i];
+      }
+    }
+  }
+  else {
+    for (int i = 0; i < 256; i++) {
+      if (hist_r[i] > max_count) {
+        max_count = hist_r[i];
+      }
+      if (channels >= 3) {
+        if (hist_g[i] > max_count) {
+          max_count = hist_g[i];
+        }
+        if (hist_b[i] > max_count) {
+          max_count = hist_b[i];
+        }
+      }
+    }
+  }
+
+  if (max_count == 0) {
+    return output; // Return black image if no data
+  }
+
+  // Draw histogram bars
+  for (int x = 0; x < 256; x++) {
+    if (is_grayscale) {
+      // Draw white histogram for grayscale
+      uint32_t bar_height = (hist_gray[x] * hist_height) / max_count;
+      for (uint32_t y = 0; y < bar_height; y++) {
+        uint32_t output_x = x;
+        uint32_t output_y = hist_height - 1 - y;
+        uint32_t output_idx = (output_y * (*out_width) + output_x) * 4;
+
+        output[output_idx] = 255;     // R
+        output[output_idx + 1] = 255; // G
+        output[output_idx + 2] = 255; // B
+        output[output_idx + 3] = 255; // A
+      }
+    }
+    else {
+      // Draw overlapping colored histograms for RGB
+      uint32_t bar_height_r = (hist_r[x] * hist_height) / max_count;
+      uint32_t bar_height_g =
+        (channels >= 3) ? (hist_g[x] * hist_height) / max_count : 0;
+      uint32_t bar_height_b =
+        (channels >= 3) ? (hist_b[x] * hist_height) / max_count : 0;
+
+      uint32_t max_bar_height = bar_height_r;
+      if (bar_height_g > max_bar_height) {
+        max_bar_height = bar_height_g;
+      }
+      if (bar_height_b > max_bar_height) {
+        max_bar_height = bar_height_b;
+      }
+
+      for (uint32_t y = 0; y < max_bar_height; y++) {
+        uint32_t output_x = x;
+        uint32_t output_y = hist_height - 1 - y;
+        uint32_t output_idx = (output_y * (*out_width) + output_x) * 4;
+
+        // Initialize to black
+        uint8_t r = 0, g = 0, b = 0;
+
+        // Add red channel contribution
+        if (y < bar_height_r) {
+          r = 255;
+        }
+
+        // Add green channel contribution
+        if (channels >= 3 && y < bar_height_g) {
+          g = 255;
+        }
+
+        // Add blue channel contribution
+        if (channels >= 3 && y < bar_height_b) {
+          b = 255;
+        }
+
+        output[output_idx] = r;       // R
+        output[output_idx + 1] = g;   // G
+        output[output_idx + 2] = b;   // B
+        output[output_idx + 3] = 255; // A
+      }
+    }
+  }
+
+  return output;
+}
 // File: src/parse_hex_color.c
 #include <assert.h>
 #include <math.h>
@@ -2211,7 +2836,7 @@ void fcv_parse_hex_color(
 // #define DEBUG_LOGGING
 
 #ifdef DEBUG_LOGGING
-#define log(msg) print32_tf("DEBUG: %s\n", msg)
+#define log(msg) printf("DEBUG: %s\n", msg)
 #else
 #define log(msg) // No operation
 #endif
@@ -2318,8 +2943,9 @@ Matrix3x3 *fcv_calculate_perspective_transform(
   }
 
 #ifdef DEBUG_LOGGING
-  print32_tf("[C] Calculating perspective transform:\n");
-  print32_tf(
+  fprintf(stderr, "[C] Calculating perspective transform:\n");
+  fprintf(
+    stderr,
     "src_corners:\ntl(%f, %f)\ntr(%f, %f)\nbr(%f, %f)\nbl(%f, %f)\n\n",
     src_corners->tl_x,
     src_corners->tl_y,
@@ -2330,7 +2956,8 @@ Matrix3x3 *fcv_calculate_perspective_transform(
     src_corners->bl_x,
     src_corners->bl_y
   );
-  print32_tf(
+  fprintf(
+    stderr,
     "dst_corners:\ntl(%f, %f)\ntr(%f, %f)\nbr(%f, %f)\nbl(%f, %f)\n\n",
     dst_corners->tl_x,
     dst_corners->tl_y,
@@ -2429,10 +3056,10 @@ Matrix3x3 *fcv_calculate_perspective_transform(
   *result = (Matrix3x3){x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], 1.0};
 
 #ifdef DEBUG_LOGGING
-  print32_tf("Result matrix:\n");
-  print32_tf("%f, %f, %f\n", result->m00, result->m01, result->m02);
-  print32_tf("%f, %f, %f\n", result->m10, result->m11, result->m12);
-  print32_tf("%f, %f, %f\n", result->m20, result->m21, result->m22);
+  fprintf(stderr, "Result matrix:\n");
+  fprintf(stderr, "%f, %f, %f\n", result->m00, result->m01, result->m02);
+  fprintf(stderr, "%f, %f, %f\n", result->m10, result->m11, result->m12);
+  fprintf(stderr, "%f, %f, %f\n", result->m20, result->m21, result->m22);
 #endif
 
   // Final validation of the result matrix
@@ -2452,7 +3079,7 @@ Matrix3x3 *fcv_calculate_perspective_transform(
 /**
  * Apply the transformation matrix to the input image
  * and store the result in the output image.
- * Use bilinear int32_terpolation to calculate final pixel values.
+ * Use bilinear interpolation to calculate final pixel values.
  */
 uint8_t *fcv_apply_matrix_3x3(
   int32_t in_width,
@@ -2462,16 +3089,6 @@ uint8_t *fcv_apply_matrix_3x3(
   int32_t out_height,
   Matrix3x3 *tmat
 ) {
-#ifdef DEBUG_LOGGING
-  print32_tf("Input data:\n");
-  for (int32_t i = 0; i < in_width; i++) {
-    for (int32_t j = 0; j < in_height; j++) {
-      print32_tf("%d ", in_data[(i * in_width + j) * 4]);
-    }
-    print32_tf("\n");
-  }
-#endif
-
   // Patch flip matrix if needed
   if (fabs(tmat->m00 + 1.0) < 1e-9 && fabs(tmat->m11 + 1.0) < 1e-9 &&
       tmat->m02 == 0.0 && tmat->m12 == 0.0) {
@@ -2497,7 +3114,7 @@ uint8_t *fcv_apply_matrix_3x3(
       double srcX = (tmat->m00 * out_x + tmat->m01 * out_y + tmat->m02) / w;
       double srcY = (tmat->m10 * out_x + tmat->m11 * out_y + tmat->m12) / w;
 
-      // Convert source coordinates to int32_tegers
+      // Convert source coordinates to integers
       int32_t x0 = (int32_t)floor(srcX);
       int32_t y0 = (int32_t)floor(srcY);
       int32_t x1 = x0 + 1;
@@ -2507,7 +3124,7 @@ uint8_t *fcv_apply_matrix_3x3(
       if (x0 >= 0 && x0 < in_width && y0 >= 0 && y0 < in_height) {
 
         // Clamp the neighbor coordinates so that a (degenerated)
-        // bilinear int32_terpolation can be applied at the image borders.
+        // bilinear interpolation can be applied at the image borders.
         int32_t x1c = (x1 < in_width) ? x1 : x0;
         int32_t y1c = (y1 < in_height) ? y1 : y0;
 
@@ -2535,16 +3152,6 @@ uint8_t *fcv_apply_matrix_3x3(
       }
     }
   }
-
-#ifdef DEBUG_LOGGING
-  print32_tf("Output data:\n");
-  for (int32_t i = 0; i < out_width; i++) {
-    for (int32_t j = 0; j < out_height; j++) {
-      print32_tf("%d ", out_data[(i * out_width + j) * 4]);
-    }
-    print32_tf("\n");
-  }
-#endif
 
   return out_data;
 }
@@ -2799,6 +3406,517 @@ uint8_t *fcv_sobel_edge_detection(
   }
   return sobel_data;
 }
+// File: src/sort_corners.c
+#include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#ifndef FLATCV_AMALGAMATION
+#include "1_types.h"
+#else
+#include "flatcv.h"
+#endif
+
+typedef struct {
+  double r;     // radius
+  double theta; // angle
+} PolarPoint;
+
+// Helper function to convert Cartesian to polar coordinates
+PolarPoint cartesian_to_polar(Point2D cart) {
+  PolarPoint polar;
+  polar.r = sqrt(cart.x * cart.x + cart.y * cart.y);
+  double theta = atan2(cart.y, cart.x);
+
+  // Normalize theta: Convert to degrees and apply normalization
+  double theta_deg = theta * 180.0 / M_PI;
+  if (theta_deg < 0) {
+    polar.theta = -theta_deg;
+  }
+  else {
+    polar.theta = -(theta_deg - 360.0);
+  }
+
+  return polar;
+}
+
+// Comparison function for qsort (sorting by angle in descending order)
+int compare_polar_angles(const void *a, const void *b) {
+  const PolarPoint *pa = (const PolarPoint *)a;
+  const PolarPoint *pb = (const PolarPoint *)b;
+
+  if (pa->theta < pb->theta) {
+    return 1; // Descending order
+  }
+  if (pa->theta > pb->theta) {
+    return -1;
+  }
+  return 0;
+}
+
+// Helper structure to keep track of original indices during sorting
+typedef struct {
+  PolarPoint polar;
+  uint32_t original_index;
+} IndexedPolarPoint;
+
+int compare_indexed_polar_angles(const void *a, const void *b) {
+  const IndexedPolarPoint *pa = (const IndexedPolarPoint *)a;
+  const IndexedPolarPoint *pb = (const IndexedPolarPoint *)b;
+
+  if (pa->polar.theta < pb->polar.theta) {
+    return 1; // Descending order
+  }
+  if (pa->polar.theta > pb->polar.theta) {
+    return -1;
+  }
+  return 0;
+}
+
+Corners sort_corners(
+  uint32_t width,
+  uint32_t height,
+  uint32_t out_width,
+  uint32_t out_height,
+  Point2D *corners,
+  uint32_t num_corners,
+  Point2D *result
+) {
+  if (num_corners < 3) {
+    // Not enough corners, return zeros
+    Corners empty_corners = {0, 0, 0, 0, 0, 0, 0, 0};
+    return empty_corners;
+  }
+
+  // Allocate memory for working corners (max of num_corners or 4 for 3-corner
+  // case)
+  uint32_t max_corners = (num_corners >= 4) ? num_corners : 4;
+  Point2D *working_corners = malloc(max_corners * sizeof(Point2D));
+  if (!working_corners) {
+    Corners empty_corners = {0, 0, 0, 0, 0, 0, 0, 0};
+    return empty_corners;
+  }
+
+  uint32_t corners_to_process;
+
+  if (num_corners == 3) {
+    // Copy the 3 corners we have
+    working_corners[0] = corners[0];
+    working_corners[1] = corners[1];
+    working_corners[2] = corners[2];
+
+    // Calculate the fourth corner to complete a parallelogram
+    // For 3 corners A, B, C, we need to determine which corner is missing
+    // and calculate it using vector addition
+
+    // First, sort the 3 corners by position to understand the layout
+    Point2D sorted[3] = {corners[0], corners[1], corners[2]};
+
+    // Find bounding box of the 3 corners
+    double min_x = sorted[0].x, max_x = sorted[0].x;
+    double min_y = sorted[0].y, max_y = sorted[0].y;
+    for (int i = 1; i < 3; i++) {
+      if (sorted[i].x < min_x) {
+        min_x = sorted[i].x;
+      }
+      if (sorted[i].x > max_x) {
+        max_x = sorted[i].x;
+      }
+      if (sorted[i].y < min_y) {
+        min_y = sorted[i].y;
+      }
+      if (sorted[i].y > max_y) {
+        max_y = sorted[i].y;
+      }
+    }
+
+    // Determine which corner is missing by finding which position in the
+    // rectangle is empty
+    bool has_tl = false, has_tr = false, has_bl = false, has_br = false;
+    for (int i = 0; i < 3; i++) {
+      double x = sorted[i].x;
+      double y = sorted[i].y;
+
+      // Use small tolerance for floating point comparison
+      double tolerance = 1.0;
+
+      if (fabs(x - min_x) < tolerance && fabs(y - min_y) < tolerance) {
+        has_tl = true;
+      }
+      else if (fabs(x - max_x) < tolerance && fabs(y - min_y) < tolerance) {
+        has_tr = true;
+      }
+      else if (fabs(x - min_x) < tolerance && fabs(y - max_y) < tolerance) {
+        has_bl = true;
+      }
+      else if (fabs(x - max_x) < tolerance && fabs(y - max_y) < tolerance) {
+        has_br = true;
+      }
+    }
+
+    // Calculate the missing corner
+    Point2D missing_corner;
+    if (!has_tl) {
+      missing_corner.x = min_x;
+      missing_corner.y = min_y;
+    }
+    else if (!has_tr) {
+      missing_corner.x = max_x;
+      missing_corner.y = min_y;
+    }
+    else if (!has_bl) {
+      missing_corner.x = min_x;
+      missing_corner.y = max_y;
+    }
+    else if (!has_br) {
+      missing_corner.x = max_x;
+      missing_corner.y = max_y;
+    }
+    else {
+      // Fallback: use parallelogram completion
+      // For a parallelogram ABCD where we have A, B, C and need D:
+      // D = A + C - B (assuming B and D are diagonal)
+      // Try all combinations and pick the best one
+      Point2D candidates[3];
+      candidates[0].x = corners[0].x + corners[1].x - corners[2].x;
+      candidates[0].y = corners[0].y + corners[1].y - corners[2].y;
+      candidates[1].x = corners[0].x + corners[2].x - corners[1].x;
+      candidates[1].y = corners[0].y + corners[2].y - corners[1].y;
+      candidates[2].x = corners[1].x + corners[2].x - corners[0].x;
+      candidates[2].y = corners[1].y + corners[2].y - corners[0].y;
+
+      // Choose the candidate that gives the most reasonable result
+      missing_corner = candidates[2]; // Default to the last one
+      double best_score = -1;
+
+      for (int i = 0; i < 3; i++) {
+        double score = 0;
+        if (candidates[i].x >= 0) {
+          score += 1;
+        }
+        if (candidates[i].y >= 0) {
+          score += 1;
+        }
+
+        // Check if it's not a duplicate
+        bool is_duplicate = false;
+        for (int j = 0; j < 3; j++) {
+          if (fabs(candidates[i].x - corners[j].x) < 0.1 &&
+              fabs(candidates[i].y - corners[j].y) < 0.1) {
+            is_duplicate = true;
+            break;
+          }
+        }
+        if (!is_duplicate) {
+          score += 5;
+        }
+
+        if (score > best_score) {
+          best_score = score;
+          missing_corner = candidates[i];
+        }
+      }
+    }
+
+    working_corners[3] = missing_corner;
+    corners_to_process = 4;
+  }
+  else {
+    // Copy all existing corners
+    for (uint32_t i = 0; i < num_corners; i++) {
+      working_corners[i] = corners[i];
+    }
+    corners_to_process = num_corners;
+  }
+
+  // Clockwise corner sorting starting from top-left corner
+  // Works with any number of corners >= 3
+
+  // Step 1: Find the center point (centroid)
+  double center_x = 0.0, center_y = 0.0;
+  for (uint32_t i = 0; i < corners_to_process; i++) {
+    center_x += working_corners[i].x;
+    center_y += working_corners[i].y;
+  }
+  center_x /= corners_to_process;
+  center_y /= corners_to_process;
+
+  // Step 2: Find the top-left corner (minimum x+y sum)
+  uint32_t top_left_idx = 0;
+  double min_sum = working_corners[0].x + working_corners[0].y;
+  for (uint32_t i = 1; i < corners_to_process; i++) {
+    double sum = working_corners[i].x + working_corners[i].y;
+    if (sum < min_sum) {
+      min_sum = sum;
+      top_left_idx = i;
+    }
+  }
+
+  // Step 3: Create array with indices and calculate angles relative to center
+  typedef struct {
+    uint32_t index;
+    double angle;
+    double distance;
+  } CornerInfo;
+
+  CornerInfo *corner_info = malloc(corners_to_process * sizeof(CornerInfo));
+  if (!corner_info) {
+    free(working_corners);
+    Corners empty_corners = {0, 0, 0, 0, 0, 0, 0, 0};
+    return empty_corners;
+  }
+
+  for (uint32_t i = 0; i < corners_to_process; i++) {
+    corner_info[i].index = i;
+    corner_info[i].distance = sqrt(
+      (working_corners[i].x - center_x) * (working_corners[i].x - center_x) +
+      (working_corners[i].y - center_y) * (working_corners[i].y - center_y)
+    );
+
+    // Calculate angle from center to corner
+    double dx = working_corners[i].x - center_x;
+    double dy = working_corners[i].y - center_y;
+    corner_info[i].angle = atan2(dy, dx);
+
+    // Normalize angle to [0, 2π) range
+    if (corner_info[i].angle < 0) {
+      corner_info[i].angle += 2.0 * M_PI;
+    }
+  }
+
+  // Step 4: Calculate reference angle from center to top-left corner
+  double top_left_angle = corner_info[top_left_idx].angle;
+
+  // Step 5: Adjust all angles relative to top-left corner and sort clockwise
+  for (uint32_t i = 0; i < corners_to_process; i++) {
+    // Adjust angle relative to top-left corner
+    corner_info[i].angle = corner_info[i].angle - top_left_angle;
+
+    // Normalize to [0, 2π) range
+    while (corner_info[i].angle < 0) {
+      corner_info[i].angle += 2.0 * M_PI;
+    }
+    while (corner_info[i].angle >= 2.0 * M_PI) {
+      corner_info[i].angle -= 2.0 * M_PI;
+    }
+  }
+
+  // Step 6: Sort corners by angle (clockwise from top-left)
+  for (uint32_t i = 0; i < corners_to_process - 1; i++) {
+    for (uint32_t j = 0; j < corners_to_process - 1 - i; j++) {
+      bool should_swap = false;
+
+      if (corner_info[j].angle > corner_info[j + 1].angle) {
+        should_swap = true;
+      }
+      else if (fabs(corner_info[j].angle - corner_info[j + 1].angle) < 1e-6) {
+        // If angles are very close, sort by distance from center (closer first)
+        if (corner_info[j].distance > corner_info[j + 1].distance) {
+          should_swap = true;
+        }
+      }
+
+      if (should_swap) {
+        CornerInfo temp = corner_info[j];
+        corner_info[j] = corner_info[j + 1];
+        corner_info[j + 1] = temp;
+      }
+    }
+  }
+
+  // Step 7: Copy sorted corners to result
+  for (uint32_t i = 0; i < corners_to_process; i++) {
+    result[i] = working_corners[corner_info[i].index];
+  }
+
+  // Scale corners back to original image dimensions
+  double scale_x = (double)width / out_width;
+  double scale_y = (double)height / out_height;
+
+  // Return corners struct using the sorted result
+  Corners sorted_corners_result = {
+    .tl_x = result[0].x * scale_x,
+    .tl_y = result[0].y * scale_y,
+    .tr_x = result[1].x * scale_x,
+    .tr_y = result[1].y * scale_y,
+    .br_x = result[2].x * scale_x,
+    .br_y = result[2].y * scale_y,
+    .bl_x = result[3].x * scale_x,
+    .bl_y = result[3].y * scale_y
+  };
+
+  // Clean up allocated memory
+  free(corner_info);
+  free(working_corners);
+
+  return sorted_corners_result;
+}
+// File: src/trim.c
+#include <assert.h>
+#include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#ifndef FLATCV_AMALGAMATION
+#include "crop.h"
+#include "trim.h"
+#else
+#include "flatcv.h"
+#endif
+
+static bool
+pixels_match(const uint8_t *pixel1, const uint8_t *pixel2, uint32_t channels) {
+  for (uint32_t c = 0; c < channels; c++) {
+    if (pixel1[c] != pixel2[c]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Trim border pixels that have the same color.
+ *
+ * @param width Pointer to width of the image (will be updated).
+ * @param height Pointer to height of the image (will be updated).
+ * @param channels Number of channels in the image.
+ * @param data Pointer to the pixel data.
+ * @return Pointer to the new trimmed image data.
+ */
+uint8_t *fcv_trim(
+  int32_t *width,
+  int32_t *height,
+  uint32_t channels,
+  uint8_t const *const data
+) {
+  if (!data || !width || !height || *width <= 0 || *height <= 0) {
+    return NULL;
+  }
+
+  uint32_t w = (uint32_t)*width;
+  uint32_t h = (uint32_t)*height;
+  uint32_t left = 0;
+  uint32_t top = 0;
+  uint32_t right = w;
+  uint32_t bottom = h;
+
+  // Trim from the left
+  while (left < right) {
+    const uint8_t *ref_pixel = &data[(top * w + left) * channels];
+    bool can_trim = true;
+
+    // Check if the entire left column has the same color as the reference pixel
+    for (uint32_t y = top; y < bottom; y++) {
+      const uint8_t *pixel = &data[(y * w + left) * channels];
+      if (!pixels_match(pixel, ref_pixel, channels)) {
+        can_trim = false;
+        break;
+      }
+    }
+
+    if (can_trim && right - left > 1) {
+      left++;
+    }
+    else {
+      break;
+    }
+  }
+
+  // Trim from the right
+  while (left < right) {
+    const uint8_t *ref_pixel = &data[(top * w + (right - 1)) * channels];
+    bool can_trim = true;
+
+    // Check if the entire right column has the same color as the reference
+    // pixel
+    for (uint32_t y = top; y < bottom; y++) {
+      const uint8_t *pixel = &data[(y * w + (right - 1)) * channels];
+      if (!pixels_match(pixel, ref_pixel, channels)) {
+        can_trim = false;
+        break;
+      }
+    }
+
+    if (can_trim && right - left > 1) {
+      right--;
+    }
+    else {
+      break;
+    }
+  }
+
+  // Trim from the top
+  while (top < bottom && bottom - top > 1) {
+    const uint8_t *ref_pixel = &data[(top * w + left) * channels];
+    bool can_trim = true;
+
+    // Check if the entire top row has the same color as the reference pixel
+    for (uint32_t x = left; x < right; x++) {
+      const uint8_t *pixel = &data[(top * w + x) * channels];
+      if (!pixels_match(pixel, ref_pixel, channels)) {
+        can_trim = false;
+        break;
+      }
+    }
+
+    if (can_trim) {
+      top++;
+    }
+    else {
+      break;
+    }
+  }
+
+  // Trim from the bottom
+  while (top < bottom && bottom - top > 1) {
+    const uint8_t *ref_pixel = &data[((bottom - 1) * w + left) * channels];
+    bool can_trim = true;
+
+    // Check if the entire bottom row has the same color as the reference pixel
+    for (uint32_t x = left; x < right; x++) {
+      const uint8_t *pixel = &data[((bottom - 1) * w + x) * channels];
+      if (!pixels_match(pixel, ref_pixel, channels)) {
+        can_trim = false;
+        break;
+      }
+    }
+
+    if (can_trim) {
+      bottom--;
+    }
+    else {
+      break;
+    }
+  }
+
+  // Calculate new dimensions
+  uint32_t new_width = right - left;
+  uint32_t new_height = bottom - top;
+
+  // If no trimming was done, return a copy
+  if (left == 0 && top == 0 && right == w && bottom == h) {
+    uint8_t *result = malloc(w * h * channels);
+    if (result) {
+      memcpy(result, data, w * h * channels);
+    }
+    return result;
+  }
+
+  // Use existing crop function to extract the trimmed region
+  uint8_t *trimmed_data =
+    fcv_crop(w, h, channels, data, left, top, new_width, new_height);
+
+  // Update dimensions
+  *width = (int32_t)new_width;
+  *height = (int32_t)new_height;
+
+  return trimmed_data;
+}
 // File: src/watershed_segmentation.c
 #include <assert.h>
 #include <math.h>
@@ -2887,9 +4005,9 @@ static QueueItem dequeue(Queue *q) {
  * using (x, y) coordinate markers with elevation-based flooding
  *
  * Implements the watershed transform for image segmentation by treating the
- * grayscale image as an elevation map. Water floods from the marker point32_ts,
+ * grayscale image as an elevation map. Water floods from the marker points,
  * and watershed lines form where different regions would meet. Lower
- * int32_tensity values represent valleys where water accumulates, and higher
+ * intensity values represent valleys where water accumulates, and higher
  * values represent hills/ridges.
  *
  * @param width Width of the image.

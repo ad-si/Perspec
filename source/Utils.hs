@@ -24,6 +24,7 @@ import Protolude (
   min,
   pure,
   putText,
+  realToFrac,
   round,
   show,
   swap,
@@ -37,13 +38,12 @@ import Protolude (
   (<&>),
   (<=),
   (<>),
-  (==),
   (>=),
  )
 import Protolude qualified as P
 
 import Brillo (
-  BitmapData (bitmapSize),
+  BitmapData (bitmapPointer, bitmapSize),
   Picture (Bitmap, BitmapSection, Rotate),
   Point,
   Rectangle (Rectangle, rectPos, rectSize),
@@ -53,21 +53,17 @@ import Codec.Picture (decodePng)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
 import Control.Arrow ((>>>))
-import Data.Aeson qualified as Aeson
 import Data.Bifunctor (bimap)
-import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as TSE
+import Foreign.ForeignPtr (castForeignPtr, withForeignPtr)
+import Foreign.Ptr (castPtr)
 import GHC.Float (int2Double)
-import System.Directory (getCurrentDirectory)
-import System.FilePath (replaceBaseName, takeBaseName, takeExtension, (</>))
-import System.Info (os)
-import System.Process (readProcessWithExitCode)
+import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
 
 import Brillo.Data.Picture (Picture (Scale))
-import FlatCV (Corners (..))
-import Types (AppState (..), Coordinate (..), Corner, ImageData (..), View (..))
+import FlatCV (Corners (..), fcvDetectCorners)
+import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
 -- | Embed the words sprite image with a scale factor of 2
@@ -341,62 +337,33 @@ loadImage filePath = do
       pure $ Right (picture, metadata)
 
 
--- | Get initial corner positions by shelling out to a Python script
-getInitialCorners :: AppState -> FilePath -> IO [Corner]
-getInitialCorners appState inPath = do
+-- | Get initial corner positions using FlatCV corner detection
+getInitialCorners :: AppState -> BitmapData -> IO [Corner]
+getInitialCorners appState bitmapData = do
   case appState.images of
     [] -> pure []
     image : _otherImages -> do
-      currentDir <- getCurrentDirectory
-
       let
-        wdthFrac = fromIntegral image.width
-        hgtFrac = fromIntegral image.height
+        (rawWidth, rawHeight) = bitmapSize bitmapData
 
-        pyScriptPathMac = currentDir </> "scripts/perspectra/perspectra"
-        pyScriptPathWindows = currentDir </> "TODO: Windows EXE path"
+      -- Use FlatCV corner detection on the bitmap data
+      detectedCorners <- withForeignPtr (castForeignPtr (bitmapPointer bitmapData)) $ \ptr -> do
+        fcvDetectCorners (castPtr ptr) rawWidth rawHeight
 
-      -- Run the Python script
+      -- Convert FlatCV corners to the expected format
       let
-        pyScriptPath =
-          if os == "mingw32"
-            then pyScriptPathWindows
-            else pyScriptPathMac
+        cornersList =
+          [ (realToFrac detectedCorners.tl_x, realToFrac detectedCorners.tl_y)
+          , (realToFrac detectedCorners.tr_x, realToFrac detectedCorners.tr_y)
+          , (realToFrac detectedCorners.br_x, realToFrac detectedCorners.br_y)
+          , (realToFrac detectedCorners.bl_x, realToFrac detectedCorners.bl_y)
+          ]
 
-      (exitCode, stdout, stderr) <-
-        readProcessWithExitCode pyScriptPath ["corners", inPath] ""
-
-      if exitCode == P.ExitSuccess
-        then do
-          let
-            -- Parse JSON output in stdout with Aeson in the form of:
-            -- [{x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}, {x: 0, y: 0}]
-            corners :: Maybe [Coordinate] =
-              Aeson.decode $ BL.fromStrict (TSE.encodeUtf8 $ T.pack stdout)
-
-          pure $
-            corners
-              & fromMaybe []
-              & P.map (\coord -> (coord.x, coord.y))
-              & transToOrigAtCenter image.width image.height
-              & scalePoints (1 / appState.scaleFactor)
-              & P.reverse
-        else do
-          P.putErrLn stderr
-
-          let
-            -- Initial distance of the corners from the image border
-            distance = 0.1
-
-          pure $
-            transToOrigTopLeft (-image.widthTarget) image.heightTarget $
-              scalePoints (1 / appState.scaleFactor) $
-                P.reverse
-                  [ (wdthFrac * distance, hgtFrac * distance)
-                  , (wdthFrac * (1 - distance), hgtFrac * distance)
-                  , (wdthFrac * (1 - distance), hgtFrac * (1 - distance))
-                  , (wdthFrac * distance, hgtFrac * (1 - distance))
-                  ]
+      pure $
+        cornersList
+          & transToOrigAtCenter image.width image.height
+          & scalePoints (1 / appState.scaleFactor)
+          & P.reverse
 
 
 loadFileIntoState :: AppState -> IO AppState
@@ -456,7 +423,7 @@ loadFileIntoState appState = do
                             : otherImages
                       }
 
-              corners <- getInitialCorners stateWithSizes filePath
+              corners <- getInitialCorners stateWithSizes bitmapData
               let stateWithCorners = stateWithSizes{corners = corners}
 
               pure stateWithCorners

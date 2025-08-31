@@ -14,16 +14,19 @@ import Protolude (
   Show,
   return,
   (*),
+  (-),
   ($),
   (<>),
+  (==),
   (>>=),
  )
 
 import Data.Text qualified as T
 import Data.Text (Text)
 import Foreign.C.Types (CUChar)
-import Foreign.Ptr (castPtr)
-import Foreign.Storable (Storable(..))
+import Foreign.Marshal.Alloc (free)
+import Foreign.Ptr (castPtr, nullPtr)
+import Foreign.Storable (Storable(..), peek, poke)
 import Text.Printf (printf)
 
 #include "flatcv.h"
@@ -173,3 +176,33 @@ instance Storable Matrix3x3 where
   , identity      `Ptr CUChar' -- ^ Original image data
   } -> `Ptr CUChar' castPtr    -- ^ Anti-aliased black and white image data
 #}
+
+{#fun fcv_detect_corners_ptr as ^
+  { identity      `Ptr CUChar' -- ^ Image data
+  ,               `Int'        -- ^ width  
+  ,               `Int'        -- ^ height
+  } -> `Ptr Corners' castPtr   -- ^ Detected corners pointer
+#}
+
+fcvDetectCorners :: Ptr CUChar -> Int -> Int -> IO Corners
+fcvDetectCorners imagePtr width height = do
+  cornersPtr <- fcvDetectCornersPtr imagePtr width height
+  if cornersPtr == castPtr nullPtr
+    then do
+      -- Return default corners if allocation failed
+      let corners = Corners
+            { tl_x = 0.0
+            , tl_y = 0.0  
+            , tr_x = fromIntegral (width - 1)
+            , tr_y = 0.0
+            , br_x = fromIntegral (width - 1) 
+            , br_y = fromIntegral (height - 1)
+            , bl_x = 0.0
+            , bl_y = fromIntegral (height - 1)
+            }
+      return corners
+    else do
+      corners <- peek cornersPtr
+      -- Free the allocated memory
+      free cornersPtr
+      return corners

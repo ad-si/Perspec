@@ -231,6 +231,17 @@ void fcv_fill_disk_lines(
   uint8_t g,
   uint8_t b
 );
+
+uint8_t *fcv_add_border(
+  uint32_t width,
+  uint32_t height,
+  uint32_t channels,
+  const char *hex_color,
+  uint32_t border_width,
+  uint8_t *input_data,
+  uint32_t *output_width,
+  uint32_t *output_height
+);
 // File: include/extract_document.h
 #ifndef FLATCV_AMALGAMATION
 #pragma once
@@ -252,7 +263,26 @@ uint8_t *fcv_extract_document_auto(
   uint8_t const * const data,
   uint32_t *output_width,
   uint32_t *output_height
-);// File: include/foerstner_corner.h
+);
+// File: include/flip.h
+#ifndef FLATCV_AMALGAMATION
+#pragma once
+#endif
+
+#include <stdint.h>
+
+uint8_t *fcv_flip_x(
+  uint32_t width,
+  uint32_t height,
+  uint8_t const * const data
+);
+
+uint8_t *fcv_flip_y(
+  uint32_t width,
+  uint32_t height,
+  uint8_t const * const data
+);
+// File: include/foerstner_corner.h
 #ifndef FLATCV_AMALGAMATION
 #pragma once
 #endif
@@ -265,6 +295,35 @@ uint8_t *fcv_foerstner_corner(
   uint8_t const * const data,
   double sigma
 );
+// File: include/histogram.h
+#ifndef HISTOGRAM_H
+#define HISTOGRAM_H
+
+#include <stdint.h>
+
+/**
+ * Generate a histogram visualization image from input image data.
+ * For grayscale images, creates a single histogram.
+ * For RGB(A) images, creates overlapping histograms for each channel.
+ *
+ * @param width Width of the input image.
+ * @param height Height of the input image.
+ * @param channels Number of channels in the input image (1, 3, or 4).
+ * @param data Pointer to the input pixel data.
+ * @param out_width Pointer to store the output histogram width.
+ * @param out_height Pointer to store the output histogram height.
+ * @return Pointer to the histogram image data (RGBA format).
+ */
+uint8_t *fcv_generate_histogram(
+  uint32_t width,
+  uint32_t height,
+  uint32_t channels,
+  uint8_t const *const data,
+  uint32_t *out_width,
+  uint32_t *out_height
+);
+
+#endif // HISTOGRAM_H
 // File: include/parse_hex_color.h
 #ifndef FLATCV_AMALGAMATION
 #pragma once
@@ -299,6 +358,7 @@ uint8_t *fcv_apply_matrix_3x3(
 );
 
 Corners fcv_detect_corners(const uint8_t *image, int32_t width, int32_t height);
+Corners* fcv_detect_corners_ptr(const uint8_t *image, int32_t width, int32_t height);
 // File: include/rgba_to_grayscale.h
 #ifndef FLATCV_AMALGAMATION
 #pragma once
@@ -338,6 +398,31 @@ uint8_t *fcv_single_to_multichannel(
 uint8_t *fcv_sobel_edge_detection(
   uint32_t width,
   uint32_t height,
+  uint32_t channels,
+  uint8_t const * const data
+);
+// File: include/sort_corners.h
+#ifndef FLATCV_AMALGAMATION
+#pragma once
+#include "1_types.h"
+#endif
+
+Corners sort_corners(
+  uint32_t width, uint32_t height,
+  uint32_t out_width, uint32_t out_height,
+  Point2D *corners, uint32_t num_corners,
+  Point2D *result
+);
+// File: include/trim.h
+#ifndef FLATCV_AMALGAMATION
+#pragma once
+#endif
+
+#include <stdint.h>
+
+uint8_t *fcv_trim(
+  int32_t *width,
+  int32_t *height,
   uint32_t channels,
   uint8_t const * const data
 );
