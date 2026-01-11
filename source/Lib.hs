@@ -35,6 +35,7 @@ import Protolude (
   realToFrac,
   show,
   snd,
+  toS,
   try,
   when,
   ($),
@@ -215,8 +216,8 @@ appStateToWindow screenSize appState = do
           InWindow
             ( "Perspec - "
                 <> case image of
-                  ImageToLoad{filePath} -> filePath
-                  ImageData{inputPath} -> inputPath
+                  ImageToLoad{filePath} -> toS filePath
+                  ImageData{inputPath} -> toS inputPath
                 <> if appState.isRegistered
                   then mempty
                   else " - ⚠️ NOT REGISTERED"

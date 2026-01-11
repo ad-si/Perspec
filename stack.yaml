@@ -11,6 +11,7 @@ packages:
 
 extra-deps:
   - docopt-0.7.0.8
+  - storable-offset-0.1.0.0
 
   - github: lehins/hip
     commit: ddfc77feb21722babccd3b3aa73c4c3d41268f54
@@ -23,11 +24,14 @@ extra-deps:
       - Color
 
   - github: ad-si/Brillo
-    commit: ab2dc5244194d184740c5d0de909669141dd1313
+    commit: d1ec8cf1d96274340847f64e537dce4af06d4b56
     subdirs:
       - brillo
       - brillo-algorithms
       - brillo-juicy
       - brillo-rendering
+
+  - github: dpwiz/freetype2
+    commit: d2acf926b5c448d8edd60e322862adcf2dbe9146
 
 allow-newer: true
