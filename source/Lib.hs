@@ -10,7 +10,7 @@ import Protolude (
   Eq ((==)),
   FilePath,
   Float,
-  Floating (sqrt),
+  Floating (cos, pi, sin, sqrt),
   Fractional ((/)),
   Functor (fmap),
   IO,
@@ -82,6 +82,7 @@ import Brillo (
   lineLoop,
   makeColor,
   pictures,
+  polygon,
   rectangleSolid,
  )
 import Brillo.Interface.Environment (getScreenSize)
@@ -177,12 +178,48 @@ gridColor :: Gl.Color
 gridColor = makeColor 0.2 1 0.7 0.6
 
 
+-- | Draw a solid rounded rectangle centered at the origin
+roundedRectSolid :: Float -> Float -> Float -> Picture
+roundedRectSolid width height radius =
+  let
+    r = min radius (min (width / 2) (height / 2))
+    hw = width / 2
+    hh = height / 2
+    -- Number of segments per corner arc
+    segments = 8
+    -- Generate points for a corner arc
+    arcPoints :: Float -> Float -> Float -> Float -> [Point]
+    arcPoints cx cy startAngle endAngle =
+      [ ( cx
+            + r
+              * cos
+                (startAngle + fromIntegral i * (endAngle - startAngle) / fromIntegral segments)
+        , cy
+            + r
+              * sin
+                (startAngle + fromIntegral i * (endAngle - startAngle) / fromIntegral segments)
+        )
+      | i <- [0 .. segments]
+      ]
+    -- Four corners: top-right, top-left, bottom-left, bottom-right
+    topRight = arcPoints (hw - r) (hh - r) 0 (pi / 2)
+    topLeft = arcPoints (-(hw - r)) (hh - r) (pi / 2) pi
+    bottomLeft = arcPoints (-(hw - r)) (-(hh - r)) pi (3 * pi / 2)
+    bottomRight = arcPoints (hw - r) (-(hh - r)) (3 * pi / 2) (2 * pi)
+  in
+    polygon $ topRight <> topLeft <> bottomLeft <> bottomRight
+
+
 sidebarPaddingTop :: Int
 sidebarPaddingTop = 50
 
 
 sidebarGridHeight :: Int
 sidebarGridHeight = 40
+
+
+buttonCornerRadius :: Float
+buttonCornerRadius = 5
 
 
 ticksPerSecond :: Int
@@ -339,10 +376,11 @@ drawButton
       )
       $ pictures
         [ color (greyN 0.2) $
-            rectangleSolid
+            roundedRectSolid
               (fromIntegral btnWidth)
               (fromIntegral btnHeight)
-        , Translate (-(fromIntegral btnWidth / 2.0) + 8) (-4) $
+              buttonCornerRadius
+        , Translate (-(fromIntegral btnWidth / 2.0) + 8) (-6) $
             getTextPicture btnText
         ]
 
@@ -375,8 +413,8 @@ makePicture appState =
         uiElements =
           pictures
             [ color (greyN 0.2) $
-                rectangleSolid fileSelectBtnWidth fileSelectBtnHeight
-            , Translate (-38) (-4) $ getTextPicture "Select Files"
+                roundedRectSolid fileSelectBtnWidth fileSelectBtnHeight buttonCornerRadius
+            , Translate (-43) (-7) $ getTextPicture "Select Files"
             ]
       pure uiElements
     ImageView -> do
