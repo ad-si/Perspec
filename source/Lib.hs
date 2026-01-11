@@ -146,7 +146,7 @@ import Utils (
   calcInitWindowPos,
   calculateSizes,
   getCorners,
-  getWordSprite,
+  getTextPicture,
   imgOrientToRot,
   loadFileIntoState,
   loadImage,
@@ -342,7 +342,8 @@ drawButton
             rectangleSolid
               (fromIntegral btnWidth)
               (fromIntegral btnHeight)
-        , Translate 0 (-4) $ getWordSprite btnText
+        , Translate (-(fromIntegral btnWidth / 2.0) + 8) (-4) $
+            getTextPicture btnText
         ]
 
 
@@ -375,7 +376,7 @@ makePicture appState =
           pictures
             [ color (greyN 0.2) $
                 rectangleSolid fileSelectBtnWidth fileSelectBtnHeight
-            , Translate 0 (-4) $ getWordSprite "Select Files"
+            , Translate (-38) (-4) $ getTextPicture "Select Files"
             ]
       pure uiElements
     ImageView -> do

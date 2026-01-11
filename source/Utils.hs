@@ -5,7 +5,6 @@ module Utils where
 
 import Protolude (
   Bool (..),
-  ByteString,
   Double,
   Either (..),
   FilePath,
@@ -13,11 +12,7 @@ import Protolude (
   IO,
   Int,
   Maybe (Just, Nothing),
-  Monad ((>>=)),
-  Monoid (mempty),
   Text,
-  const,
-  either,
   fmap,
   fromIntegral,
   fromMaybe,
@@ -44,78 +39,41 @@ import Protolude qualified as P
 
 import Brillo (
   BitmapData (bitmapPointer, bitmapSize),
-  Picture (Bitmap, BitmapSection, Rotate),
+  Picture (Bitmap, Rotate),
   Point,
-  Rectangle (Rectangle, rectPos, rectSize),
+  color,
+  greyN,
+  truetypeText,
  )
-import Brillo.Juicy (fromDynamicImage, loadJuicyWithMetadata)
-import Codec.Picture (decodePng)
+import Brillo.Juicy (loadJuicyWithMetadata)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
 import Control.Arrow ((>>>))
-import Data.Bifunctor (bimap)
-import Data.FileEmbed (embedFile)
 import Data.Text qualified as T
 import Foreign.ForeignPtr (castForeignPtr, withForeignPtr)
 import Foreign.Ptr (castPtr)
 import GHC.Float (int2Double)
 import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
 
-import Brillo.Data.Picture (Picture (Scale))
 import FlatCV (Corners (..), fcvDetectCorners)
 import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
--- | Embed the words sprite image with a scale factor of 2
-wordsSprite :: (ByteString, Float)
-wordsSprite = ($(embedFile "images/words@2x.png"), 2)
+-- | Font path for TrueType text rendering
+defaultFontPath :: FilePath
+defaultFontPath = "/System/Library/Fonts/Supplemental/Arial.ttf"
 
 
-wordsPic :: Picture
-wordsPic =
-  fromMaybe mempty $
-    either (const Nothing) Just (decodePng $ P.fst wordsSprite)
-      >>= fromDynamicImage
+-- | Pixel height for button text
+buttonTextHeight :: Int
+buttonTextHeight = 16
 
 
-{-| `rectPos` is the position of the content
-`rectSize` ist the size of the content
--}
-getWordSprite :: Text -> Picture
-getWordSprite spriteText = do
-  let
-    scaleFactor = 1 / P.snd wordsSprite
-    scaleVal = fromIntegral >>> (* P.snd wordsSprite) >>> round
-    scaleRect rect =
-      Rectangle
-        { rectPos = bimap scaleVal scaleVal rect.rectPos
-        , rectSize = bimap scaleVal scaleVal rect.rectSize
-        }
-  case wordsPic of
-    Bitmap bitmapData ->
-      Scale scaleFactor scaleFactor $ case spriteText of
-        "Save" ->
-          BitmapSection
-            (scaleRect Rectangle{rectPos = (0, 40), rectSize = (40, 20)})
-            bitmapData
-        "Save BW" ->
-          BitmapSection
-            (scaleRect Rectangle{rectPos = (0, 60), rectSize = (74, 20)})
-            bitmapData
-        "Save Gray" ->
-          BitmapSection
-            (scaleRect Rectangle{rectPos = (0, 80), rectSize = (84, 20)})
-            bitmapData
-        "Select Files" ->
-          BitmapSection
-            (scaleRect Rectangle{rectPos = (0, 140), rectSize = (92, 20)})
-            bitmapData
-        "Save BW Smooth" ->
-          BitmapSection
-            (scaleRect Rectangle{rectPos = (0, 160), rectSize = (140, 20)})
-            bitmapData
-        _ -> mempty
-    _ -> mempty
+-- | Render text using TrueType fonts
+getTextPicture :: Text -> Picture
+getTextPicture txt =
+  color (greyN 0.9) $
+    truetypeText defaultFontPath buttonTextHeight txt
 
 
 isInRect :: Point -> (Float, Float, Float, Float) -> Bool
