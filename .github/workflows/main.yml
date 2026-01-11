@@ -21,22 +21,10 @@ jobs:
           stack-no-global: true
 
       - name: Install Platypus
-        run: brew install --cask platypus
-
-      - name: Make Platypus CLI available
         run: |
-          mv /Applications/Platypus.app/Contents/Resources/platypus_clt.gz .
-          gunzip platypus_clt.gz
-          mv platypus_clt /usr/local/bin/platypus
-
-          sudo mkdir -p /usr/local/share/platypus
-          mv /Applications/Platypus.app/Contents/Resources/ScriptExec.gz .
-          gunzip ScriptExec.gz
-          sudo mv ScriptExec /usr/local/share/platypus/
-
-          sudo mv \
-            /Applications/Platypus.app/Contents/Resources/MainMenu.nib \
-            /usr/local/share/platypus/
+          curl -s -L -O https://github.com/sveinbjornt/Platypus/releases/download/v5.5.0/platypus5.5.0.zip
+          unzip -q platypus5.5.0.zip
+          sudo Platypus.app/Contents/Resources/InstallCommandLineTool.sh
 
       - name: Print Platypus' version
         run: platypus --version
