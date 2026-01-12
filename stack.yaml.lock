@@ -107,6 +107,17 @@ packages:
     version: 0.2.1
   original:
     url: https://github.com/dpwiz/freetype2/archive/d2acf926b5c448d8edd60e322862adcf2dbe9146.tar.gz
+- completed:
+    name: bindings-GLFW
+    pantry-tree:
+      sha256: 133e5087721ec51ef432a866ea03d39ecdac5bdfb3f5b7997af8c06068e57e39
+      size: 5583
+    sha256: a363f9b0705033328d7743e3550e19c02e81f4ecc20e524a4da413be52a58c02
+    size: 601551
+    url: https://github.com/bsl/bindings-GLFW/archive/a98990a882da8f2cb3ff6730d614f5d37adbde33.tar.gz
+    version: 3.3.9.4
+  original:
+    url: https://github.com/bsl/bindings-GLFW/archive/a98990a882da8f2cb3ff6730d614f5d37adbde33.tar.gz
 snapshots:
 - completed:
     sha256: 069c8189232279d04bd107557d3a62132c04ae5ce3c710649e6b40f67f10b9d5

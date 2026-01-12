@@ -34,4 +34,7 @@ extra-deps:
   - github: dpwiz/freetype2
     commit: d2acf926b5c448d8edd60e322862adcf2dbe9146
 
+  - github: bsl/bindings-GLFW
+    commit: a98990a882da8f2cb3ff6730d614f5d37adbde33
+
 allow-newer: true
