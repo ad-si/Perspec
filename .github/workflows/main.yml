@@ -6,11 +6,15 @@ jobs:
   macos:
     strategy:
       matrix:
-        os:
-          - macos-14
-          - macos-15
-          - macos-15-intel
-          - macos-26
+        include:
+          - os: macos-14
+            arch: arm64
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x86_64
+          - os: macos-26
+            arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: artifact
-          name: perspec-app_${{ matrix.os }}_x86_64
+          name: perspec-app_${{ matrix.os }}_${{ matrix.arch }}
 
   linux:
     runs-on: ubuntu-24.04
@@ -107,7 +111,7 @@ jobs:
             --library /usr/lib/x86_64-linux-gnu/libglfw.so.3
             --appdir ./AppDir
             --output appimage
-            --desktop-file ./.desktop
+            --desktop-file ./perspec.desktop
             --icon-file $(pwd)/images/icon_padded_white_512.png &&
           mv Perspec-*-x86_64.AppImage Perspec_x86_64.AppImage
 
