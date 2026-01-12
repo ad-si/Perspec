@@ -7,9 +7,10 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-13
           - macos-14
           - macos-15
+          - macos-15-intel
+          - macos-26
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +23,10 @@ jobs:
 
       - name: Install Platypus
         run: |
-          curl -s -L -O https://github.com/sveinbjornt/Platypus/releases/download/v5.5.0/platypus5.5.0.zip
+          curl -O https://github.com/sveinbjornt/Platypus/releases/download/v5.5.0/platypus5.5.0.zip
           unzip -q platypus5.5.0.zip
-          sudo Platypus.app/Contents/Resources/InstallCommandLineTool.sh
+          cd Platypus.app/Contents/Resources
+          sudo bash InstallCommandLineTool.sh
 
       - name: Print Platypus' version
         run: platypus --version
