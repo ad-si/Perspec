@@ -23,7 +23,7 @@ jobs:
 
       - name: Install Platypus
         run: |
-          curl -O https://github.com/sveinbjornt/Platypus/releases/download/v5.5.0/platypus5.5.0.zip
+          curl -L -O https://github.com/sveinbjornt/Platypus/releases/download/v5.5.0/platypus5.5.0.zip
           unzip -q platypus5.5.0.zip
           cd Platypus.app/Contents/Resources
           sudo bash InstallCommandLineTool.sh
