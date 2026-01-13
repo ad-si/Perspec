@@ -63,7 +63,7 @@ jobs:
           - os: ubuntu-24.04
             arch: x86_64
           - os: ubuntu-24.04-arm
-            arch: aarch64
+            arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -102,28 +102,32 @@ jobs:
           then
             curl -L -O https://imagemagick.org/archive/binaries/magick \
               && chmod +x ./magick
-            cp ./magick /usr/local/bin/magick
+            sudo cp ./magick /usr/local/bin/magick
+          else
+            # For arm64, symlink the system ImageMagick
+            sudo ln -sf $(which magick || which convert) /usr/local/bin/magick
           fi
-          # For aarch64, use the system ImageMagick installed via apt-get
 
       - name: Build Perspec CLI tool
         run: make perspec
 
       - name: Install AppImage
-        run:
-          curl -L -O
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch }}.AppImage &&
-          chmod +x linuxdeploy-${{ matrix.arch }}.AppImage
+        run: |
+          LINUX_ARCH=${{ matrix.arch == 'arm64' && 'aarch64' || matrix.arch }}
+          curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${LINUX_ARCH}.AppImage
+          chmod +x linuxdeploy-${LINUX_ARCH}.AppImage
+          mv linuxdeploy-${LINUX_ARCH}.AppImage linuxdeploy-${{ matrix.arch }}.AppImage
 
       - name: Build AppImage
-        run:
-          ./linuxdeploy-${{ matrix.arch }}.AppImage
-            --executable $(which perspec)
-            --library /usr/lib/${{ matrix.arch }}-linux-gnu/libglfw.so.3
-            --appdir ./AppDir
-            --output appimage
-            --desktop-file ./perspec.desktop
-            --icon-file $(pwd)/images/icon_padded_white_512.png &&
+        run: |
+          LINUX_ARCH=${{ matrix.arch == 'arm64' && 'aarch64' || matrix.arch }}
+          ./linuxdeploy-${{ matrix.arch }}.AppImage \
+            --executable $(which perspec) \
+            --library /usr/lib/${LINUX_ARCH}-linux-gnu/libglfw.so.3 \
+            --appdir ./AppDir \
+            --output appimage \
+            --desktop-file ./perspec.desktop \
+            --icon-file $(pwd)/images/icon_padded_white_512.png
           mv Perspec-${{ matrix.arch }}.AppImage Perspec_${{ matrix.arch }}.AppImage
 
       - name: Upload Linux Release
