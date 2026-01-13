@@ -96,11 +96,15 @@ jobs:
             libxrandr-dev
             libxxf86vm-dev
 
-      - name: Download bundable ImageMagick AppImage and install globally
+      - name: Download bundable ImageMagick binary and install globally
         run: |
-          curl -L -O https://imagemagick.org/archive/binaries/magick \
-            && chmod +x ./magick
-          cp ./magick /usr/local/bin/magick
+          if test "${{ matrix.arch }}" = "x86_64"
+          then
+            curl -L -O https://imagemagick.org/archive/binaries/magick \
+              && chmod +x ./magick
+            cp ./magick /usr/local/bin/magick
+          fi
+          # For aarch64, use the system ImageMagick installed via apt-get
 
       - name: Build Perspec CLI tool
         run: make perspec
