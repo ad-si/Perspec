@@ -128,7 +128,7 @@ jobs:
             --output appimage \
             --desktop-file ./perspec.desktop \
             --icon-file $(pwd)/images/icon_padded_white_512.png
-          mv Perspec-${{ matrix.arch }}.AppImage Perspec_${{ matrix.arch }}.AppImage
+          mv Perspec-${LINUX_ARCH}.AppImage Perspec_${{ matrix.arch }}.AppImage
 
       - name: Upload Linux Release
         uses: actions/upload-artifact@v4
