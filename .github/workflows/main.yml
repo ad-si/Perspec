@@ -129,7 +129,8 @@ jobs:
             --appdir ./AppDir \
             --output appimage \
             --desktop-file ./perspec.desktop \
-            --icon-file $(pwd)/images/icon_padded_white_512.png
+            --icon-file $(pwd)/images/icon_padded_white_512.png \
+            --custom-apprun ./AppRun
           mv Perspec-${LINUX_ARCH}.AppImage Perspec_${{ matrix.arch }}.AppImage
 
       - name: Upload Linux Release
