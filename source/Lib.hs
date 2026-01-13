@@ -62,6 +62,7 @@ import System.Environment (getEnv, setEnv)
 import System.FilePath (replaceExtension)
 import System.Info (os)
 import System.Process (callProcess, spawnProcess)
+import Control.Concurrent (tryTakeMVar)
 
 import Brillo (
   Display (InWindow),
@@ -186,6 +187,7 @@ roundedRectSolid width height radius =
     hw = width / 2
     hh = height / 2
     -- Number of segments per corner arc
+    segments :: Int
     segments = 8
     -- Generate points for a corner arc
     arcPoints :: Float -> Float -> Float -> Float -> [Point]
@@ -266,13 +268,39 @@ appStateToWindow screenSize appState = do
 
 
 stepWorld :: Float -> AppState -> IO AppState
-stepWorld _ appState =
-  if not appState.isRegistered
-    && ( fromIntegral appState.tickCounter
+stepWorld _ appState = do
+  -- Check for pending file dialog result
+  stateAfterDialog <- case appState.pendingFileDialog of
+    Nothing -> pure appState
+    Just resultVar -> do
+      maybeResult <- tryTakeMVar resultVar
+      case maybeResult of
+        Nothing ->
+          -- Dialog still open, keep polling
+          pure appState
+        Just Nothing -> do
+          -- User cancelled
+          putText "No file selected"
+          pure appState{pendingFileDialog = Nothing}
+        Just (Just files) -> do
+          -- Files selected, load them
+          let newState =
+                appState
+                  { currentView = ImageView
+                  , pendingFileDialog = Nothing
+                  , images =
+                      files <&> \filePath ->
+                        ImageToLoad{filePath = T.unpack filePath}
+                  }
+          loadFileIntoState newState
+
+  -- Handle banner timing
+  if not stateAfterDialog.isRegistered
+    && ( fromIntegral stateAfterDialog.tickCounter
           < (bannerTime * fromIntegral ticksPerSecond)
        )
-    then pure appState{tickCounter = appState.tickCounter + 1}
-    else pure appState{bannerIsVisible = False}
+    then pure stateAfterDialog{tickCounter = stateAfterDialog.tickCounter + 1}
+    else pure stateAfterDialog{bannerIsVisible = False}
 
 
 drawCorner :: Gl.Color -> Point -> Picture

@@ -6,10 +6,11 @@ import Protolude (
   Fractional ((/)),
   IO,
   Int,
-  Maybe (Just, Nothing),
+  Maybe (Just),
   Num,
   putText,
-  (<&>),
+  void,
+  ($),
  )
 
 import Brillo.Interface.IO.Game as Gl (
@@ -18,11 +19,11 @@ import Brillo.Interface.IO.Game as Gl (
   KeyState (Down),
   MouseButton (LeftButton),
  )
-import Data.Text qualified as T
+import Control.Concurrent (forkOS, newEmptyMVar, putMVar)
 
 import TinyFileDialogs (openFileDialog)
-import Types (AppState (..), ImageData (..), View (ImageView))
-import Utils (isInRect, loadFileIntoState)
+import Types (AppState (..))
+import Utils (isInRect)
 
 
 ticksPerSecond :: Int
@@ -41,27 +42,19 @@ handleMsg msg appState =
       putText "ClickSelectFiles"
       pure appState
     OpenFileDialog -> do
-      selectedFiles <-
-        openFileDialog
-          {- Title -} "Open File"
-          {- Default path -} "/"
-          {- File patterns -} ["*.jpeg", ".jpg", ".png"]
-          {- Filter description -} "Image files"
-          {- Allow multiple selects -} True
-
-      case selectedFiles of
-        Just files -> do
-          let newState =
-                appState
-                  { currentView = ImageView
-                  , images =
-                      files <&> \filePath ->
-                        ImageToLoad{filePath = T.unpack filePath}
-                  }
-          loadFileIntoState newState
-        Nothing -> do
-          putText "No file selected"
-          pure appState
+      -- Spawn file dialog in separate OS thread to keep UI responsive
+      resultVar <- newEmptyMVar
+      void $ forkOS $ do
+        selectedFiles <-
+          openFileDialog
+            {- Title -} "Open File"
+            {- Default path -} "/"
+            {- File patterns -} ["*.jpeg", "*.jpg", "*.png"]
+            {- Filter description -} "Image files"
+            {- Allow multiple selects -} True
+        putMVar resultVar selectedFiles
+      -- Return immediately with pending dialog; stepWorld will poll for result
+      pure appState{pendingFileDialog = Just resultVar}
 
 
 handleHomeEvent :: Event -> AppState -> IO AppState
