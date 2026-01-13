@@ -55,6 +55,8 @@ jobs:
 
       - name: Build Perspec App
         run: make Perspec.app
+        env:
+          STACK_OPTS: --ghc-options=-O2
 
       - name: Move App to Artifact Directory
         run: mkdir artifact && mv Perspec.app artifact
@@ -128,6 +130,8 @@ jobs:
 
       - name: Build Perspec CLI tool
         run: make perspec
+        env:
+          STACK_OPTS: --ghc-options=-O2
 
       - name: Install AppImage
         run: |

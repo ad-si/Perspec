@@ -85,7 +85,7 @@ imagemagick:
 
 
 ~/.local/bin/perspec: app source images/banner.bmp
-	stack install
+	stack install $(STACK_OPTS)
 
 
 .PHONY: perspec
