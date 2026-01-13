@@ -201,7 +201,7 @@ roundedRectSolid width height radius =
               * sin
                 (startAngle + fromIntegral i * (endAngle - startAngle) / fromIntegral segments)
         )
-      | i <- [0 .. segments]
+      | i <- [0 .. segments] :: [Int]
       ]
     -- Four corners: top-right, top-left, bottom-left, bottom-right
     topRight = arcPoints (hw - r) (hh - r) 0 (pi / 2)
