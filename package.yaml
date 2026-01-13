@@ -9,7 +9,6 @@ copyright: Adrian Sieber
 extra-source-files:
   - readme.md
   - changelog.md
-  - cbits/tinyfiledialogs.h
   - cbits/flatcv.h
 
 synopsis: Scan documents and books with as little hardware as possible.
@@ -68,10 +67,8 @@ library:
   source-dirs: source
   build-tools: c2hs
   c-sources:
-    - cbits/tinyfiledialogs.c
     - cbits/flatcv.c
   include-dirs: cbits/
-  cc-options: -DHSFORCECONSOLE=0
 
 executables:
   perspec:

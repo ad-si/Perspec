@@ -2,7 +2,6 @@ module Home where
 
 import Protolude (
   Applicative (pure),
-  Bool (..),
   Fractional ((/)),
   IO,
   Maybe (..),
@@ -13,6 +12,8 @@ import Protolude (
   (<&>),
  )
 
+import Brillo.Data.FileDialog (FileDialog (..), SelectionMode (..))
+import Brillo.Interface.Environment (openFileDialog)
 import Brillo.Interface.IO.Game as Gl (
   Event (..),
   Key (MouseButton),
@@ -22,9 +23,6 @@ import Brillo.Interface.IO.Game as Gl (
 import Brillo.Interface.IO.Interact (Controller (..))
 import Control.Concurrent (forkOS)
 import Data.IORef (IORef, readIORef, writeIORef)
-import Data.Text qualified as T
-
-import TinyFileDialogs (openFileDialog)
 import Types (AppState (..), ImageData (..), View (..))
 import Utils (isInRect, loadFileIntoState)
 
@@ -33,13 +31,15 @@ import Utils (isInRect, loadFileIntoState)
 openFileDialogAsync :: IORef AppState -> Controller -> IO ()
 openFileDialogAsync stateRef controller = do
   void $ forkOS $ do
-    selectedFiles <-
-      openFileDialog
-        {- Title -} "Open File"
-        {- Default path -} "/"
-        {- File patterns -} ["*.jpeg", "*.jpg", "*.png"]
-        {- Filter description -} "Image files"
-        {- Allow multiple selects -} True
+    let fileDialog =
+          FileDialog
+            { title = "Open File"
+            , defaultPath = "/"
+            , filterPatterns = ["*.jpeg", "*.jpg", "*.png"]
+            , filterDescription = "Image files"
+            , selectionMode = MultiFileSelect
+            }
+    selectedFiles <- openFileDialog fileDialog
     case selectedFiles of
       Nothing -> do
         putText "No file selected"
@@ -48,9 +48,7 @@ openFileDialogAsync stateRef controller = do
         let newState =
               appState
                 { currentView = ImageView
-                , images =
-                    files <&> \filePath ->
-                      ImageToLoad{filePath = T.unpack filePath}
+                , images = files <&> \filePath -> ImageToLoad{filePath}
                 }
         loadedState <- loadFileIntoState newState
         writeIORef stateRef loadedState
