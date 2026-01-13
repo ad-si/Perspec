@@ -54,14 +54,19 @@ import Foreign.ForeignPtr (castForeignPtr, withForeignPtr)
 import Foreign.Ptr (castPtr)
 import GHC.Float (int2Double)
 import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
+import System.Info (os)
 
 import FlatCV (Corners (..), fcvDetectCorners)
 import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
--- | Font path for TrueType text rendering
+-- | Font path for TrueType text rendering (platform-specific)
 defaultFontPath :: FilePath
-defaultFontPath = "/System/Library/Fonts/Supplemental/Arial.ttf"
+defaultFontPath = case os of
+  "darwin" -> "/System/Library/Fonts/Supplemental/Arial.ttf"
+  "linux" -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+  "mingw32" -> "C:\\Windows\\Fonts\\Arial.ttf"
+  _ -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"  -- Fallback to Linux path
 
 
 -- | Pixel height for button text
