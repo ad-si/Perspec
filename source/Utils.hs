@@ -66,7 +66,7 @@ defaultFontPath = case os of
   "darwin" -> "/System/Library/Fonts/Supplemental/Arial.ttf"
   "linux" -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
   "mingw32" -> "C:\\Windows\\Fonts\\Arial.ttf"
-  _ -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"  -- Fallback to Linux path
+  _ -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf" -- Fallback to Linux path
 
 
 -- | Pixel height for button text

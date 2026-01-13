@@ -24,6 +24,7 @@ import Protolude (
   Text,
   const,
   either,
+  elem,
   exitSuccess,
   flip,
   fromIntegral,
@@ -46,6 +47,7 @@ import Protolude (
   (<&>),
  )
 
+import Control.Concurrent (tryTakeMVar)
 import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
 import Data.List as DL (elemIndex, minimum)
@@ -62,7 +64,6 @@ import System.Environment (getEnv, setEnv)
 import System.FilePath (replaceExtension)
 import System.Info (os)
 import System.Process (callProcess, spawnProcess)
-import Control.Concurrent (tryTakeMVar)
 
 import Brillo (
   Display (InWindow),
@@ -131,7 +132,7 @@ import FlatCV qualified as FCV
 import Home (handleHomeEvent)
 import Types (
   AppState (..),
-  Config (transformBackendFlag),
+  Config (licenseKey, transformBackendFlag),
   ConversionMode (CallConversion, SpawnConversion),
   Corner,
   CornersTup,
@@ -1130,7 +1131,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
 loadAndStart config filePathsMb = do
   let
-    isRegistered = True -- (config&licenseKey) `elem` licenses
+    isRegistered = config.licenseKey `elem` licenses
     stateDraft =
       initialState
         { transformBackend = config.transformBackendFlag

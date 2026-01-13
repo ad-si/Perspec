@@ -198,24 +198,26 @@ data AppState = AppState
   -- ^ Result from async file dialog, polled in stepWorld
   }
 
+
 instance Show AppState where
   show appState =
-    "AppState { currentView = " <> show appState.currentView
-      <> ", tickCounter = " <> show appState.tickCounter
-      <> ", corners = " <> show appState.corners
-      <> ", cornerDragged = " <> show appState.cornerDragged
-      <> ", images = " <> show appState.images
-      <> ", appWidth = " <> show appState.appWidth
-      <> ", appHeight = " <> show appState.appHeight
-      <> ", scaleFactor = " <> show appState.scaleFactor
-      <> ", transformBackend = " <> show appState.transformBackend
-      <> ", isRegistered = " <> show appState.isRegistered
-      <> ", bannerIsVisible = " <> show appState.bannerIsVisible
-      <> ", sidebarWidth = " <> show appState.sidebarWidth
-      <> ", sidebarColor = " <> show appState.sidebarColor
-      <> ", uiComponents = " <> show appState.uiComponents
+    "AppState "
+      <> ("{ currentView = " <> show appState.currentView)
+      <> (", tickCounter = " <> show appState.tickCounter)
+      <> (", corners = " <> show appState.corners)
+      <> (", cornerDragged = " <> show appState.cornerDragged)
+      <> (", images = " <> show appState.images)
+      <> (", appWidth = " <> show appState.appWidth)
+      <> (", appHeight = " <> show appState.appHeight)
+      <> (", scaleFactor = " <> show appState.scaleFactor)
+      <> (", transformBackend = " <> show appState.transformBackend)
+      <> (", isRegistered = " <> show appState.isRegistered)
+      <> (", bannerIsVisible = " <> show appState.bannerIsVisible)
+      <> (", sidebarWidth = " <> show appState.sidebarWidth)
+      <> (", sidebarColor = " <> show appState.sidebarColor)
+      <> (", uiComponents = " <> show appState.uiComponents)
       <> ", pendingFileDialog = <MVar>"
-      <> " }"
+      <> "}"
 
 
 appInitialWidth, appInitialHeight, sidebarInitialWidth :: Int
