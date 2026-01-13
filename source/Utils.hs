@@ -39,7 +39,7 @@ import Protolude qualified as P
 
 import Brillo (
   BitmapData (bitmapPointer, bitmapSize),
-  Picture (Bitmap, Rotate),
+  Picture (Bitmap, Rotate, Scale),
   Point,
   color,
   greyN,
@@ -185,27 +185,27 @@ calculateSizes appState =
           }
 
 
--- | Rotation angle in degrees of each EXIF orientation
-imgOrientToRot :: ExifData -> Float
-imgOrientToRot = \case
-  ExifShort 1 -> 0
-  ExifShort 2 -> 0 -- TODO: + horizontally flipped
-  ExifShort 3 -> 180
-  ExifShort 4 -> 180 -- TODO: + horizontally flipped
-  ExifShort 5 -> 90 -- TODO: + horizontally flipped
-  ExifShort 6 -> -90
-  ExifShort 7 -> -90 -- TODO: + horizontally flipped
-  ExifShort 8 -> 90
-  _ -> 0
+-- | Rotation angle in degrees and horizontal flip of each EXIF orientation
+imgOrientToRotAndFlip :: ExifData -> (Float, Bool)
+imgOrientToRotAndFlip = \case
+  ExifShort 1 -> (0, False)
+  ExifShort 2 -> (0, True) -- Horizontal flip
+  ExifShort 3 -> (180, False)
+  ExifShort 4 -> (180, True) -- Vertical flip = 180° + horizontal flip
+  ExifShort 5 -> (90, True) -- Transpose = 90° CW + horizontal flip
+  ExifShort 6 -> (-90, False) -- Rotate 90° CW
+  ExifShort 7 -> (-90, True) -- Transverse = 90° CW + horizontal flip
+  ExifShort 8 -> (90, False) -- Rotate 90° CCW (270° CW)
+  _ -> (0, False)
 
 
 {-| Map user-selected corner coordinates
-(taken from the auto-rotated display image)
+(taken from the auto-rotated/flipped display image)
 back into the original un-rotated bitmap coordinate system
 before computing the perspective transform.
 -}
-applyRotationToCorners :: Corners -> Int -> Int -> Float -> Corners
-applyRotationToCorners srcCorners srcWidth srcHeight rotation =
+applyRotationToCorners :: Corners -> Int -> Int -> Float -> Bool -> Corners
+applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped =
   let
     w = int2Double srcWidth
     h = int2Double srcHeight
@@ -218,57 +218,86 @@ applyRotationToCorners srcCorners srcWidth srcHeight rotation =
 
     rotatePoint270 :: (Double, Double) -> (Double, Double)
     rotatePoint270 (x, y) = (y, w - x)
+
+    -- Get the width of the displayed (rotated) image for flip calculation
+    displayW = case P.round rotation :: Int of
+      90 -> h
+      -90 -> h
+      -270 -> h
+      270 -> h
+      _ -> w
+
+    -- Horizontal flip: mirror x coordinates, swap left/right corners
+    -- This is applied first (inverse order of display transformation)
+    flipHorizontal :: Corners -> Corners
+    flipHorizontal c =
+      Corners
+        { tl_x = displayW - c.tr_x
+        , tl_y = c.tr_y
+        , tr_x = displayW - c.tl_x
+        , tr_y = c.tl_y
+        , br_x = displayW - c.bl_x
+        , br_y = c.bl_y
+        , bl_x = displayW - c.br_x
+        , bl_y = c.br_y
+        }
+
+    -- If flipped, unflip first before rotating back
+    unflippedCorners =
+      if isFlipped
+        then flipHorizontal srcCorners
+        else srcCorners
   in
     case P.round rotation :: Int of
       90 ->
         let
-          (tl_x, tl_y) = rotatePoint90 (srcCorners.bl_x, srcCorners.bl_y)
-          (tr_x, tr_y) = rotatePoint90 (srcCorners.tl_x, srcCorners.tl_y)
-          (br_x, br_y) = rotatePoint90 (srcCorners.tr_x, srcCorners.tr_y)
-          (bl_x, bl_y) = rotatePoint90 (srcCorners.br_x, srcCorners.br_y)
+          (tl_x, tl_y) = rotatePoint90 (unflippedCorners.bl_x, unflippedCorners.bl_y)
+          (tr_x, tr_y) = rotatePoint90 (unflippedCorners.tl_x, unflippedCorners.tl_y)
+          (br_x, br_y) = rotatePoint90 (unflippedCorners.tr_x, unflippedCorners.tr_y)
+          (bl_x, bl_y) = rotatePoint90 (unflippedCorners.br_x, unflippedCorners.br_y)
         in
           Corners{..}
       -270 ->
         let
-          (tl_x, tl_y) = rotatePoint90 (srcCorners.bl_x, srcCorners.bl_y)
-          (tr_x, tr_y) = rotatePoint90 (srcCorners.tl_x, srcCorners.tl_y)
-          (br_x, br_y) = rotatePoint90 (srcCorners.tr_x, srcCorners.tr_y)
-          (bl_x, bl_y) = rotatePoint90 (srcCorners.br_x, srcCorners.br_y)
+          (tl_x, tl_y) = rotatePoint90 (unflippedCorners.bl_x, unflippedCorners.bl_y)
+          (tr_x, tr_y) = rotatePoint90 (unflippedCorners.tl_x, unflippedCorners.tl_y)
+          (br_x, br_y) = rotatePoint90 (unflippedCorners.tr_x, unflippedCorners.tr_y)
+          (bl_x, bl_y) = rotatePoint90 (unflippedCorners.br_x, unflippedCorners.br_y)
         in
           Corners{..}
       -90 ->
         let
-          (tl_x, tl_y) = rotatePoint270 (srcCorners.tr_x, srcCorners.tr_y)
-          (tr_x, tr_y) = rotatePoint270 (srcCorners.br_x, srcCorners.br_y)
-          (br_x, br_y) = rotatePoint270 (srcCorners.bl_x, srcCorners.bl_y)
-          (bl_x, bl_y) = rotatePoint270 (srcCorners.tl_x, srcCorners.tl_y)
+          (tl_x, tl_y) = rotatePoint270 (unflippedCorners.tr_x, unflippedCorners.tr_y)
+          (tr_x, tr_y) = rotatePoint270 (unflippedCorners.br_x, unflippedCorners.br_y)
+          (br_x, br_y) = rotatePoint270 (unflippedCorners.bl_x, unflippedCorners.bl_y)
+          (bl_x, bl_y) = rotatePoint270 (unflippedCorners.tl_x, unflippedCorners.tl_y)
         in
           Corners{..}
       270 ->
         let
-          (tl_x, tl_y) = rotatePoint270 (srcCorners.tr_x, srcCorners.tr_y)
-          (tr_x, tr_y) = rotatePoint270 (srcCorners.br_x, srcCorners.br_y)
-          (br_x, br_y) = rotatePoint270 (srcCorners.bl_x, srcCorners.bl_y)
-          (bl_x, bl_y) = rotatePoint270 (srcCorners.tl_x, srcCorners.tl_y)
+          (tl_x, tl_y) = rotatePoint270 (unflippedCorners.tr_x, unflippedCorners.tr_y)
+          (tr_x, tr_y) = rotatePoint270 (unflippedCorners.br_x, unflippedCorners.br_y)
+          (br_x, br_y) = rotatePoint270 (unflippedCorners.bl_x, unflippedCorners.bl_y)
+          (bl_x, bl_y) = rotatePoint270 (unflippedCorners.tl_x, unflippedCorners.tl_y)
         in
           Corners{..}
       180 ->
         let
-          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
-          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
-          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
-          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+          (tl_x, tl_y) = rotatePoint180 (unflippedCorners.br_x, unflippedCorners.br_y)
+          (tr_x, tr_y) = rotatePoint180 (unflippedCorners.bl_x, unflippedCorners.bl_y)
+          (br_x, br_y) = rotatePoint180 (unflippedCorners.tl_x, unflippedCorners.tl_y)
+          (bl_x, bl_y) = rotatePoint180 (unflippedCorners.tr_x, unflippedCorners.tr_y)
         in
           Corners{..}
       -180 ->
         let
-          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
-          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
-          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
-          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+          (tl_x, tl_y) = rotatePoint180 (unflippedCorners.br_x, unflippedCorners.br_y)
+          (tr_x, tr_y) = rotatePoint180 (unflippedCorners.bl_x, unflippedCorners.bl_y)
+          (br_x, br_y) = rotatePoint180 (unflippedCorners.tl_x, unflippedCorners.tl_y)
+          (bl_x, bl_y) = rotatePoint180 (unflippedCorners.tr_x, unflippedCorners.tr_y)
         in
           Corners{..}
-      _ -> srcCorners
+      _ -> unflippedCorners
 
 
 loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))
@@ -313,13 +342,24 @@ getInitialCorners appState bitmapData = do
       detectedCorners <- withForeignPtr (castForeignPtr (bitmapPointer bitmapData)) $ \ptr -> do
         fcvDetectCorners (castPtr ptr) rawWidth rawHeight
 
-      -- Convert FlatCV corners to the expected format
+      -- Rotate and flip detected corners to match the displayed image.
+      -- FlatCV detects corners on the original un-rotated bitmap,
+      -- but we display the image rotated and flipped according to EXIF orientation.
       let
+        transformedCorners =
+          rotateDetectedCorners
+            detectedCorners
+            rawWidth
+            rawHeight
+            image.rotation
+            image.isFlipped
+
+        -- Convert FlatCV corners to the expected format
         cornersList =
-          [ (realToFrac detectedCorners.tl_x, realToFrac detectedCorners.tl_y)
-          , (realToFrac detectedCorners.tr_x, realToFrac detectedCorners.tr_y)
-          , (realToFrac detectedCorners.br_x, realToFrac detectedCorners.br_y)
-          , (realToFrac detectedCorners.bl_x, realToFrac detectedCorners.bl_y)
+          [ (realToFrac transformedCorners.tl_x, realToFrac transformedCorners.tl_y)
+          , (realToFrac transformedCorners.tr_x, realToFrac transformedCorners.tr_y)
+          , (realToFrac transformedCorners.br_x, realToFrac transformedCorners.br_y)
+          , (realToFrac transformedCorners.bl_x, realToFrac transformedCorners.bl_y)
           ]
 
       pure $
@@ -327,6 +367,92 @@ getInitialCorners appState bitmapData = do
           & transToOrigAtCenter image.width image.height
           & scalePoints (1 / appState.scaleFactor)
           & P.reverse
+
+
+{-| Rotate and flip detected corners from original bitmap coordinates
+to match the displayed rotated/flipped image coordinates.
+This is the inverse of applyRotationToCorners.
+-}
+rotateDetectedCorners :: Corners -> Int -> Int -> Float -> Bool -> Corners
+rotateDetectedCorners srcCorners srcWidth srcHeight rotation isFlipped =
+  let
+    w = int2Double srcWidth
+    h = int2Double srcHeight
+
+    -- Rotate point 90° counter-clockwise (for -90° image rotation / EXIF 6)
+    rotatePoint90CCW :: (Double, Double) -> (Double, Double)
+    rotatePoint90CCW (x, y) = (y, w - x)
+
+    -- Rotate point 90° clockwise (for 90° image rotation / EXIF 8)
+    rotatePoint90CW :: (Double, Double) -> (Double, Double)
+    rotatePoint90CW (x, y) = (h - y, x)
+
+    rotatePoint180 :: (Double, Double) -> (Double, Double)
+    rotatePoint180 (x, y) = (w - x, h - y)
+
+    -- First apply rotation
+    rotatedCorners = case P.round rotation :: Int of
+      -- rotation=90 means image displayed with Rotate(-90), i.e. 90° CW
+      -- So we rotate corners 90° CCW to match the display
+      90 ->
+        let
+          (tl_x, tl_y) = rotatePoint90CCW (srcCorners.tr_x, srcCorners.tr_y)
+          (tr_x, tr_y) = rotatePoint90CCW (srcCorners.br_x, srcCorners.br_y)
+          (br_x, br_y) = rotatePoint90CCW (srcCorners.bl_x, srcCorners.bl_y)
+          (bl_x, bl_y) = rotatePoint90CCW (srcCorners.tl_x, srcCorners.tl_y)
+        in
+          Corners{..}
+      -- rotation=-90 means image displayed with Rotate(90), i.e. 90° CCW
+      -- So we rotate corners 90° CW to match the display
+      -90 ->
+        let
+          (tl_x, tl_y) = rotatePoint90CW (srcCorners.bl_x, srcCorners.bl_y)
+          (tr_x, tr_y) = rotatePoint90CW (srcCorners.tl_x, srcCorners.tl_y)
+          (br_x, br_y) = rotatePoint90CW (srcCorners.tr_x, srcCorners.tr_y)
+          (bl_x, bl_y) = rotatePoint90CW (srcCorners.br_x, srcCorners.br_y)
+        in
+          Corners{..}
+      180 ->
+        let
+          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
+          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
+          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
+          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+        in
+          Corners{..}
+      -180 ->
+        let
+          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
+          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
+          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
+          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+        in
+          Corners{..}
+      _ -> srcCorners
+
+    -- Get the width of the rotated image for flip calculation
+    rotatedW = case P.round rotation :: Int of
+      90 -> h
+      -90 -> h
+      _ -> w
+
+    -- Horizontal flip: mirror x coordinates, swap left/right corners
+    flipHorizontal :: Corners -> Corners
+    flipHorizontal c =
+      Corners
+        { tl_x = rotatedW - c.tr_x
+        , tl_y = c.tr_y
+        , tr_x = rotatedW - c.tl_x
+        , tr_y = c.tl_y
+        , br_x = rotatedW - c.bl_x
+        , br_y = c.bl_y
+        , bl_x = rotatedW - c.br_x
+        , bl_y = c.br_y
+        }
+  in
+    if isFlipped
+      then flipHorizontal rotatedCorners
+      else rotatedCorners
 
 
 loadFileIntoState :: AppState -> IO AppState
@@ -347,15 +473,21 @@ loadFileIntoState appState = do
               pure appState
             Right (picture@(Bitmap bitmapData), metadata) -> do
               let
-                rotation =
+                (rotation, isFlipped) =
                   lookup (Exif TagOrientation) metadata
-                    <&> imgOrientToRot
-                    & fromMaybe 0
+                    <&> imgOrientToRotAndFlip
+                    & fromMaybe (0, False)
                 sizeTuple = bitmapSize bitmapData
                 (imgWdth, imgHgt) = case rotation of
                   90 -> swap sizeTuple
                   -90 -> swap sizeTuple
                   _ -> sizeTuple
+                -- Apply rotation first, then flip horizontally if needed
+                rotatedPic = Rotate (-rotation) picture
+                finalPic =
+                  if isFlipped
+                    then Scale (-1) 1 rotatedPic
+                    else rotatedPic
 
               putText $
                 "Loaded file "
@@ -365,7 +497,9 @@ loadFileIntoState appState = do
                   <> " "
                   <> "with a rotation of "
                   <> show rotation
-                  <> " degrees."
+                  <> " degrees"
+                  <> (if isFlipped then " (flipped)" else "")
+                  <> "."
 
               let
                 stateWithSizes =
@@ -381,7 +515,8 @@ loadFileIntoState appState = do
                             , widthTarget = 0 -- calculateSizes will set it
                             , heightTarget = 0 -- calculateSizes will set it
                             , rotation = rotation
-                            , content = Rotate (-rotation) picture
+                            , isFlipped = isFlipped
+                            , content = finalPic
                             }
                             : otherImages
                       }

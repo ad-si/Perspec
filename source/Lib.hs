@@ -151,7 +151,7 @@ import Utils (
   calculateSizes,
   getCorners,
   getTextPicture,
-  imgOrientToRot,
+  imgOrientToRotAndFlip,
   loadFileIntoState,
   loadImage,
   prettyPrintArray,
@@ -1000,10 +1000,9 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
               -- so we map: bl->tl, br->tr, tr->br, tl->bl.
               V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
-            -- Extract EXIF rotation
-            rotation :: Float
-            rotation =
-              P.maybe 0 imgOrientToRot $
+            -- Extract EXIF rotation and flip
+            (rotation, isFlipped) =
+              P.maybe (0, False) imgOrientToRotAndFlip $
                 lookup (Exif TagOrientation) metadatas
 
             Sz (height :. width) =
@@ -1083,7 +1082,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 else (rawWidth, rawHeight)
 
             adjustedSrcCorners =
-              applyRotationToCorners srcCorners srcWidth srcHeight rotation
+              applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped
 
           putText "\nOriginal Source Corners:"
           putText $ prettyShowCorners srcCorners

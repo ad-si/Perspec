@@ -1,6 +1,6 @@
 module UtilsSpec where
 
-import Protolude (($))
+import Protolude (Bool (False), ($))
 
 import Test.Hspec (Spec, describe, it, shouldBe)
 
@@ -38,11 +38,11 @@ spec = do
 
     describe "applyRotationToCorners rotation logic" $ do
       it "returns the same corners when rotation is 0" $ do
-        applyRotationToCorners selectedCorners 200 150 0.0
+        applyRotationToCorners selectedCorners 200 150 0.0 False
           `shouldBe` selectedCorners
 
       it "rotates corners correctly for 90 degree clockwise rotation" $ do
-        applyRotationToCorners selectedCorners 200 150 90.0
+        applyRotationToCorners selectedCorners 200 150 90.0 False
           `shouldBe` Corners
             { tl_x = 30.0
             , tl_y = 10.0
@@ -55,7 +55,7 @@ spec = do
             }
 
       it "rotates corners correctly for 180 degree clockwise rotation" $ do
-        applyRotationToCorners selectedCorners 200 150 180.0
+        applyRotationToCorners selectedCorners 200 150 180.0 False
           `shouldBe` Corners
             { tl_x = 100.0
             , tl_y = 30.0
@@ -68,7 +68,7 @@ spec = do
             }
 
       it "rotates corners correctly for 270 degree clockwise rotation" $ do
-        applyRotationToCorners selectedCorners 200 150 270.0
+        applyRotationToCorners selectedCorners 200 150 270.0 False
           `shouldBe` Corners
             { tl_x = 20.0
             , tl_y = 100.0
@@ -81,7 +81,7 @@ spec = do
             }
 
       it "rotates corners correctly for negative rotations" $ do
-        applyRotationToCorners selectedCorners 200 150 (-90.0)
+        applyRotationToCorners selectedCorners 200 150 (-90.0) False
           `shouldBe` Corners
             { tl_x = 20.0
             , tl_y = 100.0
@@ -107,7 +107,7 @@ spec = do
               , bl_y = 300.9090881347656
               }
 
-        applyRotationToCorners selCorners 1000 500 (-90.0)
+        applyRotationToCorners selCorners 1000 500 (-90.0) False
           `shouldBe` Corners
             { tl_x = 81.81817626953125
             , tl_y = 107.27276611328125

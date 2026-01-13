@@ -171,6 +171,8 @@ data ImageData
       , heightTarget :: Int
       , content :: Picture
       , rotation :: Float
+      , isFlipped :: Bool
+      -- ^ Horizontal flip (EXIF orientations 2, 4, 5, 7)
       }
   deriving (Show)
 
