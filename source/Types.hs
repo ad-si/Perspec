@@ -143,6 +143,7 @@ data ExportMode
   | GrayscaleExport
   | BlackWhiteExport
   | BlackWhiteSmoothExport
+  deriving (Show)
 
 
 data UiComponent
@@ -196,6 +197,8 @@ data AppState = AppState
   , uiComponents :: [UiComponent]
   , pendingFileDialog :: Maybe (MVar (Maybe [Text]))
   -- ^ Result from async file dialog, polled in stepWorld
+  , pendingExport :: Maybe ExportMode
+  -- ^ Pending export mode when showing license banner
   }
 
 
@@ -217,6 +220,7 @@ instance Show AppState where
       <> (", sidebarColor = " <> show appState.sidebarColor)
       <> (", uiComponents = " <> show appState.uiComponents)
       <> ", pendingFileDialog = <MVar>"
+      <> (", pendingExport = " <> show appState.pendingExport)
       <> "}"
 
 
@@ -269,4 +273,5 @@ initialState =
             }
         ]
     , pendingFileDialog = Nothing
+    , pendingExport = Nothing
     }

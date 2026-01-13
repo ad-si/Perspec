@@ -31,7 +31,6 @@ import Protolude (
   fromMaybe,
   fromRight,
   fst,
-  not,
   putText,
   realToFrac,
   show,
@@ -296,12 +295,19 @@ stepWorld _ appState = do
           loadFileIntoState newState
 
   -- Handle banner timing
-  if not stateAfterDialog.isRegistered
+  if stateAfterDialog.bannerIsVisible
     && ( fromIntegral stateAfterDialog.tickCounter
           < (bannerTime * fromIntegral ticksPerSecond)
        )
     then pure stateAfterDialog{tickCounter = stateAfterDialog.tickCounter + 1}
-    else pure stateAfterDialog{bannerIsVisible = False}
+    else case stateAfterDialog.pendingExport of
+      Just exportMode ->
+        -- Banner countdown finished, perform the deferred export
+        performExport
+          stateAfterDialog{bannerIsVisible = False, pendingExport = Nothing}
+          exportMode
+      Nothing ->
+        pure stateAfterDialog{bannerIsVisible = False}
 
 
 drawCorner :: Gl.Color -> Point -> Picture
@@ -619,6 +625,20 @@ checkSidebarRectHit
 
 submitSelection :: AppState -> ExportMode -> IO AppState
 submitSelection appState exportMode = do
+  if appState.isRegistered
+    then performExport appState exportMode
+    else
+      -- Show banner and defer export until after countdown
+      pure
+        appState
+          { bannerIsVisible = True
+          , tickCounter = 0
+          , pendingExport = Just exportMode
+          }
+
+
+performExport :: AppState -> ExportMode -> IO AppState
+performExport appState exportMode = do
   case appState.images of
     [] -> pure appState
     image : otherImages -> do
@@ -1136,7 +1156,7 @@ loadAndStart config filePathsMb = do
       initialState
         { transformBackend = config.transformBackendFlag
         , isRegistered = isRegistered
-        , bannerIsVisible = not isRegistered
+        , bannerIsVisible = False
         }
 
   screenSize <- getScreenSize
