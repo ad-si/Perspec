@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# AppRun script for Perspec AppImage
+# - When double-clicked (no terminal): starts GUI mode
+# - When run from CLI with no args: shows help (current behavior)
+# - When run from CLI with args: passes them through
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+PERSPEC="$SELF_DIR/usr/bin/perspec"
+
+# Check if we have a controlling terminal
+if test -t 0 && test -t 1
+then
+  # Running in a terminal - pass all arguments through (shows help if no args)
+  exec "$PERSPEC" "$@"
+else
+  # No terminal (double-clicked from file manager)
+  if test $# -eq 0
+  then
+    # No arguments - start GUI
+    exec "$PERSPEC" gui
+  else
+    # Arguments provided (e.g., file opened via "Open With")
+    exec "$PERSPEC" fix "$@"
+  fi
+fi

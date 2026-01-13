@@ -2,5 +2,5 @@
 Name=Perspec
 Type=Application
 Icon=icon_padded_white_512
-Exec=perspec
+Exec=perspec gui
 Categories=Graphics;ImageProcessing;RasterGraphics;Photography;Scanning
