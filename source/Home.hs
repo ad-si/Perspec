@@ -6,7 +6,7 @@ import Protolude (
   Fractional ((/)),
   IO,
   Int,
-  Maybe (Just),
+  Maybe (..),
   Num,
   putText,
   void,
@@ -58,25 +58,29 @@ handleMsg msg appState =
 
 
 handleHomeEvent :: Event -> AppState -> IO AppState
-handleHomeEvent event appState =
+handleHomeEvent event appState = do
+  let
+    fileSelectBtnWidth :: (Num a) => a
+    fileSelectBtnWidth = 120
+
+    fileSelectBtnHeight :: (Num a) => a
+    fileSelectBtnHeight = 40
+
+    fileSelectBtnRect =
+      ( -(fileSelectBtnWidth / 2)
+      , -(fileSelectBtnHeight / 2)
+      , fileSelectBtnWidth / 2
+      , fileSelectBtnHeight / 2
+      )
   case event of
     EventKey (MouseButton Gl.LeftButton) Gl.Down _ clickedPoint -> do
-      let
-        fileSelectBtnWidth :: (Num a) => a
-        fileSelectBtnWidth = 120
-
-        fileSelectBtnHeight :: (Num a) => a
-        fileSelectBtnHeight = 40
-
-        fileSelectBtnRect =
-          ( -(fileSelectBtnWidth / 2)
-          , -(fileSelectBtnHeight / 2)
-          , fileSelectBtnWidth / 2
-          , fileSelectBtnHeight / 2
-          )
-        fileSelectBtnWasClicked = clickedPoint `isInRect` fileSelectBtnRect
-
+      let fileSelectBtnWasClicked = clickedPoint `isInRect` fileSelectBtnRect
       if fileSelectBtnWasClicked
         then handleMsg OpenFileDialog appState
         else pure appState
+    EventMotion mousePoint -> do
+      let
+        isOverBtn = mousePoint `isInRect` fileSelectBtnRect
+        newHoveredBtn = if isOverBtn then Just 0 else Nothing
+      pure appState{hoveredButton = newHoveredBtn}
     _ -> pure appState

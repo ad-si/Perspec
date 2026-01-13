@@ -393,13 +393,14 @@ drawSidebar appWidth appHeight width =
     )
 
 
-drawButton :: (Int, Int) -> Int -> Int -> Text -> (Int, Int) -> Picture
+drawButton :: (Int, Int) -> Int -> Int -> Text -> (Int, Int) -> Bool -> Picture
 drawButton
   (appWidth, appHeight)
   sidebarWidth
   topOffset
   btnText
-  (btnWidth, btnHeight) =
+  (btnWidth, btnHeight)
+  isHovered =
     Translate
       ( (fromIntegral appWidth / 2.0)
           - (fromIntegral btnWidth / 2.0)
@@ -410,7 +411,7 @@ drawButton
           - (fromIntegral btnHeight / 2.0)
       )
       $ pictures
-        [ color (greyN 0.2) $
+        [ color (greyN $ if isHovered then 0.35 else 0.2) $
             roundedRectSolid
               (fromIntegral btnWidth)
               (fromIntegral btnHeight)
@@ -430,6 +431,7 @@ drawUiComponent appState uiComponent componentIndex =
         (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
         btnText
         (btnWidth, btnHeight)
+        (appState.hoveredButton == Just componentIndex)
     Select -> mempty
 
 
@@ -445,9 +447,11 @@ makePicture appState =
         fileSelectBtnHeight :: (Num a) => a
         fileSelectBtnHeight = 40
 
+        isHovered = appState.hoveredButton == Just 0
+
         uiElements =
           pictures
-            [ color (greyN 0.2) $
+            [ color (greyN $ if isHovered then 0.35 else 0.2) $
                 roundedRectSolid fileSelectBtnWidth fileSelectBtnHeight buttonCornerRadius
             , Translate (-43) (-7) $ getTextPicture "Select Files"
             ]
@@ -738,8 +742,24 @@ handleImageViewEvent event appState =
       let
         point = appCoordToImgCoord appState newPoint
 
+        -- Check which button is being hovered
+        hoveredBtn =
+          P.find
+            ( \(component, componentIndex) -> case component of
+                Button _ width height _ ->
+                  checkSidebarRectHit
+                    (appState.appWidth, appState.appHeight)
+                    appState.sidebarWidth
+                    (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
+                    (width, height)
+                    newPoint
+                _ -> False
+            )
+            (P.zip appState.uiComponents [0 ..])
+            <&> snd
+
       pure $ case appState.cornerDragged of
-        Nothing -> appState
+        Nothing -> appState{hoveredButton = hoveredBtn}
         Just cornerPoint ->
           let
             cornerIndexMb =
@@ -748,7 +768,7 @@ handleImageViewEvent event appState =
                 appState.corners
           in
             case cornerIndexMb of
-              Nothing -> appState
+              Nothing -> appState{hoveredButton = hoveredBtn}
               Just cornerIndex ->
                 appState
                   { corners =
@@ -757,6 +777,7 @@ handleImageViewEvent event appState =
                         point
                         appState.corners
                   , cornerDragged = Just point
+                  , hoveredButton = hoveredBtn
                   }
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
       submitSelection appState UnmodifiedExport

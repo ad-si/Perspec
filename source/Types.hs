@@ -199,6 +199,8 @@ data AppState = AppState
   -- ^ Result from async file dialog, polled in stepWorld
   , pendingExport :: Maybe ExportMode
   -- ^ Pending export mode when showing license banner
+  , hoveredButton :: Maybe Int
+  -- ^ Index of the button currently being hovered
   }
 
 
@@ -221,6 +223,7 @@ instance Show AppState where
       <> (", uiComponents = " <> show appState.uiComponents)
       <> ", pendingFileDialog = <MVar>"
       <> (", pendingExport = " <> show appState.pendingExport)
+      <> (", hoveredButton = " <> show appState.hoveredButton)
       <> "}"
 
 
@@ -274,4 +277,5 @@ initialState =
         ]
     , pendingFileDialog = Nothing
     , pendingExport = Nothing
+    , hoveredButton = Nothing
     }
