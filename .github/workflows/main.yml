@@ -116,7 +116,9 @@ jobs:
           LINUX_ARCH=${{ matrix.arch == 'arm64' && 'aarch64' || matrix.arch }}
           curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${LINUX_ARCH}.AppImage
           chmod +x linuxdeploy-${LINUX_ARCH}.AppImage
-          mv linuxdeploy-${LINUX_ARCH}.AppImage linuxdeploy-${{ matrix.arch }}.AppImage
+          if test "${LINUX_ARCH}" != "${{ matrix.arch }}"
+          then mv linuxdeploy-${LINUX_ARCH}.AppImage linuxdeploy-${{ matrix.arch }}.AppImage
+          fi
 
       - name: Build AppImage
         run: |
