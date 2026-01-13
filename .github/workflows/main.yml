@@ -141,13 +141,14 @@ jobs:
       - name: Build AppImage
         run: |
           LINUX_ARCH=${{ matrix.arch == 'arm64' && 'aarch64' || matrix.arch }}
+          cp images/icon_padded_white_512.png perspec.png
           ./linuxdeploy-${{ matrix.arch }}.AppImage \
             --executable $(which perspec) \
             --library /usr/lib/${LINUX_ARCH}-linux-gnu/libglfw.so.3 \
             --appdir ./AppDir \
             --output appimage \
             --desktop-file ./perspec.desktop \
-            --icon-file $(pwd)/images/icon_padded_white_512.png \
+            --icon-file ./perspec.png \
             --custom-apprun ./AppRun
           mv Perspec-${LINUX_ARCH}.AppImage Perspec_${{ matrix.arch }}.AppImage
 
