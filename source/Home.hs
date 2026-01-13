@@ -5,12 +5,12 @@ import Protolude (
   Bool (..),
   Fractional ((/)),
   IO,
-  Int,
   Maybe (..),
   Num,
   putText,
   void,
   ($),
+  (<&>),
  )
 
 import Brillo.Interface.IO.Game as Gl (
@@ -19,46 +19,47 @@ import Brillo.Interface.IO.Game as Gl (
   KeyState (Down),
   MouseButton (LeftButton),
  )
-import Control.Concurrent (forkOS, newEmptyMVar, putMVar)
+import Brillo.Interface.IO.Interact (Controller (..))
+import Control.Concurrent (forkOS)
+import Data.IORef (IORef, readIORef, writeIORef)
+import Data.Text qualified as T
 
 import TinyFileDialogs (openFileDialog)
-import Types (AppState (..))
-import Utils (isInRect)
+import Types (AppState (..), ImageData (..), View (..))
+import Utils (isInRect, loadFileIntoState)
 
 
-ticksPerSecond :: Int
-ticksPerSecond = 10
+-- | Open file dialog and update state directly when complete
+openFileDialogAsync :: IORef AppState -> Controller -> IO ()
+openFileDialogAsync stateRef controller = do
+  void $ forkOS $ do
+    selectedFiles <-
+      openFileDialog
+        {- Title -} "Open File"
+        {- Default path -} "/"
+        {- File patterns -} ["*.jpeg", "*.jpg", "*.png"]
+        {- Filter description -} "Image files"
+        {- Allow multiple selects -} True
+    case selectedFiles of
+      Nothing -> do
+        putText "No file selected"
+      Just files -> do
+        appState <- readIORef stateRef
+        let newState =
+              appState
+                { currentView = ImageView
+                , images =
+                    files <&> \filePath ->
+                      ImageToLoad{filePath = T.unpack filePath}
+                }
+        loadedState <- loadFileIntoState newState
+        writeIORef stateRef loadedState
+        controllerSetRedraw controller
 
 
-data Message
-  = ClickSelectFiles
-  | OpenFileDialog
-
-
-handleMsg :: Message -> AppState -> IO AppState
-handleMsg msg appState =
-  case msg of
-    ClickSelectFiles -> do
-      putText "ClickSelectFiles"
-      pure appState
-    OpenFileDialog -> do
-      -- Spawn file dialog in separate OS thread to keep UI responsive
-      resultVar <- newEmptyMVar
-      void $ forkOS $ do
-        selectedFiles <-
-          openFileDialog
-            {- Title -} "Open File"
-            {- Default path -} "/"
-            {- File patterns -} ["*.jpeg", "*.jpg", "*.png"]
-            {- Filter description -} "Image files"
-            {- Allow multiple selects -} True
-        putMVar resultVar selectedFiles
-      -- Return immediately with pending dialog; stepWorld will poll for result
-      pure appState{pendingFileDialog = Just resultVar}
-
-
-handleHomeEvent :: Event -> AppState -> IO AppState
-handleHomeEvent event appState = do
+handleHomeEvent ::
+  IORef AppState -> Controller -> Event -> AppState -> IO AppState
+handleHomeEvent stateRef controller event appState = do
   let
     fileSelectBtnWidth :: (Num a) => a
     fileSelectBtnWidth = 120
@@ -76,7 +77,9 @@ handleHomeEvent event appState = do
     EventKey (MouseButton Gl.LeftButton) Gl.Down _ clickedPoint -> do
       let fileSelectBtnWasClicked = clickedPoint `isInRect` fileSelectBtnRect
       if fileSelectBtnWasClicked
-        then handleMsg OpenFileDialog appState
+        then do
+          openFileDialogAsync stateRef controller
+          pure appState
         else pure appState
     EventMotion mousePoint -> do
       let

@@ -18,7 +18,6 @@ import Protolude as P (
   (<>),
  )
 
-import Control.Concurrent (MVar)
 import Text.Show (show)
 
 import Brillo (Picture, Point)
@@ -158,7 +157,7 @@ data UiComponent
 
 
 data View = HomeView | ImageView | BannerView
-  deriving (Show)
+  deriving (Show, Eq)
 
 
 data ImageData
@@ -195,8 +194,6 @@ data AppState = AppState
   , sidebarWidth :: Int
   , sidebarColor :: Int
   , uiComponents :: [UiComponent]
-  , pendingFileDialog :: Maybe (MVar (Maybe [Text]))
-  -- ^ Result from async file dialog, polled in stepWorld
   , pendingExport :: Maybe ExportMode
   -- ^ Pending export mode when showing license banner
   , hoveredButton :: Maybe Int
@@ -221,7 +218,6 @@ instance Show AppState where
       <> (", sidebarWidth = " <> show appState.sidebarWidth)
       <> (", sidebarColor = " <> show appState.sidebarColor)
       <> (", uiComponents = " <> show appState.uiComponents)
-      <> ", pendingFileDialog = <MVar>"
       <> (", pendingExport = " <> show appState.pendingExport)
       <> (", hoveredButton = " <> show appState.hoveredButton)
       <> "}"
@@ -275,7 +271,6 @@ initialState =
             , bgColor = 0
             }
         ]
-    , pendingFileDialog = Nothing
     , pendingExport = Nothing
     , hoveredButton = Nothing
     }

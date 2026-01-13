@@ -37,6 +37,7 @@ import Protolude (
   snd,
   toS,
   try,
+  void,
   when,
   ($),
   (&),
@@ -46,9 +47,10 @@ import Protolude (
   (<&>),
  )
 
-import Control.Concurrent (tryTakeMVar)
+import Control.Concurrent (forkIO, threadDelay)
 import Data.ByteString.Lazy qualified as BL
 import Data.FileEmbed (embedFile)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
 import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
@@ -94,8 +96,8 @@ import Brillo.Interface.IO.Game as Gl (
   KeyState (Down, Up),
   MouseButton (LeftButton),
   SpecialKey (KeyEnter, KeyEsc),
-  playIO,
  )
+import Brillo.Interface.IO.Interact (Controller (..), interactIO)
 import Brillo.Rendering (BitmapData (..))
 import Codec.BMP (parseBMP)
 import Codec.Picture (
@@ -265,49 +267,6 @@ appStateToWindow screenSize appState = do
             windowPos
         BannerView ->
           InWindow "Perspec - Banner" (800, 600) (10, 10)
-
-
-stepWorld :: Float -> AppState -> IO AppState
-stepWorld _ appState = do
-  -- Check for pending file dialog result
-  stateAfterDialog <- case appState.pendingFileDialog of
-    Nothing -> pure appState
-    Just resultVar -> do
-      maybeResult <- tryTakeMVar resultVar
-      case maybeResult of
-        Nothing ->
-          -- Dialog still open, keep polling
-          pure appState
-        Just Nothing -> do
-          -- User cancelled
-          putText "No file selected"
-          pure appState{pendingFileDialog = Nothing}
-        Just (Just files) -> do
-          -- Files selected, load them
-          let newState =
-                appState
-                  { currentView = ImageView
-                  , pendingFileDialog = Nothing
-                  , images =
-                      files <&> \filePath ->
-                        ImageToLoad{filePath = T.unpack filePath}
-                  }
-          loadFileIntoState newState
-
-  -- Handle banner timing
-  if stateAfterDialog.bannerIsVisible
-    && ( fromIntegral stateAfterDialog.tickCounter
-          < (bannerTime * fromIntegral ticksPerSecond)
-       )
-    then pure stateAfterDialog{tickCounter = stateAfterDialog.tickCounter + 1}
-    else case stateAfterDialog.pendingExport of
-      Just exportMode ->
-        -- Banner countdown finished, perform the deferred export
-        performExport
-          stateAfterDialog{bannerIsVisible = False, pendingExport = Nothing}
-          exportMode
-      Nothing ->
-        pure stateAfterDialog{bannerIsVisible = False}
 
 
 drawCorner :: Gl.Color -> Point -> Picture
@@ -627,18 +586,40 @@ checkSidebarRectHit
         && hitY < maxY
 
 
-submitSelection :: AppState -> ExportMode -> IO AppState
-submitSelection appState exportMode = do
+submitSelection ::
+  IORef AppState -> Controller -> AppState -> ExportMode -> IO AppState
+submitSelection stateRef controller appState exportMode = do
   if appState.isRegistered
     then performExport appState exportMode
-    else
-      -- Show banner and defer export until after countdown
-      pure
-        appState
-          { bannerIsVisible = True
-          , tickCounter = 0
-          , pendingExport = Just exportMode
-          }
+    else do
+      -- Show banner and spawn delayed export
+      let bannerState =
+            appState
+              { bannerIsVisible = True
+              , tickCounter = 0
+              }
+      writeIORef stateRef bannerState
+      controllerSetRedraw controller
+      -- Spawn thread to handle banner countdown and export
+      void $ forkIO $ do
+        let
+          totalTicks = P.round (bannerTime * fromIntegral ticksPerSecond) :: Int
+          tickDelay = 1000000 `P.div` ticksPerSecond -- microseconds per tick
+          -- Animate the countdown
+        P.forM_ [1 .. totalTicks] $ \tick -> do
+          threadDelay tickDelay
+          currentState <- readIORef stateRef
+          writeIORef stateRef currentState{tickCounter = tick}
+          controllerSetRedraw controller
+        -- Countdown finished, hide banner and perform export
+        finalState <- readIORef stateRef
+        let stateWithBannerHidden = finalState{bannerIsVisible = False}
+        writeIORef stateRef stateWithBannerHidden
+        controllerSetRedraw controller
+        newState <- performExport stateWithBannerHidden exportMode
+        writeIORef stateRef newState
+        controllerSetRedraw controller
+      pure bannerState
 
 
 performExport :: AppState -> ExportMode -> IO AppState
@@ -688,8 +669,9 @@ performExport appState exportMode = do
         else loadFileIntoState appState{images = otherImages}
 
 
-handleImageViewEvent :: Event -> AppState -> IO AppState
-handleImageViewEvent event appState =
+handleImageViewEvent ::
+  IORef AppState -> Controller -> Event -> AppState -> IO AppState
+handleImageViewEvent stateRef controller event appState =
   case event of
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
       -- Check if a UiComponent was clicked
@@ -711,13 +693,13 @@ handleImageViewEvent event appState =
 
       case clickedComponent of
         Just (Button{text = "Save"}) ->
-          submitSelection appState UnmodifiedExport
+          submitSelection stateRef controller appState UnmodifiedExport
         Just (Button{text = "Save Gray"}) ->
-          submitSelection appState GrayscaleExport
+          submitSelection stateRef controller appState GrayscaleExport
         Just (Button{text = "Save BW"}) ->
-          submitSelection appState BlackWhiteExport
+          submitSelection stateRef controller appState BlackWhiteExport
         Just (Button{text = "Save BW Smooth"}) ->
-          submitSelection appState BlackWhiteSmoothExport
+          submitSelection stateRef controller appState BlackWhiteSmoothExport
         _ -> do
           let
             point = appCoordToImgCoord appState clickedPoint
@@ -780,7 +762,7 @@ handleImageViewEvent event appState =
                   , hoveredButton = hoveredBtn
                   }
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
-      submitSelection appState UnmodifiedExport
+      submitSelection stateRef controller appState UnmodifiedExport
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState{corners = []}
     EventResize (windowWidth, windowHeight) -> do
@@ -794,11 +776,11 @@ handleImageViewEvent event appState =
       pure appState
 
 
-handleEvent :: Event -> AppState -> IO AppState
-handleEvent event appState =
+handleEvent :: IORef AppState -> Controller -> Event -> AppState -> IO AppState
+handleEvent stateRef controller event appState =
   case appState.currentView of
-    HomeView -> handleHomeEvent event appState
-    ImageView -> handleImageViewEvent event appState
+    HomeView -> handleHomeEvent stateRef controller event appState
+    ImageView -> handleImageViewEvent stateRef controller event appState
     BannerView -> pure appState
 
 
@@ -1184,16 +1166,25 @@ loadAndStart config filePathsMb = do
 
   putText "Starting the app …"
 
+  -- Create IORef to hold Controller once available
+  controllerRef <-
+    newIORef
+      ( Controller
+          { controllerSetRedraw = pure ()
+          , controllerModifyViewPort = const (pure ())
+          }
+      )
+
   case filePathsMb of
     Nothing -> do
-      playIO
+      stateRef <- newIORef stateDraft
+      interactIO
         (appStateToWindow screenSize stateDraft)
         black
-        ticksPerSecond
-        stateDraft
-        makePicture
-        handleEvent
-        stepWorld
+        stateRef
+        (makePictureFromRef stateRef)
+        (handleEventWithRef stateRef controllerRef)
+        (initController controllerRef)
     Just filePaths -> do
       let
         images =
@@ -1201,15 +1192,43 @@ loadAndStart config filePathsMb = do
             ImageToLoad{filePath = filePath}
 
       appState <- loadFileIntoState stateDraft{images = images}
+      stateRef <- newIORef appState
 
-      playIO
+      interactIO
         (appStateToWindow screenSize appState)
         black
-        ticksPerSecond
-        appState
-        makePicture
-        handleEvent
-        stepWorld
+        stateRef
+        (makePictureFromRef stateRef)
+        (handleEventWithRef stateRef controllerRef)
+        (initController controllerRef)
+
+
+-- | Wrapper to read state from IORef and render
+makePictureFromRef :: IORef AppState -> IORef AppState -> IO Picture
+makePictureFromRef stateRef _ = do
+  appState <- readIORef stateRef
+  makePicture appState
+
+
+-- | Wrapper to handle events and update IORef
+handleEventWithRef ::
+  IORef AppState ->
+  IORef Controller ->
+  Event ->
+  IORef AppState ->
+  IO (IORef AppState)
+handleEventWithRef stateRef controllerRef event _ = do
+  appState <- readIORef stateRef
+  controller <- readIORef controllerRef
+  newState <- handleEvent stateRef controller event appState
+  writeIORef stateRef newState
+  pure stateRef
+
+
+-- | Store the Controller for later use by async operations
+initController :: IORef Controller -> Controller -> IO ()
+initController controllerRef controller = do
+  writeIORef controllerRef controller
 
 
 helpMessage :: Text
