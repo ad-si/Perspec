@@ -56,7 +56,9 @@ import GHC.Float (int2Double)
 import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
 import System.Info (os)
 
-import FlatCV (Corners (..), fcvDetectCorners)
+import FlatCV (Corners (..), detectCornersPtr)
+import Foreign.Marshal.Alloc (free)
+import Foreign.Storable (peek)
 import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
@@ -232,14 +234,14 @@ applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped =
     flipHorizontal :: Corners -> Corners
     flipHorizontal c =
       Corners
-        { tl_x = displayW - c.tr_x
-        , tl_y = c.tr_y
-        , tr_x = displayW - c.tl_x
-        , tr_y = c.tl_y
-        , br_x = displayW - c.bl_x
-        , br_y = c.bl_y
-        , bl_x = displayW - c.br_x
-        , bl_y = c.br_y
+        { tlX = displayW - c.trX
+        , tlY = c.trY
+        , trX = displayW - c.tlX
+        , trY = c.tlY
+        , brX = displayW - c.blX
+        , brY = c.blY
+        , blX = displayW - c.brX
+        , blY = c.brY
         }
 
     -- If flipped, unflip first before rotating back
@@ -251,50 +253,50 @@ applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped =
     case P.round rotation :: Int of
       90 ->
         let
-          (tl_x, tl_y) = rotatePoint90 (unflippedCorners.bl_x, unflippedCorners.bl_y)
-          (tr_x, tr_y) = rotatePoint90 (unflippedCorners.tl_x, unflippedCorners.tl_y)
-          (br_x, br_y) = rotatePoint90 (unflippedCorners.tr_x, unflippedCorners.tr_y)
-          (bl_x, bl_y) = rotatePoint90 (unflippedCorners.br_x, unflippedCorners.br_y)
+          (tlX, tlY) = rotatePoint90 (unflippedCorners.blX, unflippedCorners.blY)
+          (trX, trY) = rotatePoint90 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (brX, brY) = rotatePoint90 (unflippedCorners.trX, unflippedCorners.trY)
+          (blX, blY) = rotatePoint90 (unflippedCorners.brX, unflippedCorners.brY)
         in
           Corners{..}
       -270 ->
         let
-          (tl_x, tl_y) = rotatePoint90 (unflippedCorners.bl_x, unflippedCorners.bl_y)
-          (tr_x, tr_y) = rotatePoint90 (unflippedCorners.tl_x, unflippedCorners.tl_y)
-          (br_x, br_y) = rotatePoint90 (unflippedCorners.tr_x, unflippedCorners.tr_y)
-          (bl_x, bl_y) = rotatePoint90 (unflippedCorners.br_x, unflippedCorners.br_y)
+          (tlX, tlY) = rotatePoint90 (unflippedCorners.blX, unflippedCorners.blY)
+          (trX, trY) = rotatePoint90 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (brX, brY) = rotatePoint90 (unflippedCorners.trX, unflippedCorners.trY)
+          (blX, blY) = rotatePoint90 (unflippedCorners.brX, unflippedCorners.brY)
         in
           Corners{..}
       -90 ->
         let
-          (tl_x, tl_y) = rotatePoint270 (unflippedCorners.tr_x, unflippedCorners.tr_y)
-          (tr_x, tr_y) = rotatePoint270 (unflippedCorners.br_x, unflippedCorners.br_y)
-          (br_x, br_y) = rotatePoint270 (unflippedCorners.bl_x, unflippedCorners.bl_y)
-          (bl_x, bl_y) = rotatePoint270 (unflippedCorners.tl_x, unflippedCorners.tl_y)
+          (tlX, tlY) = rotatePoint270 (unflippedCorners.trX, unflippedCorners.trY)
+          (trX, trY) = rotatePoint270 (unflippedCorners.brX, unflippedCorners.brY)
+          (brX, brY) = rotatePoint270 (unflippedCorners.blX, unflippedCorners.blY)
+          (blX, blY) = rotatePoint270 (unflippedCorners.tlX, unflippedCorners.tlY)
         in
           Corners{..}
       270 ->
         let
-          (tl_x, tl_y) = rotatePoint270 (unflippedCorners.tr_x, unflippedCorners.tr_y)
-          (tr_x, tr_y) = rotatePoint270 (unflippedCorners.br_x, unflippedCorners.br_y)
-          (br_x, br_y) = rotatePoint270 (unflippedCorners.bl_x, unflippedCorners.bl_y)
-          (bl_x, bl_y) = rotatePoint270 (unflippedCorners.tl_x, unflippedCorners.tl_y)
+          (tlX, tlY) = rotatePoint270 (unflippedCorners.trX, unflippedCorners.trY)
+          (trX, trY) = rotatePoint270 (unflippedCorners.brX, unflippedCorners.brY)
+          (brX, brY) = rotatePoint270 (unflippedCorners.blX, unflippedCorners.blY)
+          (blX, blY) = rotatePoint270 (unflippedCorners.tlX, unflippedCorners.tlY)
         in
           Corners{..}
       180 ->
         let
-          (tl_x, tl_y) = rotatePoint180 (unflippedCorners.br_x, unflippedCorners.br_y)
-          (tr_x, tr_y) = rotatePoint180 (unflippedCorners.bl_x, unflippedCorners.bl_y)
-          (br_x, br_y) = rotatePoint180 (unflippedCorners.tl_x, unflippedCorners.tl_y)
-          (bl_x, bl_y) = rotatePoint180 (unflippedCorners.tr_x, unflippedCorners.tr_y)
+          (tlX, tlY) = rotatePoint180 (unflippedCorners.brX, unflippedCorners.brY)
+          (trX, trY) = rotatePoint180 (unflippedCorners.blX, unflippedCorners.blY)
+          (brX, brY) = rotatePoint180 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (blX, blY) = rotatePoint180 (unflippedCorners.trX, unflippedCorners.trY)
         in
           Corners{..}
       -180 ->
         let
-          (tl_x, tl_y) = rotatePoint180 (unflippedCorners.br_x, unflippedCorners.br_y)
-          (tr_x, tr_y) = rotatePoint180 (unflippedCorners.bl_x, unflippedCorners.bl_y)
-          (br_x, br_y) = rotatePoint180 (unflippedCorners.tl_x, unflippedCorners.tl_y)
-          (bl_x, bl_y) = rotatePoint180 (unflippedCorners.tr_x, unflippedCorners.tr_y)
+          (tlX, tlY) = rotatePoint180 (unflippedCorners.brX, unflippedCorners.brY)
+          (trX, trY) = rotatePoint180 (unflippedCorners.blX, unflippedCorners.blY)
+          (brX, brY) = rotatePoint180 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (blX, blY) = rotatePoint180 (unflippedCorners.trX, unflippedCorners.trY)
         in
           Corners{..}
       _ -> unflippedCorners
@@ -340,7 +342,11 @@ getInitialCorners appState bitmapData = do
 
       -- Use FlatCV corner detection on the bitmap data
       detectedCorners <- withForeignPtr (castForeignPtr (bitmapPointer bitmapData)) $ \ptr -> do
-        fcvDetectCorners (castPtr ptr) rawWidth rawHeight
+        cornersPtr <-
+          detectCornersPtr (castPtr ptr) (fromIntegral rawWidth) (fromIntegral rawHeight)
+        corners <- peek cornersPtr
+        free cornersPtr
+        pure corners
 
       -- Rotate and flip detected corners to match the displayed image.
       -- FlatCV detects corners on the original un-rotated bitmap,
@@ -356,10 +362,10 @@ getInitialCorners appState bitmapData = do
 
         -- Convert FlatCV corners to the expected format
         cornersList =
-          [ (realToFrac transformedCorners.tl_x, realToFrac transformedCorners.tl_y)
-          , (realToFrac transformedCorners.tr_x, realToFrac transformedCorners.tr_y)
-          , (realToFrac transformedCorners.br_x, realToFrac transformedCorners.br_y)
-          , (realToFrac transformedCorners.bl_x, realToFrac transformedCorners.bl_y)
+          [ (realToFrac transformedCorners.tlX, realToFrac transformedCorners.tlY)
+          , (realToFrac transformedCorners.trX, realToFrac transformedCorners.trY)
+          , (realToFrac transformedCorners.brX, realToFrac transformedCorners.brY)
+          , (realToFrac transformedCorners.blX, realToFrac transformedCorners.blY)
           ]
 
       pure $
@@ -396,36 +402,36 @@ rotateDetectedCorners srcCorners srcWidth srcHeight rotation isFlipped =
       -- So we rotate corners 90° CCW to match the display
       90 ->
         let
-          (tl_x, tl_y) = rotatePoint90CCW (srcCorners.tr_x, srcCorners.tr_y)
-          (tr_x, tr_y) = rotatePoint90CCW (srcCorners.br_x, srcCorners.br_y)
-          (br_x, br_y) = rotatePoint90CCW (srcCorners.bl_x, srcCorners.bl_y)
-          (bl_x, bl_y) = rotatePoint90CCW (srcCorners.tl_x, srcCorners.tl_y)
+          (tlX, tlY) = rotatePoint90CCW (srcCorners.trX, srcCorners.trY)
+          (trX, trY) = rotatePoint90CCW (srcCorners.brX, srcCorners.brY)
+          (brX, brY) = rotatePoint90CCW (srcCorners.blX, srcCorners.blY)
+          (blX, blY) = rotatePoint90CCW (srcCorners.tlX, srcCorners.tlY)
         in
           Corners{..}
       -- rotation=-90 means image displayed with Rotate(90), i.e. 90° CCW
       -- So we rotate corners 90° CW to match the display
       -90 ->
         let
-          (tl_x, tl_y) = rotatePoint90CW (srcCorners.bl_x, srcCorners.bl_y)
-          (tr_x, tr_y) = rotatePoint90CW (srcCorners.tl_x, srcCorners.tl_y)
-          (br_x, br_y) = rotatePoint90CW (srcCorners.tr_x, srcCorners.tr_y)
-          (bl_x, bl_y) = rotatePoint90CW (srcCorners.br_x, srcCorners.br_y)
+          (tlX, tlY) = rotatePoint90CW (srcCorners.blX, srcCorners.blY)
+          (trX, trY) = rotatePoint90CW (srcCorners.tlX, srcCorners.tlY)
+          (brX, brY) = rotatePoint90CW (srcCorners.trX, srcCorners.trY)
+          (blX, blY) = rotatePoint90CW (srcCorners.brX, srcCorners.brY)
         in
           Corners{..}
       180 ->
         let
-          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
-          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
-          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
-          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+          (tlX, tlY) = rotatePoint180 (srcCorners.brX, srcCorners.brY)
+          (trX, trY) = rotatePoint180 (srcCorners.blX, srcCorners.blY)
+          (brX, brY) = rotatePoint180 (srcCorners.tlX, srcCorners.tlY)
+          (blX, blY) = rotatePoint180 (srcCorners.trX, srcCorners.trY)
         in
           Corners{..}
       -180 ->
         let
-          (tl_x, tl_y) = rotatePoint180 (srcCorners.br_x, srcCorners.br_y)
-          (tr_x, tr_y) = rotatePoint180 (srcCorners.bl_x, srcCorners.bl_y)
-          (br_x, br_y) = rotatePoint180 (srcCorners.tl_x, srcCorners.tl_y)
-          (bl_x, bl_y) = rotatePoint180 (srcCorners.tr_x, srcCorners.tr_y)
+          (tlX, tlY) = rotatePoint180 (srcCorners.brX, srcCorners.brY)
+          (trX, trY) = rotatePoint180 (srcCorners.blX, srcCorners.blY)
+          (brX, brY) = rotatePoint180 (srcCorners.tlX, srcCorners.tlY)
+          (blX, blY) = rotatePoint180 (srcCorners.trX, srcCorners.trY)
         in
           Corners{..}
       _ -> srcCorners
@@ -440,14 +446,14 @@ rotateDetectedCorners srcCorners srcWidth srcHeight rotation isFlipped =
     flipHorizontal :: Corners -> Corners
     flipHorizontal c =
       Corners
-        { tl_x = rotatedW - c.tr_x
-        , tl_y = c.tr_y
-        , tr_x = rotatedW - c.tl_x
-        , tr_y = c.tl_y
-        , br_x = rotatedW - c.bl_x
-        , br_y = c.bl_y
-        , bl_x = rotatedW - c.br_x
-        , bl_y = c.br_y
+        { tlX = rotatedW - c.trX
+        , tlY = c.trY
+        , trX = rotatedW - c.tlX
+        , trY = c.tlY
+        , brX = rotatedW - c.blX
+        , brY = c.blY
+        , blX = rotatedW - c.brX
+        , blY = c.brY
         }
   in
     if isFlipped

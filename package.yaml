@@ -9,7 +9,6 @@ copyright: Adrian Sieber
 extra-source-files:
   - readme.md
   - changelog.md
-  - cbits/flatcv.h
 
 synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
@@ -32,6 +31,7 @@ dependencies:
   - docopt
   - file-embed
   - filepath
+  - flatcv
   - hip
   - hmatrix
   - JuicyPixels
@@ -44,6 +44,7 @@ dependencies:
   - process
   - protolude
   - text
+  - vector
   - yaml
 
 default-extensions:
@@ -65,10 +66,6 @@ ghc-options:
 
 library:
   source-dirs: source
-  build-tools: c2hs
-  c-sources:
-    - cbits/flatcv.c
-  include-dirs: cbits/
 
 executables:
   perspec:

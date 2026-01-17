@@ -12,6 +12,13 @@ packages:
   original:
     hackage: docopt-0.7.0.8
 - completed:
+    hackage: flatcv-0.3.0.1@sha256:2761116d7a67e6e5cde27b798ac8fd7b0e5c19fbc745953eb06a547c5670ba15,1848
+    pantry-tree:
+      sha256: e22a96d4afe2dcfad4059643580b7e84e32ee2578376e1f3df9ef22ae05a1940
+      size: 523
+  original:
+    hackage: flatcv-0.3.0.1
+- completed:
     hackage: storable-offset-0.1.0.0@sha256:1f94d4369daea19cc27e151e90dc652b3074cc565121bb5874f5d8b9e019b3d1,952
     pantry-tree:
       sha256: 13cc443c3acabb3c1901c7e6e179b6038e05d56af3e524a7bff2f30f408e289f

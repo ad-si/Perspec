@@ -11,6 +11,7 @@ packages:
 
 extra-deps:
   - docopt-0.7.0.8
+  - flatcv-0.3.0.1
   - storable-offset-0.1.0.0
 
   - github: lehins/hip

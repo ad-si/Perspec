@@ -26,14 +26,14 @@ spec = do
       --
       selectedCorners =
         Corners
-          { tl_x = 10.0
-          , tl_y = 20.0
-          , tr_x = 100.0
-          , tr_y = 20.0
-          , br_x = 100.0
-          , br_y = 120.0
-          , bl_x = 10.0
-          , bl_y = 120.0
+          { tlX = 10.0
+          , tlY = 20.0
+          , trX = 100.0
+          , trY = 20.0
+          , brX = 100.0
+          , brY = 120.0
+          , blX = 10.0
+          , blY = 120.0
           }
 
     describe "applyRotationToCorners rotation logic" $ do
@@ -44,77 +44,77 @@ spec = do
       it "rotates corners correctly for 90 degree clockwise rotation" $ do
         applyRotationToCorners selectedCorners 200 150 90.0 False
           `shouldBe` Corners
-            { tl_x = 30.0
-            , tl_y = 10.0
-            , tr_x = 130.0
-            , tr_y = 10.0
-            , br_x = 130.0
-            , br_y = 100.0
-            , bl_x = 30.0
-            , bl_y = 100.0
+            { tlX = 30.0
+            , tlY = 10.0
+            , trX = 130.0
+            , trY = 10.0
+            , brX = 130.0
+            , brY = 100.0
+            , blX = 30.0
+            , blY = 100.0
             }
 
       it "rotates corners correctly for 180 degree clockwise rotation" $ do
         applyRotationToCorners selectedCorners 200 150 180.0 False
           `shouldBe` Corners
-            { tl_x = 100.0
-            , tl_y = 30.0
-            , tr_x = 190.0
-            , tr_y = 30.0
-            , br_x = 190.0
-            , br_y = 130.0
-            , bl_x = 100.0
-            , bl_y = 130.0
+            { tlX = 100.0
+            , tlY = 30.0
+            , trX = 190.0
+            , trY = 30.0
+            , brX = 190.0
+            , brY = 130.0
+            , blX = 100.0
+            , blY = 130.0
             }
 
       it "rotates corners correctly for 270 degree clockwise rotation" $ do
         applyRotationToCorners selectedCorners 200 150 270.0 False
           `shouldBe` Corners
-            { tl_x = 20.0
-            , tl_y = 100.0
-            , tr_x = 120.0
-            , tr_y = 100.0
-            , br_x = 120.0
-            , br_y = 190.0
-            , bl_x = 20.0
-            , bl_y = 190.0
+            { tlX = 20.0
+            , tlY = 100.0
+            , trX = 120.0
+            , trY = 100.0
+            , brX = 120.0
+            , brY = 190.0
+            , blX = 20.0
+            , blY = 190.0
             }
 
       it "rotates corners correctly for negative rotations" $ do
         applyRotationToCorners selectedCorners 200 150 (-90.0) False
           `shouldBe` Corners
-            { tl_x = 20.0
-            , tl_y = 100.0
-            , tr_x = 120.0
-            , tr_y = 100.0
-            , br_x = 120.0
-            , br_y = 190.0
-            , bl_x = 20.0
-            , bl_y = 190.0
+            { tlX = 20.0
+            , tlY = 100.0
+            , trX = 120.0
+            , trY = 100.0
+            , brX = 120.0
+            , brY = 190.0
+            , blX = 20.0
+            , blY = 190.0
             }
 
       it "works for bigger numbers" $ do
         let
           selCorners =
             Corners
-              { tl_x = 197.265625
-              , tl_y = 109.375
-              , tr_x = 892.7272338867188
-              , tr_y = 81.81817626953125
-              , br_x = 804.6875
-              , br_y = 390.625
-              , bl_x = 85.45454406738281
-              , bl_y = 300.9090881347656
+              { tlX = 197.265625
+              , tlY = 109.375
+              , trX = 892.7272338867188
+              , trY = 81.81817626953125
+              , brX = 804.6875
+              , brY = 390.625
+              , blX = 85.45454406738281
+              , blY = 300.9090881347656
               }
 
         applyRotationToCorners selCorners 1000 500 (-90.0) False
           `shouldBe` Corners
-            { tl_x = 81.81817626953125
-            , tl_y = 107.27276611328125
-            , tr_x = 390.625
-            , tr_y = 195.3125
-            , br_x = 300.9090881347656
-            , br_y = 914.5454559326172
-            , bl_x = 109.375
-            , bl_y = 802.734375
+            { tlX = 81.81817626953125
+            , tlY = 107.27276611328125
+            , trX = 390.625
+            , trY = 195.3125
+            , brX = 300.9090881347656
+            , brY = 914.5454559326172
+            , blX = 109.375
+            , blY = 802.734375
             }

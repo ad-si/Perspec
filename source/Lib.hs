@@ -125,7 +125,6 @@ import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
 import Correct (calculatePerspectiveTransform, determineOutputSize)
 import FlatCV (
   Corners (..),
-  fcvApplyMatrix3x3,
   prettyShowCorners,
   prettyShowMatrix3x3,
  )
@@ -1014,14 +1013,14 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             srcCorners :: Corners
             srcCorners =
               Corners
-                { tl_x = float2Double $ fst bl -- bl from AppState maps to tl
-                , tl_y = float2Double $ snd bl
-                , tr_x = float2Double $ fst br -- br from AppState maps to tr
-                , tr_y = float2Double $ snd br
-                , br_x = float2Double $ fst tr -- tr from AppState maps to br
-                , br_y = float2Double $ snd tr
-                , bl_x = float2Double $ fst tl -- tl from AppState maps to bl
-                , bl_y = float2Double $ snd tl
+                { tlX = float2Double $ fst bl -- bl from AppState maps to tl
+                , tlY = float2Double $ snd bl
+                , trX = float2Double $ fst br -- br from AppState maps to tr
+                , trY = float2Double $ snd br
+                , brX = float2Double $ fst tr -- tr from AppState maps to br
+                , brY = float2Double $ snd tr
+                , blX = float2Double $ fst tl -- tl from AppState maps to bl
+                , blY = float2Double $ snd tl
                 }
 
             -- Target rectangle in origin top-left coordinate system.
@@ -1031,47 +1030,47 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
               case P.round rotation `P.mod` 360 :: Int of
                 90 ->
                   Corners
-                    { tl_x = 0
-                    , tl_y = int2Double height
-                    , tr_x = 0
-                    , tr_y = 0
-                    , br_x = int2Double width
-                    , br_y = 0
-                    , bl_x = int2Double width
-                    , bl_y = int2Double height
+                    { tlX = 0
+                    , tlY = int2Double height
+                    , trX = 0
+                    , trY = 0
+                    , brX = int2Double width
+                    , brY = 0
+                    , blX = int2Double width
+                    , blY = int2Double height
                     }
                 180 ->
                   Corners
-                    { tl_x = int2Double width
-                    , tl_y = int2Double height
-                    , tr_x = 0
-                    , tr_y = int2Double height
-                    , br_x = 0
-                    , br_y = 0
-                    , bl_x = int2Double width
-                    , bl_y = 0
+                    { tlX = int2Double width
+                    , tlY = int2Double height
+                    , trX = 0
+                    , trY = int2Double height
+                    , brX = 0
+                    , brY = 0
+                    , blX = int2Double width
+                    , blY = 0
                     }
                 270 ->
                   Corners
-                    { tl_x = int2Double width
-                    , tl_y = 0
-                    , tr_x = int2Double width
-                    , tr_y = int2Double height
-                    , br_x = 0
-                    , br_y = int2Double height
-                    , bl_x = 0
-                    , bl_y = 0
+                    { tlX = int2Double width
+                    , tlY = 0
+                    , trX = int2Double width
+                    , trY = int2Double height
+                    , brX = 0
+                    , brY = int2Double height
+                    , blX = 0
+                    , blY = 0
                     }
                 _ ->
                   Corners
-                    { tl_x = 0
-                    , tl_y = 0
-                    , tr_x = int2Double width
-                    , tr_y = 0
-                    , br_x = int2Double width
-                    , br_y = int2Double height
-                    , bl_x = 0
-                    , bl_y = int2Double height
+                    { tlX = 0
+                    , tlY = 0
+                    , trX = int2Double width
+                    , trY = 0
+                    , brX = int2Double width
+                    , brY = int2Double height
+                    , blX = 0
+                    , blY = int2Double height
                     }
 
             rawWidth = P.fst bitmapData.bitmapSize
@@ -1085,40 +1084,39 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
               applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped
 
           putText "\nOriginal Source Corners:"
-          putText $ prettyShowCorners srcCorners
+          P.putStrLn $ prettyShowCorners srcCorners
 
           putText "\nDestination Corners:"
-          putText $ dstCorners & prettyShowCorners & T.replace ".0" ""
+          putText $ toS (prettyShowCorners dstCorners) & T.replace ".0" ""
 
           putText $ "\nEXIF Rotation: " <> show rotation
 
           putText "\nAdjusted Source Corners:"
-          putText $ prettyShowCorners adjustedSrcCorners
+          P.putStrLn $ prettyShowCorners adjustedSrcCorners
 
           srcCornersPtr <- new adjustedSrcCorners
           dstCornersPtr <- new dstCorners
-          transMatPtr <-
-            FCV.fcvCalculatePerspectiveTransform dstCornersPtr srcCornersPtr
+          transMatPtr <- FCV.calculatePerspectiveTransformPtr dstCornersPtr srcCornersPtr
           free srcCornersPtr
           free dstCornersPtr
           transMat <- peek transMatPtr
 
           putText "\nTransformation Matrix:"
-          putText $ prettyShowMatrix3x3 transMat
+          P.putStrLn $ prettyShowMatrix3x3 transMat
+
+          let pngOutPath = replaceExtension outPath "png"
 
           withForeignPtr (castForeignPtr bitmapData.bitmapPointer) $ \ptr -> do
             resultImg <-
-              fcvApplyMatrix3x3
-                rawWidth
-                rawHeight
+              FCV.applyMatrix3x3Ptr
+                (fromIntegral rawWidth)
+                (fromIntegral rawHeight)
                 ptr
-                width
-                height
+                (fromIntegral width)
+                (fromIntegral height)
                 transMatPtr
             resultImgForeignPtr <- newForeignPtr_ (castPtr resultImg)
             free transMatPtr
-
-            let pngOutPath = replaceExtension outPath "png"
 
             case exportMode of
               UnmodifiedExport -> do
@@ -1126,19 +1124,22 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 savePngImage pngOutPath (ImageRGBA8 img)
               --
               GrayscaleExport -> do
-                grayImgPtr <- FCV.fcvGrayscaleStretch width height resultImg
+                grayImgPtr <-
+                  FCV.grayscaleStretchPtr (fromIntegral width) (fromIntegral height) resultImg
                 grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
                 let grayImg = imageFromUnsafePtr width height grayImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 grayImg)
               --
               BlackWhiteExport -> do
-                bwImgPtr <- FCV.fcvBwSmart width height False resultImg
+                bwImgPtr <-
+                  FCV.bwSmartPtr (fromIntegral width) (fromIntegral height) False resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
               --
               BlackWhiteSmoothExport -> do
-                bwImgPtr <- FCV.fcvBwSmart width height True resultImg
+                bwImgPtr <-
+                  FCV.bwSmartPtr (fromIntegral width) (fromIntegral height) True resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
