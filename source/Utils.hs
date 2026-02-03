@@ -59,6 +59,7 @@ import System.Info (os)
 import FlatCV (Corners (..), detectCornersPtr)
 import Foreign.Marshal.Alloc (free)
 import Foreign.Storable (peek)
+import PngExif (getExifOrientationFromPng)
 import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
@@ -187,9 +188,10 @@ calculateSizes appState =
           }
 
 
--- | Rotation angle in degrees and horizontal flip of each EXIF orientation.
--- The rotation value represents how many degrees clockwise the image needs
--- to be rotated to display correctly (used with `Rotate rotation`).
+{-| Rotation angle in degrees and horizontal flip of each EXIF orientation.
+The rotation value represents how many degrees clockwise the image needs
+to be rotated to display correctly (used with `Rotate rotation`).
+-}
 imgOrientToRotAndFlip :: ExifData -> (Float, Bool)
 imgOrientToRotAndFlip = \case
   ExifShort 1 -> (0, False)
@@ -214,36 +216,41 @@ applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped =
     w = int2Double srcWidth
     h = int2Double srcHeight
 
+    -- Inverse of 90° CW rotation (EXIF 6)
+    -- Forward: raw (x,y) → displayed (rawHeight - 1 - y, x)
+    -- Inverse: displayed (x,y) → raw (y, rawHeight - 1 - x) = (y, w - 1 - x)
+    -- Note: w = srcWidth = rawHeight (displayed width)
     rotatePoint90 :: (Double, Double) -> (Double, Double)
-    rotatePoint90 (x, y) = (h - y, x)
+    rotatePoint90 (x, y) = (y, w - 1 - x)
 
     rotatePoint180 :: (Double, Double) -> (Double, Double)
-    rotatePoint180 (x, y) = (w - x, h - y)
+    rotatePoint180 (x, y) = (w - 1 - x, h - 1 - y)
 
+    -- Inverse of 90° CCW rotation (EXIF 8)
+    -- Forward: raw (x,y) → displayed (y, rawWidth - 1 - x)
+    -- Inverse: displayed (x,y) → raw (rawWidth - 1 - y, x) = (h - 1 - y, x)
+    -- Note: h = srcHeight = rawWidth (displayed height)
     rotatePoint270 :: (Double, Double) -> (Double, Double)
-    rotatePoint270 (x, y) = (y, w - x)
+    rotatePoint270 (x, y) = (h - 1 - y, x)
 
-    -- Get the width of the displayed (rotated) image for flip calculation
-    displayW = case P.round rotation :: Int of
-      90 -> h
-      -90 -> h
-      -270 -> h
-      270 -> h
-      _ -> w
+    -- Get the width of the displayed (rotated) image for flip calculation.
+    -- srcWidth/srcHeight are already swapped for 90°/-90° rotations when passed in,
+    -- so displayW is always just w (srcWidth = displayed width).
+    displayW = w
 
-    -- Horizontal flip: mirror x coordinates, swap left/right corners
+    -- Horizontal flip: mirror x coordinates only (don't swap corners)
     -- This is applied first (inverse order of display transformation)
     flipHorizontal :: Corners -> Corners
     flipHorizontal c =
       Corners
-        { tlX = displayW - c.trX
-        , tlY = c.trY
-        , trX = displayW - c.tlX
-        , trY = c.tlY
-        , brX = displayW - c.blX
-        , brY = c.blY
-        , blX = displayW - c.brX
-        , blY = c.brY
+        { tlX = displayW - 1 - c.tlX
+        , tlY = c.tlY
+        , trX = displayW - 1 - c.trX
+        , trY = c.trY
+        , brX = displayW - 1 - c.brX
+        , brY = c.brY
+        , blX = displayW - 1 - c.blX
+        , blY = c.blY
         }
 
     -- If flipped, unflip first before rotating back
@@ -255,34 +262,36 @@ applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped =
     case P.round rotation :: Int of
       90 ->
         let
-          (tlX, tlY) = rotatePoint90 (unflippedCorners.blX, unflippedCorners.blY)
-          (trX, trY) = rotatePoint90 (unflippedCorners.tlX, unflippedCorners.tlY)
-          (brX, brY) = rotatePoint90 (unflippedCorners.trX, unflippedCorners.trY)
-          (blX, blY) = rotatePoint90 (unflippedCorners.brX, unflippedCorners.brY)
+          -- Inverse of 90° CW: Displayed TL→Raw BL, TR→TL, BR→TR, BL→BR
+          (blX, blY) = rotatePoint90 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (tlX, tlY) = rotatePoint90 (unflippedCorners.trX, unflippedCorners.trY)
+          (trX, trY) = rotatePoint90 (unflippedCorners.brX, unflippedCorners.brY)
+          (brX, brY) = rotatePoint90 (unflippedCorners.blX, unflippedCorners.blY)
         in
           Corners{..}
       -270 ->
         let
-          (tlX, tlY) = rotatePoint90 (unflippedCorners.blX, unflippedCorners.blY)
-          (trX, trY) = rotatePoint90 (unflippedCorners.tlX, unflippedCorners.tlY)
-          (brX, brY) = rotatePoint90 (unflippedCorners.trX, unflippedCorners.trY)
-          (blX, blY) = rotatePoint90 (unflippedCorners.brX, unflippedCorners.brY)
+          (blX, blY) = rotatePoint90 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (tlX, tlY) = rotatePoint90 (unflippedCorners.trX, unflippedCorners.trY)
+          (trX, trY) = rotatePoint90 (unflippedCorners.brX, unflippedCorners.brY)
+          (brX, brY) = rotatePoint90 (unflippedCorners.blX, unflippedCorners.blY)
         in
           Corners{..}
       -90 ->
         let
-          (tlX, tlY) = rotatePoint270 (unflippedCorners.trX, unflippedCorners.trY)
-          (trX, trY) = rotatePoint270 (unflippedCorners.brX, unflippedCorners.brY)
-          (brX, brY) = rotatePoint270 (unflippedCorners.blX, unflippedCorners.blY)
-          (blX, blY) = rotatePoint270 (unflippedCorners.tlX, unflippedCorners.tlY)
+          -- Inverse of 90° CCW: Displayed TL→Raw TR, TR→BR, BR→BL, BL→TL
+          (trX, trY) = rotatePoint270 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (brX, brY) = rotatePoint270 (unflippedCorners.trX, unflippedCorners.trY)
+          (blX, blY) = rotatePoint270 (unflippedCorners.brX, unflippedCorners.brY)
+          (tlX, tlY) = rotatePoint270 (unflippedCorners.blX, unflippedCorners.blY)
         in
           Corners{..}
       270 ->
         let
-          (tlX, tlY) = rotatePoint270 (unflippedCorners.trX, unflippedCorners.trY)
-          (trX, trY) = rotatePoint270 (unflippedCorners.brX, unflippedCorners.brY)
-          (brX, brY) = rotatePoint270 (unflippedCorners.blX, unflippedCorners.blY)
-          (blX, blY) = rotatePoint270 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (trX, trY) = rotatePoint270 (unflippedCorners.tlX, unflippedCorners.tlY)
+          (brX, brY) = rotatePoint270 (unflippedCorners.trX, unflippedCorners.trY)
+          (blX, blY) = rotatePoint270 (unflippedCorners.brX, unflippedCorners.brY)
+          (tlX, tlY) = rotatePoint270 (unflippedCorners.blX, unflippedCorners.blY)
         in
           Corners{..}
       180 ->
@@ -493,9 +502,15 @@ loadFileIntoState appState = do
               putText error
               pure appState
             Right (picture@(Bitmap bitmapData), metadata) -> do
+              -- Try JuicyPixels metadata first, fall back to PNG eXIf chunk parsing
+              let juicyOrientation = lookup (Exif TagOrientation) metadata
+              orientationData <- case juicyOrientation of
+                Just _ -> pure juicyOrientation
+                Nothing -> getExifOrientationFromPng filePath
+
               let
                 (rotation, isFlipped) =
-                  lookup (Exif TagOrientation) metadata
+                  orientationData
                     <&> imgOrientToRotAndFlip
                     & fromMaybe (0, False)
                 sizeTuple = bitmapSize bitmapData

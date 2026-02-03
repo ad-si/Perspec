@@ -3,7 +3,6 @@ import Test.Hspec (
   expectationFailure,
   hspec,
   it,
-  pendingWith,
   shouldBe,
   shouldContain,
   shouldSatisfy,
@@ -33,7 +32,9 @@ import Brillo (
  )
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
+import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
 import FlatCV (otsuThresholdPtr)
+import PngExif (getExifOrientationFromPng)
 import Rename (getRenamingBatches)
 import Types (
   RenameMode (Even, Odd, Sequential),
@@ -63,16 +64,16 @@ main = hspec $ do
           _ -> expectationFailure "File should have been loaded"
 
       it "Applies EXIF rotation to PNGs" $ do
+        -- Test that our PngExif module can extract orientation from PNG eXIf chunk
+        -- (JuicyPixels doesn't support this: https://github.com/Twinside/Juicy.Pixels/issues/204)
+        orientation <- getExifOrientationFromPng "images/rotated.png"
+        orientation `shouldBe` Just (ExifShort 6)
+
+        -- Also verify the image loads correctly
         pictureMetadataEither <- loadImage "images/rotated.png"
-
         case pictureMetadataEither of
-          Right (Bitmap bitmapData {- metadata -}, _) -> do
+          Right (Bitmap bitmapData, _) -> do
             bitmapSize bitmapData `shouldBe` (1800, 1280)
-
-            pendingWith "Needs to be implemented upstream in Juicy.Pixels first"
-          -- https://github.com/Twinside/Juicy.Pixels/issues/204
-          -- or in hsexif: https://github.com/emmanueltouzery/hsexif/issues/19
-
           _ -> expectationFailure "File should have been loaded"
 
       it "converts an RGBA image to binary" $ do

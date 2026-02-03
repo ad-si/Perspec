@@ -105,8 +105,6 @@ import Codec.Picture (
   imageFromUnsafePtr,
   savePngImage,
  )
-import Codec.Picture.Metadata (Keys (Exif), lookup)
-import Codec.Picture.Metadata.Exif (ExifTag (..))
 import Graphics.Image (
   Alpha,
   Bilinear (Bilinear),
@@ -150,7 +148,6 @@ import Utils (
   calculateSizes,
   getCorners,
   getTextPicture,
-  imgOrientToRotAndFlip,
   loadFileIntoState,
   loadImage,
   prettyPrintArray,
@@ -662,6 +659,8 @@ performExport appState exportMode = do
         projectionMapNorm
         exportMode
         convertArgs
+        image.rotation
+        image.isFlipped
 
       if P.null otherImages
         then exitSuccess
@@ -849,8 +848,10 @@ correctAndWrite ::
   ProjMap ->
   ExportMode ->
   [Text] ->
+  Float ->
+  Bool ->
   IO ()
-correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args = do
+correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args rotation isFlipped = do
   currentDir <- getCurrentDirectory
 
   case transformBackend of
@@ -999,13 +1000,13 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
               -- so we map: bl->tl, br->tr, tr->br, tl->bl.
               V4 (toV2 bl) (toV2 br) (toV2 tr) (toV2 tl)
 
-            -- Extract EXIF rotation and flip
-            (rotation, isFlipped) =
-              P.maybe (0, False) imgOrientToRotAndFlip $
-                lookup (Exif TagOrientation) metadatas
-
-            Sz (height :. width) =
+            Sz (docHeight :. docWidth) =
               determineOutputSize cornersClockwiseFromTopLeft
+
+            -- Output dimensions: the document appears with docWidth × docHeight
+            -- in the displayed image. The output should preserve this aspect ratio.
+            -- No swap needed - the destination corner rotation handles orientation.
+            (outWidth, outHeight) = (docWidth, docHeight)
 
             -- Map AppState corner variables to logical coordinate positions
             -- AppState.corners are stored in reverse order,
@@ -1023,55 +1024,117 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 , blY = float2Double $ snd tl
                 }
 
-            -- Target rectangle in origin top-left coordinate system.
-            -- For a 90 degree rotation, the corners will are shifted clockwise.
+            -- Target rectangle for perspective transform.
+            -- The output image is outWidth × outHeight.
+            -- We need to rotate the destination corners to compensate for EXIF rotation
+            -- so that the content appears upright in the output.
+            --
+            -- The perspective transform maps: for each output pixel (x,y), find source pixel.
+            -- dstCorners defines where in output space each source corner maps to.
+            -- So dstCorners.TL is where adjustedSrcCorners.TL content appears in output.
+            --
+            -- For EXIF 6 (90° CW display): displayed TL should be at output TL.
+            -- adjustedSrcCorners.TL = raw position of displayed TL.
+            -- We want this to appear at output (0,0), so dstCorners.TL = (0,0).
+            --
+            -- But wait - the raw content is rotated. If we just use an upright rectangle,
+            -- the content comes out rotated. We need to rotate the dst rectangle so
+            -- the sampling happens in the correct orientation.
             dstCorners :: Corners
             dstCorners =
-              case P.round rotation `P.mod` 360 :: Int of
-                90 ->
-                  Corners
-                    { tlX = 0
-                    , tlY = int2Double height
-                    , trX = 0
-                    , trY = 0
-                    , brX = int2Double width
-                    , brY = 0
-                    , blX = int2Double width
-                    , blY = int2Double height
-                    }
-                180 ->
-                  Corners
-                    { tlX = int2Double width
-                    , tlY = int2Double height
-                    , trX = 0
-                    , trY = int2Double height
-                    , brX = 0
-                    , brY = 0
-                    , blX = int2Double width
-                    , blY = 0
-                    }
-                270 ->
-                  Corners
-                    { tlX = int2Double width
-                    , tlY = 0
-                    , trX = int2Double width
-                    , trY = int2Double height
-                    , brX = 0
-                    , brY = int2Double height
-                    , blX = 0
-                    , blY = 0
-                    }
-                _ ->
-                  Corners
-                    { tlX = 0
-                    , tlY = 0
-                    , trX = int2Double width
-                    , trY = 0
-                    , brX = int2Double width
-                    , brY = int2Double height
-                    , blX = 0
-                    , blY = int2Double height
-                    }
+              let
+                ow = int2Double outWidth
+                oh = int2Double outHeight
+              in
+                case P.round rotation :: Int of
+                  90 ->
+                    -- For 90° CW display rotation (EXIF 6):
+                    -- The adjustedSrcCorners map displayed corners to raw positions.
+                    -- We need dst corners that produce upright content.
+                    -- Rotate dst 90° CCW so content rotates 90° CW in output.
+                    Corners
+                      { tlX = ow
+                      , tlY = 0
+                      , trX = ow
+                      , trY = oh
+                      , brX = 0
+                      , brY = oh
+                      , blX = 0
+                      , blY = 0
+                      }
+                  -90 ->
+                    -- For 90° CCW display rotation (EXIF 8):
+                    -- Rotate dst 90° CW so content rotates 90° CCW in output.
+                    Corners
+                      { tlX = 0
+                      , tlY = oh
+                      , trX = 0
+                      , trY = 0
+                      , brX = ow
+                      , brY = 0
+                      , blX = ow
+                      , blY = oh
+                      }
+                  270 ->
+                    -- Same as -90°
+                    Corners
+                      { tlX = 0
+                      , tlY = oh
+                      , trX = 0
+                      , trY = 0
+                      , brX = ow
+                      , brY = 0
+                      , blX = ow
+                      , blY = oh
+                      }
+                  -270 ->
+                    -- Same as 90°
+                    Corners
+                      { tlX = ow
+                      , tlY = 0
+                      , trX = ow
+                      , trY = oh
+                      , brX = 0
+                      , brY = oh
+                      , blX = 0
+                      , blY = 0
+                      }
+                  180 ->
+                    -- Rotate destination 180°
+                    Corners
+                      { tlX = ow
+                      , tlY = oh
+                      , trX = 0
+                      , trY = oh
+                      , brX = 0
+                      , brY = 0
+                      , blX = ow
+                      , blY = 0
+                      }
+                  -180 ->
+                    -- Same as 180°
+                    Corners
+                      { tlX = ow
+                      , tlY = oh
+                      , trX = 0
+                      , trY = oh
+                      , brX = 0
+                      , brY = 0
+                      , blX = ow
+                      , blY = 0
+                      }
+                  _ ->
+                    -- No rotation - standard upright rectangle
+                    Corners
+                      { tlX = 0
+                      , tlY = 0
+                      , trX = ow
+                      , trY = 0
+                      , brX = ow
+                      , brY = oh
+                      , blX = 0
+                      , blY = oh
+                      }
 
             rawWidth = P.fst bitmapData.bitmapSize
             rawHeight = P.snd bitmapData.bitmapSize
@@ -1112,36 +1175,39 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 (fromIntegral rawWidth)
                 (fromIntegral rawHeight)
                 ptr
-                (fromIntegral width)
-                (fromIntegral height)
+                (fromIntegral outWidth)
+                (fromIntegral outHeight)
                 transMatPtr
             resultImgForeignPtr <- newForeignPtr_ (castPtr resultImg)
             free transMatPtr
 
             case exportMode of
               UnmodifiedExport -> do
-                let img = imageFromUnsafePtr width height resultImgForeignPtr
+                let img = imageFromUnsafePtr outWidth outHeight resultImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 img)
               --
               GrayscaleExport -> do
                 grayImgPtr <-
-                  FCV.grayscaleStretchPtr (fromIntegral width) (fromIntegral height) resultImg
+                  FCV.grayscaleStretchPtr
+                    (fromIntegral outWidth)
+                    (fromIntegral outHeight)
+                    resultImg
                 grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
-                let grayImg = imageFromUnsafePtr width height grayImgForeignPtr
+                let grayImg = imageFromUnsafePtr outWidth outHeight grayImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 grayImg)
               --
               BlackWhiteExport -> do
                 bwImgPtr <-
-                  FCV.bwSmartPtr (fromIntegral width) (fromIntegral height) False resultImg
+                  FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) False resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
-                let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
+                let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
               --
               BlackWhiteSmoothExport -> do
                 bwImgPtr <-
-                  FCV.bwSmartPtr (fromIntegral width) (fromIntegral height) True resultImg
+                  FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) True resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
-                let bwImg = imageFromUnsafePtr width height bwImgForeignPtr
+                let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
                 savePngImage pngOutPath (ImageRGBA8 bwImg)
 
             putText "\n✅ Wrote file to:"
