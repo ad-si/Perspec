@@ -187,7 +187,9 @@ calculateSizes appState =
           }
 
 
--- | Rotation angle in degrees and horizontal flip of each EXIF orientation
+-- | Rotation angle in degrees and horizontal flip of each EXIF orientation.
+-- The rotation value represents how many degrees clockwise the image needs
+-- to be rotated to display correctly (used with `Rotate rotation`).
 imgOrientToRotAndFlip :: ExifData -> (Float, Bool)
 imgOrientToRotAndFlip = \case
   ExifShort 1 -> (0, False)
@@ -195,9 +197,9 @@ imgOrientToRotAndFlip = \case
   ExifShort 3 -> (180, False)
   ExifShort 4 -> (180, True) -- Vertical flip = 180° + horizontal flip
   ExifShort 5 -> (90, True) -- Transpose = 90° CW + horizontal flip
-  ExifShort 6 -> (-90, False) -- Rotate 90° CW
-  ExifShort 7 -> (-90, True) -- Transverse = 90° CW + horizontal flip
-  ExifShort 8 -> (90, False) -- Rotate 90° CCW (270° CW)
+  ExifShort 6 -> (90, False) -- Rotate 90° CW
+  ExifShort 7 -> (-90, True) -- Transverse = 90° CCW + horizontal flip
+  ExifShort 8 -> (-90, False) -- Rotate 90° CCW (270° CW)
   _ -> (0, False)
 
 
@@ -385,37 +387,41 @@ rotateDetectedCorners srcCorners srcWidth srcHeight rotation isFlipped =
     w = int2Double srcWidth
     h = int2Double srcHeight
 
-    -- Rotate point 90° counter-clockwise (for -90° image rotation / EXIF 6)
+    -- Rotate point 90° counter-clockwise (for -90° / EXIF 8)
+    -- Original (W x H) becomes (H x W) after rotation
+    -- Formula: (x, y) → (y, W - 1 - x) to keep within bounds
     rotatePoint90CCW :: (Double, Double) -> (Double, Double)
-    rotatePoint90CCW (x, y) = (y, w - x)
+    rotatePoint90CCW (x, y) = (y, w - 1 - x)
 
-    -- Rotate point 90° clockwise (for 90° image rotation / EXIF 8)
+    -- Rotate point 90° clockwise (for 90° / EXIF 6)
+    -- Original (W x H) becomes (H x W) after rotation
+    -- Formula: (x, y) → (H - 1 - y, x) to keep within bounds
     rotatePoint90CW :: (Double, Double) -> (Double, Double)
-    rotatePoint90CW (x, y) = (h - y, x)
+    rotatePoint90CW (x, y) = (h - 1 - y, x)
 
     rotatePoint180 :: (Double, Double) -> (Double, Double)
     rotatePoint180 (x, y) = (w - x, h - y)
 
     -- First apply rotation
     rotatedCorners = case P.round rotation :: Int of
-      -- rotation=90 means image displayed with Rotate(-90), i.e. 90° CW
-      -- So we rotate corners 90° CCW to match the display
-      90 ->
-        let
-          (tlX, tlY) = rotatePoint90CCW (srcCorners.trX, srcCorners.trY)
-          (trX, trY) = rotatePoint90CCW (srcCorners.brX, srcCorners.brY)
-          (brX, brY) = rotatePoint90CCW (srcCorners.blX, srcCorners.blY)
-          (blX, blY) = rotatePoint90CCW (srcCorners.tlX, srcCorners.tlY)
-        in
-          Corners{..}
-      -- rotation=-90 means image displayed with Rotate(90), i.e. 90° CCW
+      -- rotation=90 means image displayed with Rotate(90), i.e. 90° CW (EXIF 6)
       -- So we rotate corners 90° CW to match the display
-      -90 ->
+      90 ->
         let
           (tlX, tlY) = rotatePoint90CW (srcCorners.blX, srcCorners.blY)
           (trX, trY) = rotatePoint90CW (srcCorners.tlX, srcCorners.tlY)
           (brX, brY) = rotatePoint90CW (srcCorners.trX, srcCorners.trY)
           (blX, blY) = rotatePoint90CW (srcCorners.brX, srcCorners.brY)
+        in
+          Corners{..}
+      -- rotation=-90 means image displayed with Rotate(-90), i.e. 90° CCW (EXIF 8)
+      -- So we rotate corners 90° CCW to match the display
+      -90 ->
+        let
+          (tlX, tlY) = rotatePoint90CCW (srcCorners.trX, srcCorners.trY)
+          (trX, trY) = rotatePoint90CCW (srcCorners.brX, srcCorners.brY)
+          (brX, brY) = rotatePoint90CCW (srcCorners.blX, srcCorners.blY)
+          (blX, blY) = rotatePoint90CCW (srcCorners.tlX, srcCorners.tlY)
         in
           Corners{..}
       180 ->
@@ -436,25 +442,34 @@ rotateDetectedCorners srcCorners srcWidth srcHeight rotation isFlipped =
           Corners{..}
       _ -> srcCorners
 
-    -- Get the width of the rotated image for flip calculation
-    rotatedW = case P.round rotation :: Int of
-      90 -> h
-      -90 -> h
-      _ -> w
+    -- Get the dimensions of the displayed (rotated) image for flip calculation.
+    -- After 90° or -90° rotation, width and height are swapped.
+    (displayW, _displayH) = case P.round rotation :: Int of
+      90 -> (h, w)
+      -90 -> (h, w)
+      _ -> (w, h)
 
-    -- Horizontal flip: mirror x coordinates, swap left/right corners
+    -- Horizontal flip: mirror x coordinates across the center of the displayed image.
+    -- For a horizontal flip, left and right swap positions:
+    -- TL ↔ TR, BL ↔ BR (swapping x coordinates)
     flipHorizontal :: Corners -> Corners
     flipHorizontal c =
-      Corners
-        { tlX = rotatedW - c.trX
-        , tlY = c.trY
-        , trX = rotatedW - c.tlX
-        , trY = c.tlY
-        , brX = rotatedW - c.blX
-        , brY = c.blY
-        , blX = rotatedW - c.brX
-        , blY = c.brY
-        }
+      let
+        newTlX = displayW - 1 - c.trX
+        newTrX = displayW - 1 - c.tlX
+        newBrX = displayW - 1 - c.blX
+        newBlX = displayW - 1 - c.brX
+      in
+        Corners
+          { tlX = newTlX
+          , tlY = c.trY
+          , trX = newTrX
+          , trY = c.tlY
+          , brX = newBrX
+          , brY = c.blY
+          , blX = newBlX
+          , blY = c.brY
+          }
   in
     if isFlipped
       then flipHorizontal rotatedCorners
@@ -489,7 +504,7 @@ loadFileIntoState appState = do
                   -90 -> swap sizeTuple
                   _ -> sizeTuple
                 -- Apply rotation first, then flip horizontally if needed
-                rotatedPic = Rotate (-rotation) picture
+                rotatedPic = Rotate rotation picture
                 finalPic =
                   if isFlipped
                     then Scale (-1) 1 rotatedPic
