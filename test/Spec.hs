@@ -13,11 +13,14 @@ import Protolude (
   Either (Left, Right),
   IO,
   Maybe (Just, Nothing),
+  Semigroup ((<>)),
   pure,
   show,
   ($),
   (&&),
   (==),
+  (>),
+  (||),
  )
 import Protolude qualified as P
 
@@ -32,9 +35,18 @@ import Brillo (
  )
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
+import Codec.Picture (DynamicImage (ImageRGBA8), PixelRGBA8 (..), generateImage)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BL
 import FlatCV (otsuThresholdPtr)
-import PngExif (getExifOrientationFromPng)
+import PngExif (
+  extractExifBytesFromFile,
+  extractExifBytesFromPng,
+  extractExifFromPng,
+  getExifOrientationFromPng,
+  writePngWithExif,
+ )
 import Rename (getRenamingBatches)
 import Types (
   RenameMode (Even, Odd, Sequential),
@@ -75,6 +87,47 @@ main = hspec $ do
           Right (Bitmap bitmapData, _) -> do
             bitmapSize bitmapData `shouldBe` (1800, 1280)
           _ -> expectationFailure "File should have been loaded"
+
+      it "extracts raw EXIF bytes from JPEG files" $ do
+        exifBytes <- extractExifBytesFromFile "images/doc_rotated.jpg"
+        case exifBytes of
+          Just bytes -> do
+            -- EXIF data should start with byte order marker "MM" (big-endian) or "II" (little-endian)
+            let firstTwoBytes = BS.take 2 bytes
+            (firstTwoBytes == "MM" || firstTwoBytes == "II") `shouldBe` True
+            -- Should have reasonable size (at least TIFF header + some IFD entries)
+            BS.length bytes `shouldSatisfy` (> 8)
+          Nothing -> expectationFailure "Should have extracted EXIF bytes from JPEG"
+
+      it "extracts raw EXIF bytes from PNG eXIf chunk" $ do
+        exifBytes <- extractExifBytesFromFile "images/rotated.png"
+        case exifBytes of
+          Just bytes -> do
+            -- EXIF data should start with byte order marker
+            let firstTwoBytes = BS.take 2 bytes
+            (firstTwoBytes == "MM" || firstTwoBytes == "II") `shouldBe` True
+          Nothing -> expectationFailure "Should have extracted EXIF bytes from PNG"
+
+      it "preserves EXIF data when writing PNG with eXIf chunk" $ do
+        -- Extract EXIF from source JPEG
+        exifBytes <- extractExifBytesFromFile "images/doc_rotated.jpg"
+        exifBytes `shouldSatisfy` P.isJust
+
+        -- Create a simple test image
+        let testImage = ImageRGBA8 $ generateImage (\_ _ -> PixelRGBA8 255 0 0 255) 10 10
+
+        -- Write PNG with EXIF
+        case writePngWithExif exifBytes testImage of
+          Left err -> expectationFailure $ "Failed to write PNG: " <> err
+          Right pngBytes -> do
+            -- Read back the EXIF from the generated PNG
+            let pngStrict = BL.toStrict pngBytes
+            let extractedExif = extractExifBytesFromPng pngStrict
+            extractedExif `shouldBe` exifBytes
+
+            -- Verify we can parse orientation from the written PNG
+            let orientation = extractExifFromPng pngStrict
+            orientation `shouldBe` Just (ExifShort 6)
 
       it "converts an RGBA image to binary" $ do
         pictureMetadataEither <- loadImage "./images/doc.jpg"

@@ -104,7 +104,6 @@ import Codec.BMP (parseBMP)
 import Codec.Picture (
   DynamicImage (ImageRGBA8),
   imageFromUnsafePtr,
-  savePngImage,
  )
 import Graphics.Image (
   Alpha,
@@ -120,6 +119,7 @@ import Graphics.Image (
   writeImage,
  )
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
+import PngExif (extractExifBytesFromFile, savePngWithExif)
 
 import Correct (calculatePerspectiveTransform, determineOutputSize)
 import FlatCV (
@@ -1204,6 +1204,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
     FlatCVBackend -> do
       P.putText "ℹ️ Use FlatCV backend"
       pictureMetadataEither <- loadImage inPath
+      exifBytes <- extractExifBytesFromFile inPath
       case pictureMetadataEither of
         Left error -> do
           P.putText error
@@ -1405,10 +1406,12 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             resultImgForeignPtr <- newForeignPtr_ (castPtr resultImg)
             free transMatPtr
 
+            let saveWithExif img = void $ savePngWithExif exifBytes (ImageRGBA8 img) pngOutPath
+
             case exportMode of
               UnmodifiedExport -> do
                 let img = imageFromUnsafePtr outWidth outHeight resultImgForeignPtr
-                savePngImage pngOutPath (ImageRGBA8 img)
+                saveWithExif img
               --
               GrayscaleExport -> do
                 grayImgPtr <-
@@ -1418,21 +1421,21 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                     resultImg
                 grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
                 let grayImg = imageFromUnsafePtr outWidth outHeight grayImgForeignPtr
-                savePngImage pngOutPath (ImageRGBA8 grayImg)
+                saveWithExif grayImg
               --
               BlackWhiteExport -> do
                 bwImgPtr <-
                   FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) False resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
-                savePngImage pngOutPath (ImageRGBA8 bwImg)
+                saveWithExif bwImg
               --
               BlackWhiteSmoothExport -> do
                 bwImgPtr <-
                   FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) True resultImg
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
-                savePngImage pngOutPath (ImageRGBA8 bwImg)
+                saveWithExif bwImg
 
             putText "\n✅ Wrote file to:"
             P.putStrLn pngOutPath
