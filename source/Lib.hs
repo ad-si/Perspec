@@ -71,6 +71,7 @@ import Brillo (
   Picture (
     Bitmap,
     Pictures,
+    Rotate,
     Scale,
     ThickArc,
     ThickCircle,
@@ -134,6 +135,7 @@ import Types (
   ConversionMode (CallConversion, SpawnConversion),
   Corner,
   CornersTup,
+  EdgeIndex (..),
   ExportMode (..),
   ImageData (..),
   ProjMap,
@@ -292,6 +294,198 @@ gridLineThickness :: Float
 gridLineThickness = 2
 
 
+-- | Width of edge handle pill shapes
+edgeHandleWidth :: Float
+edgeHandleWidth = 30
+
+
+-- | Height of edge handle pill shapes
+edgeHandleHeight :: Float
+edgeHandleHeight = 10
+
+
+-- | Number of segments for each semicircle end of the pill shape
+pillSegments :: Int
+pillSegments = 16
+
+
+{-| Draw a handle at the midpoint of an edge
+The pill shape is drawn as a filled polygon to avoid line self-intersection
+-}
+drawEdgeHandle :: Gl.Color -> Float -> Point -> Picture
+drawEdgeHandle handleColor rotationAngle (x, y) =
+  let
+    hw = edgeHandleWidth / 2
+    hh = edgeHandleHeight / 2
+    radius = hh -- The radius of the semicircles equals half the height
+    straightLength = hw - radius -- Length of straight sections
+    -- Generate arc points including endpoints
+    arcPoints :: Float -> Float -> Float -> Float -> Int -> [Point]
+    arcPoints cx cy startAngle endAngle numSegments =
+      let
+        step = (endAngle - startAngle) / fromIntegral numSegments
+        angles = [startAngle + step * fromIntegral i | i <- [0 .. numSegments]]
+      in
+        [(cx + radius * cos a, cy + radius * sin a) | a <- angles]
+    -- Right arc: from top (pi/2) to bottom (-pi/2), curving right
+    rightArc = arcPoints straightLength 0 (pi / 2) (-(pi / 2)) pillSegments
+    -- Left arc: from bottom (-pi/2) to top (pi/2), curving left (going through pi)
+    leftArc = arcPoints (-straightLength) 0 (-(pi / 2)) (-(3 * pi / 2)) pillSegments
+    -- Combine: top edge (implicit), right arc, bottom edge (implicit), left arc
+    pillShape = rightArc <> leftArc
+  in
+    Translate x y $
+      Rotate rotationAngle $
+        color handleColor $
+          polygon pillShape
+
+
+-- | Get the midpoint of an edge given two corners
+getEdgeMidpoint :: Point -> Point -> Point
+getEdgeMidpoint (x1, y1) (x2, y2) =
+  ((x1 + x2) / 2, (y1 + y2) / 2)
+
+
+-- | Calculate angle of edge in degrees (for Brillo's Rotate which uses degrees)
+getEdgeAngle :: Point -> Point -> Float
+getEdgeAngle (x1, y1) (x2, y2) =
+  let
+    dx = x2 - x1
+    dy = y2 - y1
+    -- atan2 returns radians, convert to degrees
+    -- Brillo's Rotate is clockwise, atan2 is counter-clockwise
+    radians = P.atan2 dy dx
+  in
+    -(radians * 180 / pi)
+
+
+{-| Get edge midpoints from corners in display order
+Returns [(edgeIndex, midpoint, angle)] for edges: top(0), right(1), bottom(2), left(3)
+-}
+getEdgeMidpoints :: [Point] -> [(EdgeIndex, Point, Float)]
+getEdgeMidpoints corners =
+  case P.reverse corners of
+    -- Corners are stored in reverse order, so reverse to get display order
+    -- Display order: top-left(0), top-right(1), bottom-right(2), bottom-left(3)
+    [tl, tr, br, bl] ->
+      [ (EdgeIndex 0, getEdgeMidpoint tl tr, getEdgeAngle tl tr) -- top edge
+      , (EdgeIndex 1, getEdgeMidpoint tr br, getEdgeAngle tr br) -- right edge
+      , (EdgeIndex 2, getEdgeMidpoint br bl, getEdgeAngle br bl) -- bottom edge
+      , (EdgeIndex 3, getEdgeMidpoint bl tl, getEdgeAngle bl tl) -- left edge
+      ]
+    _ -> []
+
+
+-- | Draw edge handles for all 4 edges
+drawEdgeHandles :: [Point] -> [Picture]
+drawEdgeHandles corners
+  | P.length corners < 4 = []
+  | P.otherwise =
+      let
+        midpoints = getEdgeMidpoints corners
+      in
+        fmap (\(_, midpt, angle) -> drawEdgeHandle gridColor angle midpt) midpoints
+
+
+-- | Find which edge handle was clicked, if any
+findClickedEdge :: Point -> [Point] -> Maybe EdgeIndex
+findClickedEdge clickPoint corners
+  | P.length corners < 4 = Nothing
+  | P.otherwise =
+      let
+        midpoints = getEdgeMidpoints corners
+        -- Use the larger dimension for hit detection
+        hitRadius = max edgeHandleWidth edgeHandleHeight / 2
+        clicked =
+          P.find
+            (\(_, midpt, _) -> calcDistance clickPoint midpt < hitRadius)
+            midpoints
+      in
+        fmap (\(idx, _, _) -> idx) clicked
+
+
+-- | Normalize a vector to unit length
+normalize :: Point -> Point
+normalize (x, y) =
+  let
+    len = sqrt (x * x + y * y)
+  in
+    if len < 0.0001 then (0, 0) else (x / len, y / len)
+
+
+-- | Dot product of two vectors
+dotProduct :: Point -> Point -> Float
+dotProduct (x1, y1) (x2, y2) = x1 * x2 + y1 * y2
+
+
+{-| Move an edge by moving its two corners by the same percentage toward/away
+from their opposite corners. This keeps the quadrilateral's proportions.
+-}
+moveEdgePreservingAngles :: EdgeIndex -> Point -> Point -> [Point] -> [Point]
+moveEdgePreservingAngles edgeIdx oldMousePos newMousePos corners =
+  case P.reverse corners of
+    -- Corners in display order: tl(0), tr(1), br(2), bl(3)
+    [tl, tr, br, bl] ->
+      let
+        -- Get the two corners of the edge being moved and their opposite corners
+        -- Edge 0 (top): tl->bl, tr->br
+        -- Edge 1 (right): tr->tl, br->bl
+        -- Edge 2 (bottom): br->tr, bl->tl
+        -- Edge 3 (left): bl->br, tl->tr
+        (c1, opp1, c2, opp2) = case edgeIdx of
+          EdgeIndex 0 -> (tl, bl, tr, br)
+          EdgeIndex 1 -> (tr, tl, br, bl)
+          EdgeIndex 2 -> (br, tr, bl, tl)
+          EdgeIndex 3 -> (bl, br, tl, tr)
+          _ -> (tl, bl, tr, br)
+
+        -- Direction vectors from corners to their opposites
+        dir1 = (fst opp1 - fst c1, snd opp1 - snd c1)
+        dir2 = (fst opp2 - fst c2, snd opp2 - snd c2)
+        len1 = sqrt (fst dir1 * fst dir1 + snd dir1 * snd dir1)
+        len2 = sqrt (fst dir2 * fst dir2 + snd dir2 * snd dir2)
+
+        -- Use the average length as the reference for percentage calculation
+        avgLen = (len1 + len2) / 2
+
+        -- Calculate mouse movement projected onto the average direction
+        -- This gives us movement in the "depth" direction of the quadrilateral
+        avgDir =
+          if avgLen < 0.0001
+            then (0, 0)
+            else
+              ((fst dir1 + fst dir2) / (2 * avgLen), (snd dir1 + snd dir2) / (2 * avgLen))
+        mouseDelta = (fst newMousePos - fst oldMousePos, snd newMousePos - snd oldMousePos)
+        moveAmount = dotProduct mouseDelta (normalize avgDir)
+
+        -- Convert to percentage: moveAmount pixels / avgLen pixels = percentage
+        movePercent =
+          if avgLen < 0.0001
+            then 0
+            else moveAmount / avgLen
+
+        -- Move each corner by this percentage toward its opposite
+        -- newC = c + movePercent * (opp - c)
+        moveCorner c opp =
+          ( fst c + movePercent * (fst opp - fst c)
+          , snd c + movePercent * (snd opp - snd c)
+          )
+
+        newC1 = moveCorner c1 opp1
+        newC2 = moveCorner c2 opp2
+
+        -- Build new corners in display order [tl, tr, br, bl], then reverse for storage
+        newCornersDisplay = case edgeIdx of
+          EdgeIndex 0 -> [newC1, newC2, br, bl] -- top edge: c1=tl, c2=tr
+          EdgeIndex 1 -> [tl, newC1, newC2, bl] -- right edge: c1=tr, c2=br
+          EdgeIndex 2 -> [tl, tr, newC1, newC2] -- bottom edge: c1=br, c2=bl
+          EdgeIndex 3 -> [newC2, tr, br, newC1] -- left edge: c1=bl, c2=tl -> newC2=tl, newC1=bl
+          _ -> [tl, tr, br, bl]
+      in
+        P.reverse newCornersDisplay
+    _ -> corners
+
+
 -- TODO: Use thick lines for line-loop
 drawEdges :: [Point] -> Picture
 drawEdges points =
@@ -432,6 +626,7 @@ makePicture appState =
                   , appState.corners & drawGrid
                   ]
                     <> drawCornersWithColors appState.corners
+                    <> drawEdgeHandles appState.corners
                 )
                   <&> Translate (-(sidebarWidthInteg / 2.0)) 0
               )
@@ -708,16 +903,35 @@ handleImageViewEvent stateRef controller event appState =
                       < (cornCircRadius + cornCircThickness)
                 )
                 appState.corners
+            clickedEdge = findClickedEdge point appState.corners
 
           pure $ case clickedCorner of
-            Nothing ->
-              appState
-                & flip addCorner point
-                & (\state_ -> state_{cornerDragged = Just point})
             Just cornerPoint ->
-              appState{cornerDragged = Just cornerPoint}
+              appState
+                { cornerDragged = Just cornerPoint
+                , edgeDragged = Nothing
+                , lastMousePos = Nothing
+                }
+            Nothing -> case clickedEdge of
+              Just edgeIdx ->
+                appState
+                  { edgeDragged = Just edgeIdx
+                  , cornerDragged = Nothing
+                  , lastMousePos = Just point
+                  }
+              Nothing ->
+                appState
+                  & flip addCorner point
+                  & ( \state_ ->
+                        state_
+                          { cornerDragged = Just point
+                          , edgeDragged = Nothing
+                          , lastMousePos = Nothing
+                          }
+                    )
     EventKey (MouseButton LeftButton) Gl.Up _ _ -> do
-      pure $ appState{cornerDragged = Nothing}
+      pure $
+        appState{cornerDragged = Nothing, edgeDragged = Nothing, lastMousePos = Nothing}
     EventMotion newPoint -> do
       let
         point = appCoordToImgCoord appState newPoint
@@ -739,7 +953,6 @@ handleImageViewEvent stateRef controller event appState =
             <&> snd
 
       pure $ case appState.cornerDragged of
-        Nothing -> appState{hoveredButton = hoveredBtn}
         Just cornerPoint ->
           let
             cornerIndexMb =
@@ -759,6 +972,17 @@ handleImageViewEvent stateRef controller event appState =
                   , cornerDragged = Just point
                   , hoveredButton = hoveredBtn
                   }
+        Nothing -> case (appState.edgeDragged, appState.lastMousePos) of
+          (Just edgeIdx, Just lastPos) ->
+            let
+              newCorners = moveEdgePreservingAngles edgeIdx lastPos point appState.corners
+            in
+              appState
+                { corners = newCorners
+                , lastMousePos = Just point
+                , hoveredButton = hoveredBtn
+                }
+          _ -> appState{hoveredButton = hoveredBtn}
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
       submitSelection stateRef controller appState UnmodifiedExport
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do

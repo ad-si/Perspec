@@ -177,7 +177,11 @@ data ImageData
   deriving (Show)
 
 
--- | State of app
+-- | Edge index (0 = top, 1 = right, 2 = bottom, 3 = left)
+newtype EdgeIndex = EdgeIndex Int
+  deriving (Show, Eq)
+
+
 data AppState = AppState
   { currentView :: View
   , tickCounter :: Int
@@ -186,6 +190,10 @@ data AppState = AppState
   -- ^ (0, 0) is center of coordinate system
   , cornerDragged :: Maybe Corner
   -- ^ Currently dragged corner
+  , edgeDragged :: Maybe EdgeIndex
+  -- ^ Currently dragged edge (0=top, 1=right, 2=bottom, 3=left)
+  , lastMousePos :: Maybe Point
+  -- ^ Last mouse position during edge dragging
   , images :: [ImageData]
   , appWidth :: Int
   , appHeight :: Int
@@ -210,6 +218,8 @@ instance Show AppState where
       <> (", tickCounter = " <> show appState.tickCounter)
       <> (", corners = " <> show appState.corners)
       <> (", cornerDragged = " <> show appState.cornerDragged)
+      <> (", edgeDragged = " <> show appState.edgeDragged)
+      <> (", lastMousePos = " <> show appState.lastMousePos)
       <> (", images = " <> show appState.images)
       <> (", appWidth = " <> show appState.appWidth)
       <> (", appHeight = " <> show appState.appHeight)
@@ -238,6 +248,8 @@ initialState =
     , tickCounter = 0
     , corners = []
     , cornerDragged = Nothing
+    , edgeDragged = Nothing
+    , lastMousePos = Nothing
     , images = []
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
