@@ -13,6 +13,7 @@ extra-deps:
   - docopt-0.7.0.8
   - flatcv-0.3.0.1
   - storable-offset-0.1.0.0
+  - webp-0.1.2.0
 
   - github: lehins/hip
     commit: ddfc77feb21722babccd3b3aa73c4c3d41268f54
@@ -25,7 +26,7 @@ extra-deps:
       - Color
 
   - github: ad-si/Brillo
-    commit: 2fa3b311b52d9985ffb506f5dd29913323d76f55
+    commit: f3ac5d54d9f007bb94c475eae1ddd53ba59a97d9
     subdirs:
       - brillo
       - brillo-algorithms

@@ -75,7 +75,7 @@ import Brillo (
     Scale,
     ThickArc,
     ThickCircle,
-    ThickLineSmooth,
+    ThickLine,
     Translate
   ),
   Point,
@@ -83,7 +83,6 @@ import Brillo (
   black,
   color,
   greyN,
-  lineLoop,
   makeColor,
   pictures,
   polygon,
@@ -486,10 +485,38 @@ moveEdgePreservingAngles edgeIdx oldMousePos newMousePos corners =
     _ -> corners
 
 
--- TODO: Use thick lines for line-loop
 drawEdges :: [Point] -> Picture
-drawEdges points =
-  color gridColor $ lineLoop points
+drawEdges [p1, p2, p3, p4] =
+  let
+    -- Outer edge of corner circle
+    cornerOffset = cornCircRadius + cornCircThickness / 2
+
+    -- Shorten a line segment by offsetting both endpoints inward
+    shortenLine :: Point -> Point -> (Point, Point)
+    shortenLine (x1, y1) (x2, y2) =
+      let
+        dx = x2 - x1
+        dy = y2 - y1
+        len = sqrt (dx * dx + dy * dy)
+        ux = dx / len -- unit vector
+        uy = dy / len
+      in
+        ( (x1 + ux * cornerOffset, y1 + uy * cornerOffset)
+        , (x2 - ux * cornerOffset, y2 - uy * cornerOffset)
+        )
+
+    mkEdge pA pB =
+      let (start, end) = shortenLine pA pB
+      in  ThickLine [start, end] gridLineThickness
+  in
+    color gridColor $
+      Pictures
+        [ mkEdge p1 p2
+        , mkEdge p2 p3
+        , mkEdge p3 p4
+        , mkEdge p4 p1
+        ]
+drawEdges _ = mempty
 
 
 drawGrid :: [Point] -> Picture
@@ -508,7 +535,7 @@ drawGrid [p1, p2, p3, p4] =
 
     getGridLineVert num =
       color gridColor $
-        ThickLineSmooth
+        ThickLine
           [ getLinePoint numSegments num p1 p2
           , getLinePoint numSegments num p4 p3
           ]
@@ -516,7 +543,7 @@ drawGrid [p1, p2, p3, p4] =
 
     getGridLineHor num =
       color gridColor $
-        ThickLineSmooth
+        ThickLine
           [ getLinePoint numSegments num p1 p4
           , getLinePoint numSegments num p2 p3
           ]
