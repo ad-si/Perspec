@@ -96,7 +96,7 @@ getOutPath filePath = do
 
 
 calcInitWindowPos :: (Int, Int) -> (Int, Int) -> (Int, Int)
-calcInitWindowPos (screenWidth, screenHeight) (appWidth, appHeight) = do
+calcInitWindowPos (screenWidth, screenHeight) (appWidth, appHeight) =
   let
     initialX =
       ((fromIntegral screenWidth :: Float) / 2)
@@ -104,8 +104,11 @@ calcInitWindowPos (screenWidth, screenHeight) (appWidth, appHeight) = do
     initialY =
       ((fromIntegral screenHeight :: Float) / 2)
         - (fromIntegral appHeight / 2)
-
-  (round initialX, round initialY)
+    -- Clamp position to ensure window stays within viewport
+    clampedX = P.max 0 initialX
+    clampedY = P.max 0 initialY
+  in
+    (round clampedX, round clampedY)
 
 
 -- | Transform from origin in center to origin in top left
