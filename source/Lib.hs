@@ -88,6 +88,7 @@ import Brillo (
   polygon,
   rectangleSolid,
  )
+import Brillo.Data.Cursor (CursorShape (..))
 import Brillo.Interface.Environment (getScreenSize)
 import Brillo.Interface.IO.Game as Gl (
   Color,
@@ -979,6 +980,11 @@ handleImageViewEvent stateRef controller event appState =
             (P.zip appState.uiComponents [0 ..])
             <&> snd
 
+      -- Set cursor based on hover state
+      controllerSetCursor controller $ case hoveredBtn of
+        Just _ -> CursorHand
+        Nothing -> CursorArrow
+
       pure $ case appState.cornerDragged of
         Just cornerPoint ->
           let
@@ -1492,6 +1498,7 @@ loadAndStart config filePathsMb = do
       ( Controller
           { controllerSetRedraw = pure ()
           , controllerModifyViewPort = const (pure ())
+          , controllerSetCursor = const (pure ())
           }
       )
 

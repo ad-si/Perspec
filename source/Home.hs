@@ -12,6 +12,7 @@ import Protolude (
   (<&>),
  )
 
+import Brillo.Data.Cursor (CursorShape (..))
 import Brillo.Data.FileDialog (FileDialog (..), SelectionMode (..))
 import Brillo.Interface.Environment (openFileDialog)
 import Brillo.Interface.IO.Game as Gl (
@@ -83,5 +84,7 @@ handleHomeEvent stateRef controller event appState = do
       let
         isOverBtn = mousePoint `isInRect` fileSelectBtnRect
         newHoveredBtn = if isOverBtn then Just 0 else Nothing
+      -- Set cursor based on hover state
+      controllerSetCursor controller $ if isOverBtn then CursorHand else CursorArrow
       pure appState{hoveredButton = newHoveredBtn}
     _ -> pure appState
