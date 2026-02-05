@@ -107,6 +107,7 @@ jobs:
             libglu1-mesa-dev
             liblapack-dev
             liblapack3
+            libwebp-dev
             libxcursor-dev
             libxi-dev
             libxinerama-dev
