@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     utils.url = "github:numtide/flake-utils";
   };
 
@@ -22,11 +22,13 @@
             blas
             coreutils
             gnumake
-            haskell.compiler.ghc984
+            haskell.compiler.ghc910
             haskellPackages.cabal-fmt
             haskellPackages.cabal-install
             haskellPackages.fourmolu
-            haskellPackages.haskell-language-server
+            (pkgs.haskell-language-server.override {
+              supportedGhcVersions = [ "9103" ];
+            })
             haskellPackages.stack
             imagemagick
             lapack

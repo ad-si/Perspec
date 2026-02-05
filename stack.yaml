@@ -1,7 +1,7 @@
 # Check if HLS supports the LTS release before upgrading
 # and also set the correct GHC version in `flake.nix`.
 # https://haskell-language-server.readthedocs.io/en/latest/support/ghc-version-support.html
-resolver: lts-23.27
+resolver: lts-24.27
 
 # Necessary as the Nix Flake sets the GHC version
 system-ghc: true
@@ -26,7 +26,7 @@ extra-deps:
       - Color
 
   - github: ad-si/Brillo
-    commit: 5d9f3138625f4984468a476c3cb1fef9353f998b
+    commit: c28a0443e43fc462e906df79b57ff858e661f29b
     subdirs:
       - brillo
       - brillo-algorithms

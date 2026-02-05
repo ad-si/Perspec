@@ -61,55 +61,55 @@ packages:
 - completed:
     name: brillo
     pantry-tree:
-      sha256: 5f93ab46bb6f2908e8711ee8d3cbf090d78200e01746f04cea2012f28734108c
-      size: 3747
-    sha256: 5a0cb1ff18f640d8787b695af822f9ac261f38b38b6fccec4ecaf97e1f5e9f1b
-    size: 10295456
+      sha256: efa1d038c949f9f94d221448cf48e3f0d3e1c4b4dba77bd7ce04131097e67702
+      size: 3808
+    sha256: da42fb9f86bc21166704c346f7fb51e03a87a0f8d73543734b54f8fd7da7a8ba
+    size: 10298212
     subdir: brillo
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
     version: 1.13.3
   original:
     subdir: brillo
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
 - completed:
     name: brillo-algorithms
     pantry-tree:
       sha256: 7dfb63650cf727863979cc40afd29fcaa729fc2880689bc049c055149f94caef
       size: 368
-    sha256: 5a0cb1ff18f640d8787b695af822f9ac261f38b38b6fccec4ecaf97e1f5e9f1b
-    size: 10295456
+    sha256: da42fb9f86bc21166704c346f7fb51e03a87a0f8d73543734b54f8fd7da7a8ba
+    size: 10298212
     subdir: brillo-algorithms
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
     version: 1.13.3
   original:
     subdir: brillo-algorithms
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
 - completed:
     name: brillo-juicy
     pantry-tree:
       sha256: 83976e2e0e8575be37884388ee00a35f0a6cd56d1be0c2bfa8307b3702148916
       size: 315
-    sha256: 5a0cb1ff18f640d8787b695af822f9ac261f38b38b6fccec4ecaf97e1f5e9f1b
-    size: 10295456
+    sha256: da42fb9f86bc21166704c346f7fb51e03a87a0f8d73543734b54f8fd7da7a8ba
+    size: 10298212
     subdir: brillo-juicy
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
     version: 0.2.4
   original:
     subdir: brillo-juicy
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
 - completed:
     name: brillo-rendering
     pantry-tree:
       sha256: d9eaefcada02e0289d0369345b8bf586ab97fca3f988f868043d767f7e88cac7
       size: 1147
-    sha256: 5a0cb1ff18f640d8787b695af822f9ac261f38b38b6fccec4ecaf97e1f5e9f1b
-    size: 10295456
+    sha256: da42fb9f86bc21166704c346f7fb51e03a87a0f8d73543734b54f8fd7da7a8ba
+    size: 10298212
     subdir: brillo-rendering
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
     version: 1.13.3
   original:
     subdir: brillo-rendering
-    url: https://github.com/ad-si/Brillo/archive/5d9f3138625f4984468a476c3cb1fef9353f998b.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/c28a0443e43fc462e906df79b57ff858e661f29b.tar.gz
 - completed:
     name: freetype2
     pantry-tree:
@@ -134,7 +134,7 @@ packages:
     url: https://github.com/bsl/bindings-GLFW/archive/a98990a882da8f2cb3ff6730d614f5d37adbde33.tar.gz
 snapshots:
 - completed:
-    sha256: 069c8189232279d04bd107557d3a62132c04ae5ce3c710649e6b40f67f10b9d5
-    size: 684285
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/23/27.yaml
-  original: lts-23.27
+    sha256: c320c36b8a392602c9076bdd0c656e12dcab30f294105a50c3f8ef963c4c3a0d
+    size: 726760
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/24/27.yaml
+  original: lts-24.27
