@@ -183,8 +183,11 @@ calculateSizes appState =
                 : otherImages
           , scaleFactor
           , corners =
-              transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
-                scalePoints (1 / scaleFactor) (getCorners appState)
+              -- Re-reverse to restore the "reverse order of addition" storage format,
+              -- since getCorners already reversed them to clockwise-from-top-left order.
+              P.reverse $
+                transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
+                  scalePoints (1 / scaleFactor) (getCorners appState)
           }
 
 
