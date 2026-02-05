@@ -71,7 +71,7 @@ getRenamingBatches startNumberMb renameMode sortOrder files =
       files
         <&> unpack
         & sortBy Algorithms.NaturalSort.compare
-        <&> pack
+          <&> pack
 
     startNumber :: Int
     startNumber =
@@ -120,10 +120,10 @@ getRenamingBatches startNumberMb renameMode sortOrder files =
     renamingsBatch2 =
       renamingsWithTemp
         & filter (\(_, tempTargetMb, _) -> P.isJust tempTargetMb)
-        <&> (\(_, tempTargetMb, target) -> (fromMaybe "" tempTargetMb, target))
+          <&> (\(_, tempTargetMb, target) -> (fromMaybe "" tempTargetMb, target))
   in
     [renamingsBatch1]
       <> ( if null renamingsBatch2
-            then []
-            else [renamingsBatch2]
+             then []
+             else [renamingsBatch2]
          )

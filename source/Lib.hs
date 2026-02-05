@@ -659,34 +659,34 @@ makePicture appState =
                   <&> Translate (-(sidebarWidthInteg / 2.0)) 0
               )
                 <> [ drawSidebar
-                      appWidthInteg
-                      appState.appHeight
-                      appState.sidebarWidth
+                       appWidthInteg
+                       appState.appHeight
+                       appState.sidebarWidth
                    ]
                 <> P.zipWith
                   (drawUiComponent appState)
                   appState.uiComponents
                   [0 ..]
                 <> [ if appState.bannerIsVisible
-                      then Scale 0.5 0.5 bannerImage
-                      else mempty
+                       then Scale 0.5 0.5 bannerImage
+                       else mempty
                    , if appState.bannerIsVisible
-                      then
-                        Translate 300 (-250) $
-                          Scale 0.2 0.2 $
-                            ThickArc
-                              0 -- Start angle
-                              -- End angle
-                              ( ( fromIntegral appState.tickCounter
-                                    / (bannerTime * fromIntegral ticksPerSecond)
-                                )
-                                  * 360
-                              )
-                              50 -- Radius
-                              100 -- Thickness
-                              -- \$
-                              --     -
-                      else mempty
+                       then
+                         Translate 300 (-250) $
+                           Scale 0.2 0.2 $
+                             ThickArc
+                               0 -- Start angle
+                               -- End angle
+                               ( ( fromIntegral appState.tickCounter
+                                     / (bannerTime * fromIntegral ticksPerSecond)
+                                 )
+                                   * 360
+                               )
+                               50 -- Radius
+                               100 -- Thickness
+                               -- \$
+                               --     -
+                       else mempty
                    ]
     BannerView -> pure $ Pictures []
 

@@ -186,8 +186,9 @@ data AppState = AppState
   { currentView :: View
   , tickCounter :: Int
   , corners :: [Corner]
-  -- ^ Reversed to order of addition
-  -- ^ (0, 0) is center of coordinate system
+  {- ^ Reversed to order of addition
+  ^ (0, 0) is center of coordinate system
+  -}
   , cornerDragged :: Maybe Corner
   -- ^ Currently dragged corner
   , edgeDragged :: Maybe EdgeIndex
