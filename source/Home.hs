@@ -73,6 +73,17 @@ handleHomeEvent stateRef controller event appState = do
       , fileSelectBtnHeight / 2
       )
   case event of
+    EventDrop filePaths -> do
+      let
+        newState =
+          appState
+            { currentView = ImageView
+            , images = filePaths <&> \filePath -> ImageToLoad{filePath}
+            }
+      loadedState <- loadFileIntoState newState
+      writeIORef stateRef loadedState
+      controllerSetRedraw controller
+      pure loadedState
     EventKey (MouseButton Gl.LeftButton) Gl.Down _ clickedPoint -> do
       let fileSelectBtnWasClicked = clickedPoint `isInRect` fileSelectBtnRect
       if fileSelectBtnWasClicked
