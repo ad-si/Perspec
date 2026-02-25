@@ -209,7 +209,7 @@ jobs:
         shell: pwsh
         run: |
           mkdir artifact
-          $binPath = (stack path --local-bin-path).Trim()
+          $binPath = (stack path --local-bin).Trim()
           Copy-Item "$binPath\perspec.exe" artifact\
 
       - name: Upload Windows Release
