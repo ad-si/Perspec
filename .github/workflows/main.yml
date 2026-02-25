@@ -239,6 +239,23 @@ jobs:
           $binPath = (stack path --local-bin).Trim()
           Copy-Item "$binPath\perspec.exe" artifact\
 
+          # Copy all non-system DLLs that perspec.exe depends on
+          $msysRoot = stack exec -- bash -c 'echo $MINGW_PREFIX'
+          $msysBin = "$msysRoot/bin"
+          $lddOutput = stack exec -- ldd "$binPath\perspec.exe"
+          $lddOutput | ForEach-Object {
+            if ($_ -match '^\s*(\S+\.dll)\s+=>\s+(/\S+)') {
+              $dllName = $Matches[1]
+              $dllPath = $Matches[2]
+              # Skip Windows system DLLs
+              if ($dllPath -like "$msysRoot/*") {
+                $winPath = stack exec -- cygpath -w $dllPath
+                Write-Host "Bundling $dllName from $winPath"
+                Copy-Item $winPath artifact\
+              }
+            }
+          }
+
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4
         with:
