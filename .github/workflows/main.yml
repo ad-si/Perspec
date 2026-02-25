@@ -162,16 +162,9 @@ jobs:
           name: Perspec_${{ matrix.arch }}.AppImage
 
   windows:
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            arch: x86_64
-            msys_prefix: mingw-w64-x86_64
-          - os: windows-11-arm
-            arch: arm64
-            msys_prefix: mingw-w64-clang-aarch64
-    runs-on: ${{ matrix.os }}
+    # ARM64 Windows is blocked on ghcup support:
+    # https://github.com/haskell/ghcup-hs/issues/1034
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -180,25 +173,7 @@ jobs:
           path: |
             ~\AppData\Roaming\stack
             .stack-work
-          key: ${{ runner.os }}-${{ matrix.arch }}-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
-
-      - name: Install ghcup
-        if: matrix.arch == 'arm64'
-        shell: pwsh
-        run: |
-          $env:BOOTSTRAP_HASKELL_NONINTERACTIVE = 1
-          $env:BOOTSTRAP_HASKELL_INSTALL_NO_STACK = 1
-          $env:BOOTSTRAP_HASKELL_INSTALL_NO_STACK_HOOK = 1
-          $env:BOOTSTRAP_HASKELL_GHC_VERSION = 0
-          $env:BOOTSTRAP_HASKELL_CABAL_VERSION = 0
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = `
-            [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-          Invoke-WebRequest `
-            https://www.haskell.org/ghcup/sh/bootstrap-haskell.ps1 `
-            -OutFile bootstrap-haskell.ps1
-          .\bootstrap-haskell.ps1
-          echo "$env:USERPROFILE\.ghcup\bin" >> $env:GITHUB_PATH
+          key: ${{ runner.os }}-x86_64-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
 
       - name: Setup Stack
         uses: haskell-actions/setup@v2
@@ -209,10 +184,10 @@ jobs:
       - name: Install MSYS2 dependencies
         run:
           stack exec -- pacman -S --noconfirm
-            ${{ matrix.msys_prefix }}-pkg-config
-            ${{ matrix.msys_prefix }}-glfw
-            ${{ matrix.msys_prefix }}-openblas
-            ${{ matrix.msys_prefix }}-libwebp
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-glfw
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-libwebp
 
       - name: Install ImageMagick
         run: choco install imagemagick -y
@@ -260,4 +235,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: artifact
-          name: perspec-windows_${{ matrix.arch }}
+          name: perspec-windows_x86_64
