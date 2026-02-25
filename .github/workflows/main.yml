@@ -182,6 +182,24 @@ jobs:
             .stack-work
           key: ${{ runner.os }}-${{ matrix.arch }}-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
 
+      - name: Install ghcup
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $env:BOOTSTRAP_HASKELL_NONINTERACTIVE = 1
+          $env:BOOTSTRAP_HASKELL_INSTALL_NO_STACK = 1
+          $env:BOOTSTRAP_HASKELL_INSTALL_NO_STACK_HOOK = 1
+          $env:BOOTSTRAP_HASKELL_GHC_VERSION = 0
+          $env:BOOTSTRAP_HASKELL_CABAL_VERSION = 0
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = `
+            [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          Invoke-WebRequest `
+            https://www.haskell.org/ghcup/sh/bootstrap-haskell.ps1 `
+            -OutFile bootstrap-haskell.ps1
+          .\bootstrap-haskell.ps1
+          echo "$env:USERPROFILE\.ghcup\bin" >> $env:GITHUB_PATH
+
       - name: Setup Stack
         uses: haskell-actions/setup@v2
         with:
