@@ -160,3 +160,60 @@ jobs:
         with:
           path: ./Perspec_${{ matrix.arch }}.AppImage
           name: Perspec_${{ matrix.arch }}.AppImage
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Roaming\stack
+            .stack-work
+          key: ${{ runner.os }}-x86_64-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
+
+      - name: Setup Stack
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          stack-no-global: true
+
+      - name: Install MSYS2 dependencies
+        run:
+          stack exec -- pacman -S --noconfirm
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-glfw
+            mingw-w64-x86_64-openblas
+            mingw-w64-x86_64-libwebp
+
+      - name: Install ImageMagick
+        run: choco install imagemagick -y
+
+      - name: Build banner.bmp
+        run: magick images\banner.png images\banner.bmp
+
+      - name: Inject license keys
+        shell: pwsh
+        run:
+          (Get-Content source\Lib.hs -Raw)
+            -replace 'licenses = \[\]', 'licenses = [${{ secrets.LICENSE_KEYS }}]'
+          | Set-Content -NoNewline source\Lib.hs
+
+      - name: Build Perspec
+        run: stack install --ghc-options=-O2
+        env:
+          GHCRTS: -K64M
+
+      - name: Prepare artifact
+        shell: pwsh
+        run: |
+          mkdir artifact
+          $binPath = (stack path --local-bin-path).Trim()
+          Copy-Item "$binPath\perspec.exe" artifact\
+
+      - name: Upload Windows Release
+        uses: actions/upload-artifact@v4
+        with:
+          path: artifact
+          name: perspec-windows_x86_64
