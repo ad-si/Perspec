@@ -162,7 +162,16 @@ jobs:
           name: Perspec_${{ matrix.arch }}.AppImage
 
   windows:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x86_64
+            msys_prefix: mingw-w64-x86_64
+          - os: windows-11-arm
+            arch: arm64
+            msys_prefix: mingw-w64-clang-aarch64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -171,7 +180,7 @@ jobs:
           path: |
             ~\AppData\Roaming\stack
             .stack-work
-          key: ${{ runner.os }}-x86_64-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
 
       - name: Setup Stack
         uses: haskell-actions/setup@v2
@@ -182,10 +191,10 @@ jobs:
       - name: Install MSYS2 dependencies
         run:
           stack exec -- pacman -S --noconfirm
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-glfw
-            mingw-w64-x86_64-openblas
-            mingw-w64-x86_64-libwebp
+            ${{ matrix.msys_prefix }}-pkg-config
+            ${{ matrix.msys_prefix }}-glfw
+            ${{ matrix.msys_prefix }}-openblas
+            ${{ matrix.msys_prefix }}-libwebp
 
       - name: Install ImageMagick
         run: choco install imagemagick -y
@@ -216,4 +225,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: artifact
-          name: perspec-windows_x86_64
+          name: perspec-windows_${{ matrix.arch }}
