@@ -51,6 +51,7 @@ import System.Directory (
   renameFile,
  )
 import System.FilePath ((</>))
+import System.IO (hSetEncoding, stderr, stdout, utf8)
 
 import Control.Arrow ((>>>))
 import Lib (loadAndStart)
@@ -148,6 +149,9 @@ execWithArgs confFromFile cliArgs = do
 
 main :: IO ()
 main = do
+  hSetEncoding stdout utf8
+  hSetEncoding stderr utf8
+
   let appName = "Perspec"
 
   configDirectory <- getXdgDirectory XdgConfig appName
