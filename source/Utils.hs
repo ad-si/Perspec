@@ -39,11 +39,9 @@ import Protolude qualified as P
 
 import Brillo (
   BitmapData (bitmapPointer, bitmapSize),
-  Picture (Bitmap, Rotate, Scale),
+  Picture (Bitmap, Color, Rotate, Scale, TrueTypeText),
   Point,
-  color,
   greyN,
-  truetypeText,
  )
 import Brillo.Juicy (loadJuicyWithMetadata)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
@@ -80,8 +78,8 @@ buttonTextHeight = 16
 -- | Render text using TrueType fonts
 getTextPicture :: Text -> Picture
 getTextPicture txt =
-  color (greyN 0.9) $
-    truetypeText defaultFontPath buttonTextHeight txt
+  Color (greyN 0.9) $
+    TrueTypeText defaultFontPath buttonTextHeight txt
 
 
 isInRect :: Point -> (Float, Float, Float, Float) -> Bool

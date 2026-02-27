@@ -70,7 +70,9 @@ import Brillo (
   Display (InWindow),
   Picture (
     Bitmap,
+    Color,
     Pictures,
+    Polygon,
     Rotate,
     Scale,
     ThickArc,
@@ -81,11 +83,8 @@ import Brillo (
   Point,
   bitmapOfBMP,
   black,
-  color,
   greyN,
   makeColor,
-  pictures,
-  polygon,
   rectangleSolid,
  )
 import Brillo.Data.Cursor (CursorShape (..))
@@ -209,7 +208,7 @@ roundedRectSolid width height radius =
     bottomLeft = arcPoints (-(hw - r)) (-(hh - r)) pi (3 * pi / 2)
     bottomRight = arcPoints (hw - r) (-(hh - r)) (3 * pi / 2) (2 * pi)
   in
-    polygon $ topRight <> topLeft <> bottomLeft <> bottomRight
+    Polygon $ topRight <> topLeft <> bottomLeft <> bottomRight
 
 
 sidebarPaddingTop :: Int
@@ -272,7 +271,7 @@ drawCorner cornerColor (x, y) =
   Translate
     x
     y
-    (color cornerColor $ ThickCircle cornCircRadius cornCircThickness)
+    (Color cornerColor $ ThickCircle cornCircRadius cornCircThickness)
 
 
 drawCornersWithColors :: [Point] -> [Picture]
@@ -336,8 +335,8 @@ drawEdgeHandle handleColor rotationAngle (x, y) =
   in
     Translate x y $
       Rotate rotationAngle $
-        color handleColor $
-          polygon pillShape
+        Color handleColor $
+          Polygon pillShape
 
 
 -- | Get the midpoint of an edge given two corners
@@ -510,7 +509,7 @@ drawEdges [p1, p2, p3, p4] =
       let (start, end) = shortenLine pA pB
       in  ThickLine [start, end] gridLineThickness
   in
-    color gridColor $
+    Color gridColor $
       Pictures
         [ mkEdge p1 p2
         , mkEdge p2 p3
@@ -535,7 +534,7 @@ drawGrid [p1, p2, p3, p4] =
         )
 
     getGridLineVert num =
-      color gridColor $
+      Color gridColor $
         ThickLine
           [ getLinePoint numSegments num p1 p2
           , getLinePoint numSegments num p4 p3
@@ -543,7 +542,7 @@ drawGrid [p1, p2, p3, p4] =
           gridLineThickness
 
     getGridLineHor num =
-      color gridColor $
+      Color gridColor $
         ThickLine
           [ getLinePoint numSegments num p1 p4
           , getLinePoint numSegments num p2 p3
@@ -563,7 +562,7 @@ drawSidebar appWidth appHeight width =
         - (fromIntegral width / 2.0)
     )
     0
-    ( color (greyN 0.1) $
+    ( Color (greyN 0.1) $
         rectangleSolid
           (fromIntegral width)
           (fromIntegral appHeight)
@@ -587,8 +586,8 @@ drawButton
           - fromIntegral topOffset
           - (fromIntegral btnHeight / 2.0)
       )
-      $ pictures
-        [ color (greyN $ if isHovered then 0.35 else 0.2) $
+      $ Pictures
+        [ Color (greyN $ if isHovered then 0.35 else 0.2) $
             roundedRectSolid
               (fromIntegral btnWidth)
               (fromIntegral btnHeight)
@@ -627,8 +626,8 @@ makePicture appState =
         isHovered = appState.hoveredButton == Just 0
 
         uiElements =
-          pictures
-            [ color (greyN $ if isHovered then 0.35 else 0.2) $
+          Pictures
+            [ Color (greyN $ if isHovered then 0.35 else 0.2) $
                 roundedRectSolid fileSelectBtnWidth fileSelectBtnHeight buttonCornerRadius
             , Translate (-43) (-7) $ getTextPicture "Select Files"
             ]

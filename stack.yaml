@@ -27,7 +27,7 @@ extra-deps:
       - Color
 
   - github: ad-si/Brillo
-    commit: baebccfe00c278bc05ad3d06a55c54ce35ad7988
+    commit: ed58b3667aa270313252122f4959b4119eab35de
     subdirs:
       - brillo
       - brillo-algorithms
