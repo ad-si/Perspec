@@ -20,6 +20,7 @@ module PngExif (
   extractExifBytesFromJpeg,
   extractExifBytesFromPng,
   extractExifBytesFromFile,
+  clearExifOrientation,
   writePngWithExif,
   savePngWithExif,
 ) where
@@ -41,6 +42,7 @@ import Protolude (
   Word8,
   fmap,
   fromIntegral,
+  fromMaybe,
   otherwise,
   pure,
   ($),
@@ -211,6 +213,55 @@ parseExifOrientation exifData = do
         findOrientationInIfd byteOrder exifData ifd0OffsetInt numEntriesInt
       Just $ ExifShort orientation
     else Nothing
+
+
+-- | Find the index of an IFD entry by tag within IFD0.
+findIfdEntryIndex ::
+  ByteOrder -> BS.ByteString -> Int -> Int -> Word16 -> Maybe Int
+findIfdEntryIndex byteOrder bs ifdOffset numEntries wantedTag = go 0
+  where
+    go :: Int -> Maybe Int
+    go idx
+      | idx >= numEntries = Nothing
+      | otherwise =
+          let entryOffset = ifdOffset + 2 + (idx * 12)
+          in  case getWord16 byteOrder bs entryOffset of
+                Just tag | tag == wantedTag -> Just idx
+                _ -> go (idx + 1)
+
+
+{-| Reset the EXIF orientation tag in raw TIFF/EXIF bytes to 1 (Normal).
+After Perspec applies EXIF-aware rotation to the pixel data, the output
+must not carry the original orientation or viewers will rotate it again.
+If no orientation tag is present or parsing fails, returns input unchanged.
+-}
+clearExifOrientation :: BS.ByteString -> BS.ByteString
+clearExifOrientation exifData =
+  fromMaybe exifData $ do
+    byteOrder <- parseByteOrder exifData
+    if validateTiffMagic byteOrder exifData
+      then do
+        ifd0Offset <- getWord32 byteOrder exifData 4
+        let ifd0OffsetInt = fromIntegral ifd0Offset :: Int
+        numEntries <- getWord16 byteOrder exifData ifd0OffsetInt
+        let numEntriesInt = fromIntegral numEntries :: Int
+        idx <-
+          findIfdEntryIndex
+            byteOrder
+            exifData
+            ifd0OffsetInt
+            numEntriesInt
+            orientationTag
+        let
+          valueOffset = ifd0OffsetInt + 2 + (idx * 12) + 8
+          newValueBytes = case byteOrder of
+            LittleEndian -> BS.pack [1, 0, 0, 0]
+            BigEndian -> BS.pack [0, 1, 0, 0]
+        pure $
+          BS.take valueOffset exifData
+            <> newValueBytes
+            <> BS.drop (valueOffset + 4) exifData
+      else Nothing
 
 
 {-| Extract EXIF orientation from a PNG file

@@ -118,7 +118,7 @@ import Graphics.Image (
   writeImage,
  )
 import Linear (M33, V2 (V2), V3 (V3), V4 (V4), (!*))
-import PngExif (extractExifBytesFromFile, savePngWithExif)
+import PngExif (clearExifOrientation, extractExifBytesFromFile, savePngWithExif)
 
 import Correct (calculatePerspectiveTransform, determineOutputSize)
 import FlatCV (
@@ -1236,7 +1236,8 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
     FlatCVBackend -> do
       P.putText "ℹ️ Use FlatCV backend"
       pictureMetadataEither <- loadImage inPath
-      exifBytes <- extractExifBytesFromFile inPath
+      -- Clear the orientation tag so viewers don't re-rotate already-upright pixels
+      exifBytes <- fmap (fmap clearExifOrientation) (extractExifBytesFromFile inPath)
       case pictureMetadataEither of
         Left error -> do
           P.putText error

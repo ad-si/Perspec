@@ -41,6 +41,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import FlatCV (otsuThresholdPtr)
 import PngExif (
+  clearExifOrientation,
   extractExifBytesFromFile,
   extractExifBytesFromPng,
   extractExifFromPng,
@@ -107,6 +108,25 @@ main = hspec $ do
             let firstTwoBytes = BS.take 2 bytes
             (firstTwoBytes == "MM" || firstTwoBytes == "II") `shouldBe` True
           Nothing -> expectationFailure "Should have extracted EXIF bytes from PNG"
+
+      it "resets EXIF orientation to 1 via clearExifOrientation" $ do
+        exifBytes <- extractExifBytesFromFile "images/rotated.png"
+        case exifBytes of
+          Just bytes -> do
+            let cleared = clearExifOrientation bytes
+            -- Same length (value is patched in place, not removed)
+            BS.length cleared `shouldBe` BS.length bytes
+            -- Wrap as minimal PNG-like chunk to reuse extractExifFromPng is
+            -- overkill; instead validate via raw re-parse using ExifFromPng:
+            -- Write a PNG with the cleared bytes and re-read orientation
+            let testImage =
+                  ImageRGBA8 $ generateImage (\_ _ -> PixelRGBA8 0 0 0 255) 2 2
+            case writePngWithExif (Just cleared) testImage of
+              Left err -> expectationFailure $ "writePngWithExif: " <> err
+              Right pngBytes ->
+                extractExifFromPng (BL.toStrict pngBytes)
+                  `shouldBe` Just (ExifShort 1)
+          Nothing -> expectationFailure "Should have extracted EXIF bytes"
 
       it "preserves EXIF data when writing PNG with eXIf chunk" $ do
         -- Extract EXIF from source JPEG
