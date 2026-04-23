@@ -5,6 +5,7 @@ module Lib where
 import Protolude (
   Applicative (pure),
   Bool (..),
+  Char,
   Double,
   Either (Left, Right),
   Eq ((==)),
@@ -19,7 +20,7 @@ import Protolude (
   Maybe (Just, Nothing),
   Monoid (mempty),
   Num ((*), (+), (-)),
-  Ord (max, min, (<), (>)),
+  Ord (max, min, (<), (<=), (>), (>=)),
   Semigroup ((<>)),
   Text,
   const,
@@ -30,6 +31,7 @@ import Protolude (
   fromMaybe,
   fromRight,
   fst,
+  otherwise,
   putText,
   realToFrac,
   show,
@@ -284,10 +286,29 @@ isBuyLicenseClick (clickX, clickY) =
       && clickY < cy + bh / 2
 
 
--- | Approximate character width for Arial/DejaVu at the given pixel height
+{-| Approximate rendered width at the given pixel height.
+
+Brillo does not expose a FreeType-backed measurement, so this sums
+per-character width factors calibrated for Arial / DejaVu Sans. A single
+uniform factor noticeably miscenters strings with many narrow or wide
+letters; this is closer but still an approximation, so expect minor offsets.
+-}
 textWidthApprox :: Int -> Text -> Float
 textWidthApprox sz txt =
-  fromIntegral (T.length txt) * fromIntegral sz * 0.55
+  let
+    sizeF = fromIntegral sz
+    charFactor :: Char -> Float
+    charFactor c
+      | c `elem` ("iIl1.,;:'`|!" :: [Char]) = 0.28
+      | c == ' ' = 0.28
+      | c `elem` ("frtj()[]/\\" :: [Char]) = 0.36
+      | c `elem` ("cksvxyz" :: [Char]) = 0.50
+      | c `elem` ("mw" :: [Char]) = 0.85
+      | c `elem` ("MW" :: [Char]) = 0.88
+      | c >= 'A' && c <= 'Z' = 0.67
+      | otherwise = 0.56
+  in
+    T.foldr (\c acc -> charFactor c * sizeF + acc) 0 txt
 
 
 bannerImage :: Maybe Text -> Picture
@@ -350,7 +371,7 @@ bannerImage urlErrorMb =
     Pictures $
       [ Color bgColor $
           roundedRectSolid bannerWidth bannerHeight 20
-      , centeredText titleSize 220 titleColor "Welcome to Perspec!"
+      , centeredText titleSize 220 titleColor "Unlock All Features"
       , Translate 0 180 $
           Color accentColor $
             rectangleSolid 500 6
