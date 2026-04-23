@@ -2,9 +2,6 @@ name: Haskell Stack CI
 
 on: [push]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   macos:
     strategy:
@@ -20,7 +17,7 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/cache@v5
         with:
@@ -66,7 +63,7 @@ jobs:
         run: mkdir artifact && mv Perspec.app artifact
 
       - name: Upload MacOS Release
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           path: artifact
           name: perspec-app_${{ matrix.os }}_${{ matrix.arch }}
@@ -81,7 +78,7 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/cache@v5
         with:
@@ -160,7 +157,7 @@ jobs:
           mv Perspec-${LINUX_ARCH}.AppImage Perspec_${{ matrix.arch }}.AppImage
 
       - name: Upload Linux Release
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           path: ./Perspec_${{ matrix.arch }}.AppImage
           name: Perspec_${{ matrix.arch }}.AppImage
@@ -170,7 +167,7 @@ jobs:
     # https://github.com/haskell/ghcup-hs/issues/1034
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/cache@v5
         with:
@@ -230,7 +227,7 @@ jobs:
           }
 
       - name: Upload Windows Release
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           path: artifact
           name: perspec-windows_x86_64
