@@ -24,7 +24,6 @@ import Protolude (
   Semigroup ((<>)),
   Text,
   const,
-  either,
   elem,
   flip,
   fromIntegral,

@@ -2,6 +2,9 @@ name: Haskell Stack CI
 
 on: [push]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   macos:
     strategy:
@@ -33,7 +36,9 @@ jobs:
           stack-no-global: true
 
       - name: Install system dependencies
-        run: brew install pkg-config webp
+        run: |
+          brew list pkg-config &>/dev/null || brew install pkg-config
+          brew list webp &>/dev/null || brew install webp
 
       - name: Install Platypus
         run: |
