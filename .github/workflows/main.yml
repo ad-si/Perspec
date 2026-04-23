@@ -32,6 +32,9 @@ jobs:
           enable-stack: true
           stack-no-global: true
 
+      - name: Install system dependencies
+        run: brew install pkg-config webp
+
       - name: Install Platypus
         run: |
           curl -L -O https://github.com/sveinbjornt/Platypus/releases/download/v5.5.0/platypus5.5.0.zip
