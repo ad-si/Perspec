@@ -20,6 +20,10 @@
 App and workflow to perspectively correct images.
 For example whiteboards, document scans, or facades.
 
+![Screenshot of Perspec app](images/screenshots/2026-04-23t1013_detected_corners.png)
+
+---
+
 <!-- toc -->
 
 - [App Workflow](#app-workflow)
@@ -43,44 +47,97 @@ For example whiteboards, document scans, or facades.
 
 ## App Workflow
 
-Step | Description                                | Result
------|--------------------------------------------|------------------
-1    | Take photos                                | ![Original image][doc]
-2    | Open Perspec app                           | ![Opened Perspec App][open]
-3    | Drop the images onto the window            | ![Dropped image][dropped]
-4    | Mark the corners by clicking on them       | ![Marked corners][corners]
-5    | Click one of the save buttons (or [Enter]) | ![Corrected image][fixed]
+### 1. Take photos
 
-[doc]: images/doc.jpg
-[mark]: images/doc-marking.jpg
-[open]: images/perspec_opened.png
-[dropped]: images/perspec_image_dropped.png
-[corners]: images/perspec_marked_corners.png
-[fixed]: images/doc-fixed.jpg
+Perspec is great for correcting photos of documents, receipts,
+whiteboards, facades, or any other planar objects.
+
+<img src="images/examples/package_slip.png" alt="Photo of a document on a table" style="max-width: 30rem;" />
+
+
+### 2. Open Perspec app
+
+<img src="images/screenshots/2026-04-23t1006_select_files.png" alt="Opened Perspec App" style="max-width: 35rem;" />
+
+
+### 3. Select photos to correct
+
+Either use the "Select Files" button or simply drag & drop the photos onto the window.
+
+Perspec's integrated computer vision algorithms will automatically detect
+the corners of the document and mark them with circles.
+
+```text
+    Red o----------------o Green
+        |                |
+        |    Document    |
+        |                |
+Magenta o----------------o Blue
+```
+
+If the corners are not detected correctly,
+you can manually drag the circles or the edges to the correct position.
+
+<img src="images/screenshots/2026-04-23t1756_detected_corners.png" alt="Dropped image" style="max-width: 40rem;" />
+
+
+### 4. Save the corrected image
+
+Either click one of the save buttons or hit Enter to save the corrected image.
+
+This will save the image in the same directory
+as the original photo with `-fixed` appended to the filename.
+
+If you selected multiple photos, they will be opened one after another.
+
+<table>
+  <thead>
+    <tr>
+      <th>Button</th>
+      <th>Description</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>Save</code></td>
+      <td>Saves the image in 24-bit color.</td>
+      <td><img src="images/examples/package_slip_color.png" alt="Corrected image color" style="max-width: 20rem;" /></td>
+    </tr>
+    <tr>
+      <td><code>Save Gray</code></td>
+      <td>Saves the image in 8-bit grayscale and normalizes the range of values.</td>
+      <td><img src="images/examples/package_slip_gray.png" alt="Corrected image grayscale" style="max-width: 20rem;" /></td>
+    </tr>
+    <tr>
+      <td><code>Save BW</code></td>
+      <td>Saves the image in true 1-bit black &amp; white (each pixel is either black or white).</td>
+      <td><img src="images/examples/package_slip_bw.png" alt="Corrected image bw" style="max-width: 20rem;" /></td>
+    </tr>
+    <tr>
+      <td><code>Save BW Smooth</code></td>
+      <td>Saves the image in mostly black &amp; white with some grayscale edge smoothing. This is the recommended option for documents, receipts, and whiteboards.</td>
+      <td><img src="images/examples/package_slip_bw_smooth.png" alt="Corrected image bw smooth" style="max-width: 20rem;" /></td>
+    </tr>
+  </tbody>
+</table>
 
 
 ## Installation
 
-**WARNING:**
-Perspec currently only works on macOS and Linux.
-Any help to make it work on
-Microsoft [(Ticket)](https://github.com/feramhq/Perspec/issues/21)
-would be greatly appreciated!
-
-
 ### Prebuilt
 
-You can get this (and previous) versions from
+You can get the current and previous versions from
 [the releases page](https://github.com/feramhq/Perspec/releases).
 
-The current nightly version can be downloaded from
-https://github.com/feramhq/Perspec/actions.
+The current nightly version can be downloaded at
+[feramhq/Perspec/actions](https://github.com/feramhq/Perspec/actions).
 However, it's necessary to fix the file permissions after download:
 
 ```sh
 chmod +x \
   ./Perspec.app/Contents/MacOS/Perspec \
-  ./Perspec.app/Contents/Resources/{perspec,script,imagemagick/bin/magick}
+  ./Perspec.app/Contents/Resources/{perspec,script}
 ```
 
 On macOS you can also install it via this [Homebrew](https://brew.sh) tap:
@@ -165,9 +222,9 @@ This is very useful for batch correcting a large set of images.
 Improve colors with one of the following steps:
 
 1. Normalize dynamic range:
-  ```sh
-  mogrify -verbose -normalize photos/*.png
-  ```
+    ```sh
+    mogrify -verbose -normalize photos/*.png
+    ```
 1. Convert to black and white:
     ```sh
     #! /usr/bin/env bash
@@ -187,80 +244,22 @@ Improve colors with one of the following steps:
     done
     ```
 
-In order to rotate all photos to portrait mode you can use either
+In order to rotate all photos to portrait mode,
+you can use one of the following commands:
 ```sh
 mogrify -verbose -auto-orient -rotate "90>" photos/*.jpeg
-```
-or
-```sh
 mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 ```
-
-
-## Features
-
-- [x] Rescale image on viewport change
-- [x] Handle JPEG rotation
-- [x] Draw lines between corners to simplify guessing of clipped corners
-- [x] Bundle ImageMagick
-- [x] Better error if wrong file format is dropped (images/error-message.jpg)
-- [x] Center Perspec window on screen
-- [x] Drag'n'Drop for corner markers
-- [x] "Submit" button
-- [x] "Convert to Grayscale" button
-- [ ] Add support for custom output size (e.g. A4)
-- [ ] Manual rotation buttons
-- [ ] Zoom view for corners
-- [ ] Label corner markers
-
-
-## Algorithms
-
-### Perspective Transformation
-
-Once the corners are marked, the correction is equivalent to:
-
-```sh
-magick \
-  images/example.jpg \
-  -distort Perspective \
-    '8,35 0,0 27,73 0,66 90,72 63,66 67,10 63,0' \
-  -crop 63x66+0+0 \
-  images/example-fixed.jpg
-```
-
-### Grayscale Conversion
-
-Converts image to grayscale and normalizes the range of values afterwards.
-(Uses ImageMagick's `-colorspace gray -normalize`)
-
-
-### BW Conversion
-
-Converts image to binary format with OTSU's method.
-(Uses ImageMagick's `-auto-threshold OTSU -monochrome`)
-
-
-### Interpolation of Missing Parts
-
-Perspec automatically interpolates missing parts by using the closest pixel.
-(https://www.imagemagick.org/Usage/misc/#edge)
 
 
 ## Technologies
 
 - Core is written in [Haskell](https://haskell.org)
-- Perspective transformation are handled by [ImageMagick]
+- Image manipulation and computer vision are handled by [FlatCV](https://flatcv.ad-si.com)
 - App bundle is created with [Platypus](https://sveinbjorn.org/platypus)
-
-[ImageMagick]: https://imagemagick.org
 
 
 ## Related
-
-- [Hasscan] - OpenCV document scanner in Haskell.
-
-[Hasscan]: https://github.com/mryndzionek/hasscan
 
 Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning)
 for an extensive list of related projects.

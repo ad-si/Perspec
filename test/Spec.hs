@@ -62,7 +62,7 @@ main = hspec $ do
   describe "Perspec" $ do
     describe "Lib" $ do
       it "Applies EXIF rotation to JPEGs" $ do
-        pictureMetadataEither <- loadImage "images/doc_rotated.jpg"
+        pictureMetadataEither <- loadImage "images/examples/doc_rotated.jpg"
 
         case pictureMetadataEither of
           Right (Bitmap bitmapData, metadata) -> do
@@ -90,7 +90,7 @@ main = hspec $ do
           _ -> expectationFailure "File should have been loaded"
 
       it "extracts raw EXIF bytes from JPEG files" $ do
-        exifBytes <- extractExifBytesFromFile "images/doc_rotated.jpg"
+        exifBytes <- extractExifBytesFromFile "images/examples/doc_rotated.jpg"
         case exifBytes of
           Just bytes -> do
             -- EXIF data should start with byte order marker "MM" (big-endian) or "II" (little-endian)
@@ -130,7 +130,7 @@ main = hspec $ do
 
       it "preserves EXIF data when writing PNG with eXIf chunk" $ do
         -- Extract EXIF from source JPEG
-        exifBytes <- extractExifBytesFromFile "images/doc_rotated.jpg"
+        exifBytes <- extractExifBytesFromFile "images/examples/doc_rotated.jpg"
         exifBytes `shouldSatisfy` P.isJust
 
         -- Create a simple test image
@@ -150,7 +150,7 @@ main = hspec $ do
             orientation `shouldBe` Just (ExifShort 6)
 
       it "converts an RGBA image to binary" $ do
-        pictureMetadataEither <- loadImage "./images/doc.jpg"
+        pictureMetadataEither <- loadImage "./images/examples/doc.jpg"
 
         _ <- pictureMetadataEither `shouldSatisfy` P.isRight
 
