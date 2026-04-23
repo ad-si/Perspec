@@ -42,9 +42,6 @@ jobs:
       - name: Print Platypus' version
         run: platypus --version
 
-      - name: Install ImageMagick
-        run: brew install imagemagick
-
       - name: Inject license keys
         run:
           sed -i ''
@@ -98,7 +95,6 @@ jobs:
       - name: Install dependencies
         run:
           sudo apt-get install
-            imagemagick
             libblas-dev
             libblas3
             libfuse2
@@ -188,12 +184,6 @@ jobs:
             mingw-w64-x86_64-glfw
             mingw-w64-x86_64-openblas
             mingw-w64-x86_64-libwebp
-
-      - name: Install ImageMagick
-        run: choco install imagemagick -y
-
-      - name: Build banner.bmp
-        run: magick images\banner.png images\banner.bmp
 
       - name: Inject license keys
         shell: pwsh
