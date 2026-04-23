@@ -202,6 +202,8 @@ data AppState = AppState
   , transformBackend :: TransformBackend
   , isRegistered :: Bool
   , bannerIsVisible :: Bool
+  , bannerUrlError :: Maybe Text
+  -- ^ Set when opening the Buy License URL in a browser fails
   , sidebarWidth :: Int
   , sidebarColor :: Int
   , uiComponents :: [UiComponent]
@@ -228,6 +230,7 @@ instance Show AppState where
       <> (", transformBackend = " <> show appState.transformBackend)
       <> (", isRegistered = " <> show appState.isRegistered)
       <> (", bannerIsVisible = " <> show appState.bannerIsVisible)
+      <> (", bannerUrlError = " <> show appState.bannerUrlError)
       <> (", sidebarWidth = " <> show appState.sidebarWidth)
       <> (", sidebarColor = " <> show appState.sidebarColor)
       <> (", uiComponents = " <> show appState.uiComponents)
@@ -258,6 +261,7 @@ initialState =
     , transformBackend = FlatCVBackend
     , isRegistered = False
     , bannerIsVisible = False
+    , bannerUrlError = Nothing
     , sidebarWidth = sidebarInitialWidth
     , sidebarColor = 0
     , uiComponents =

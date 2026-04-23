@@ -48,8 +48,6 @@ import Protolude (
  )
 
 import Control.Concurrent (forkIO, threadDelay)
-import Data.ByteString.Lazy qualified as BL
-import Data.FileEmbed (embedFile)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
@@ -78,10 +76,10 @@ import Brillo (
     ThickArc,
     ThickCircle,
     ThickLine,
-    Translate
+    Translate,
+    TrueTypeText
   ),
   Point,
-  bitmapOfBMP,
   black,
   greyN,
   makeColor,
@@ -99,7 +97,6 @@ import Brillo.Interface.IO.Game as Gl (
  )
 import Brillo.Interface.IO.Interact (Controller (..), interactIO)
 import Brillo.Rendering (BitmapData (..))
-import Codec.BMP (parseBMP)
 import Codec.Picture (
   DynamicImage (ImageRGBA8),
   imageFromUnsafePtr,
@@ -147,6 +144,7 @@ import Utils (
   applyRotationToCorners,
   calcInitWindowPos,
   calculateSizes,
+  defaultFontPath,
   getCorners,
   getTextPicture,
   loadFileIntoState,
@@ -231,12 +229,155 @@ bannerTime :: Float
 bannerTime = 10 -- seconds
 
 
-bannerImage :: Picture
-bannerImage =
-  either
-    (const mempty)
-    bitmapOfBMP
-    (parseBMP (BL.fromStrict $(embedFile "images/banner.bmp")))
+-- | URL opened by the "Buy License" button in the banner
+buyLicenseUrl :: Text
+buyLicenseUrl = "https://feram.gumroad.com/l/perspec"
+
+
+{-| Open a URL in the system default browser.
+Returns 'Left' with an error message when the platform-specific command fails.
+-}
+openUrl :: Text -> IO (Either Text ())
+openUrl url = do
+  let
+    urlStr = T.unpack url
+    attempt =
+      try $ case os of
+        "darwin" -> callProcess "open" [urlStr]
+        "mingw32" -> callProcess "cmd" ["/c", "start", "", urlStr]
+        _ -> callProcess "xdg-open" [urlStr]
+  result <- attempt
+  case result of
+    Right () -> pure $ Right ()
+    Left (err :: IOException) ->
+      pure $ Left $ toS $ P.displayException err
+
+
+-- | Bounding box of the "Buy License" button relative to banner center
+buyLicenseButtonCenter :: Point
+buyLicenseButtonCenter = (0, 5)
+
+
+buyLicenseButtonSize :: (Float, Float)
+buyLicenseButtonSize = (220, 56)
+
+
+isBuyLicenseClick :: Point -> Bool
+isBuyLicenseClick (clickX, clickY) =
+  let
+    (cx, cy) = buyLicenseButtonCenter
+    (bw, bh) = buyLicenseButtonSize
+  in
+    clickX > cx - bw / 2
+      && clickX < cx + bw / 2
+      && clickY > cy - bh / 2
+      && clickY < cy + bh / 2
+
+
+-- | Approximate character width for Arial/DejaVu at the given pixel height
+textWidthApprox :: Int -> Text -> Float
+textWidthApprox sz txt =
+  fromIntegral (T.length txt) * fromIntegral sz * 0.55
+
+
+bannerImage :: Maybe Text -> Picture
+bannerImage urlErrorMb =
+  let
+    bgColor = makeColor 0.92 0.92 0.92 1.0
+    titleColor = greyN 0.15
+    bodyColor = greyN 0.25
+    accentColor = makeColor 0.2 0.7 0.3 1.0
+    errorColor = makeColor 0.8 0.2 0.2 1.0
+    buttonColor = accentColor
+    buttonTextColor = greyN 0.98
+
+    bannerWidth = 800
+    bannerHeight = 600
+
+    titleSize = 42 :: Int
+    bodySize = 26 :: Int
+    buttonTextSize = 24 :: Int
+    errorSize = 18 :: Int
+
+    centeredText :: Int -> Float -> Gl.Color -> Text -> Picture
+    centeredText sz y col txt =
+      Translate (-(textWidthApprox sz txt / 2)) (y - fromIntegral sz / 2) $
+        Color col $
+          TrueTypeText defaultFontPath sz txt
+
+    (btnCx, btnCy) = buyLicenseButtonCenter
+    (btnW, btnH) = buyLicenseButtonSize
+    btnLabel = "Buy License"
+    btnLabelW = textWidthApprox buttonTextSize btnLabel
+
+    buyLicenseButton =
+      Translate btnCx btnCy $
+        Pictures
+          [ Color buttonColor $ roundedRectSolid btnW btnH 10
+          , Translate
+              (-(btnLabelW / 2))
+              (-(fromIntegral buttonTextSize * 3 / 8))
+              ( Color buttonTextColor $
+                  TrueTypeText defaultFontPath buttonTextSize btnLabel
+              )
+          ]
+
+    errorLines = case urlErrorMb of
+      Nothing -> []
+      Just _ ->
+        [ centeredText
+            errorSize
+            (-45)
+            errorColor
+            "Could not open browser. Please visit:"
+        , centeredText
+            errorSize
+            (-70)
+            errorColor
+            buyLicenseUrl
+        ]
+  in
+    Pictures $
+      [ Color bgColor $
+          roundedRectSolid bannerWidth bannerHeight 20
+      , centeredText titleSize 220 titleColor "Welcome to Perspec!"
+      , Translate 0 180 $
+          Color accentColor $
+            rectangleSolid 500 6
+      , centeredText
+          bodySize
+          110
+          bodyColor
+          "To remove this annoying banner, please"
+      , centeredText
+          bodySize
+          75
+          bodyColor
+          "obtain a licensed version of Perspec:"
+      , buyLicenseButton
+      ]
+        <> errorLines
+        <> [ centeredText
+               bodySize
+               (-105)
+               bodyColor
+               "I hate to bother you with this, but"
+           , centeredText
+               bodySize
+               (-140)
+               bodyColor
+               "sustainable development is hardly possible"
+           , centeredText
+               bodySize
+               (-175)
+               bodyColor
+               "otherwise."
+           , centeredText
+               bodySize
+               (-245)
+               bodyColor
+               "Thank you for your help!"
+           ]
 
 
 appStateToWindow :: (Int, Int) -> AppState -> Display
@@ -667,7 +808,7 @@ makePicture appState =
                   appState.uiComponents
                   [0 ..]
                 <> [ if appState.bannerIsVisible
-                       then Scale 0.5 0.5 bannerImage
+                       then bannerImage appState.bannerUrlError
                        else mempty
                    , if appState.bannerIsVisible
                        then
@@ -893,6 +1034,14 @@ handleImageViewEvent ::
   IORef AppState -> Controller -> Event -> AppState -> IO AppState
 handleImageViewEvent stateRef controller event appState =
   case event of
+    EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint
+      | appState.bannerIsVisible && isBuyLicenseClick clickedPoint -> do
+          result <- openUrl buyLicenseUrl
+          case result of
+            Right () -> pure appState{bannerUrlError = Nothing}
+            Left err -> do
+              P.putErrLn $ "Failed to open browser: " <> err
+              pure appState{bannerUrlError = Just err}
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
       -- Check if a UiComponent was clicked
       let
@@ -980,9 +1129,15 @@ handleImageViewEvent stateRef controller event appState =
             <&> snd
 
       -- Set cursor based on hover state
-      controllerSetCursor controller $ case hoveredBtn of
-        Just _ -> CursorHand
-        Nothing -> CursorArrow
+      let
+        isBannerButtonHovered =
+          appState.bannerIsVisible && isBuyLicenseClick newPoint
+      controllerSetCursor controller $
+        if isBannerButtonHovered
+          then CursorHand
+          else case hoveredBtn of
+            Just _ -> CursorHand
+            Nothing -> CursorArrow
 
       pure $ case appState.cornerDragged of
         Just cornerPoint ->
@@ -1480,7 +1635,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
 loadAndStart config filePathsMb = do
   let
-    isRegistered = config.licenseKey `elem` licenses
+    isRegistered = False -- config.licenseKey `elem` licenses
     stateDraft =
       initialState
         { transformBackend = config.transformBackendFlag

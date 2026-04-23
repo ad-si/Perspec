@@ -84,16 +84,12 @@ imagemagick:
 	mv ImageMagick-7.* imagemagick
 
 
-~/.local/bin/perspec: app source images/banner.bmp
+~/.local/bin/perspec: app source
 	stack install $(STACK_OPTS)
 
 
 .PHONY: perspec
 perspec: ~/.local/bin/perspec
-
-
-images/banner.bmp: images/banner.png
-	magick $< $@
 
 
 .PHONY: install
