@@ -25,7 +25,6 @@ import Protolude (
   const,
   either,
   elem,
-  exitSuccess,
   flip,
   fromIntegral,
   fromMaybe,
@@ -47,7 +46,7 @@ import Protolude (
   (<&>),
  )
 
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List as DL (elemIndex, minimum)
 import Data.Text qualified as T
@@ -60,6 +59,7 @@ import GHC.Float (float2Double, int2Double)
 import Protolude qualified as P
 import System.Directory (getCurrentDirectory)
 import System.Environment (getEnv, setEnv)
+import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath (replaceExtension)
 import System.Info (os)
 import System.Process (callProcess, spawnProcess)
@@ -151,6 +151,16 @@ import Utils (
   loadImage,
   prettyPrintArray,
  )
+
+
+{-| Deliver @ExitSuccess@ to the main thread so Brillo's main loop unwinds
+and GHC's top-level handler performs a clean exit. Using @throwTo@ (rather
+than @exitSuccess@) is necessary because the banner-countdown worker runs
+in a forked thread — throwing there would only kill the worker while Brillo
+kept running.
+-}
+exitCleanly :: ThreadId -> IO ()
+exitCleanly mainTid = throwTo mainTid ExitSuccess
 
 
 -- | This is replaced with valid licenses during CI build
@@ -948,8 +958,11 @@ checkSidebarRectHit
 submitSelection ::
   IORef AppState -> Controller -> AppState -> ExportMode -> IO AppState
 submitSelection stateRef controller appState exportMode = do
+  -- Captured here because submitSelection runs in the event-handler (main)
+  -- thread; the forked worker below needs it to signal exit back to main.
+  mainTid <- myThreadId
   if appState.isRegistered
-    then performExport appState exportMode
+    then performExport mainTid appState exportMode
     else do
       -- Show banner and spawn delayed export
       let bannerState =
@@ -975,14 +988,14 @@ submitSelection stateRef controller appState exportMode = do
         let stateWithBannerHidden = finalState{bannerIsVisible = False}
         writeIORef stateRef stateWithBannerHidden
         controllerSetRedraw controller
-        newState <- performExport stateWithBannerHidden exportMode
+        newState <- performExport mainTid stateWithBannerHidden exportMode
         writeIORef stateRef newState
         controllerSetRedraw controller
       pure bannerState
 
 
-performExport :: AppState -> ExportMode -> IO AppState
-performExport appState exportMode = do
+performExport :: ThreadId -> AppState -> ExportMode -> IO AppState
+performExport mainTid appState exportMode = do
   case appState.images of
     [] -> pure appState
     image : otherImages -> do
@@ -1026,7 +1039,9 @@ performExport appState exportMode = do
         image.isFlipped
 
       if P.null otherImages
-        then exitSuccess
+        then do
+          exitCleanly mainTid
+          pure appState
         else loadFileIntoState appState{images = otherImages}
 
 

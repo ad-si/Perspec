@@ -68,55 +68,55 @@ packages:
 - completed:
     name: brillo
     pantry-tree:
-      sha256: c1392113ac613fbb64198d04e1342255614b21589938d20abc39ec671ad4e2b8
+      sha256: a144e761a5200d48a1aa787d6fbc34da3c9c064c554b66ebb29646823616f9aa
       size: 3807
-    sha256: b29f3060b8866041959fe710df79b401e665d0a0c61fcf36951bf7c0b2f3ca9d
-    size: 10314019
+    sha256: 345eb5dc16e4f15aa05424ab6bfec99a1104c26779a75d45eb78ae79db41eccc
+    size: 10990872
     subdir: brillo
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
-    version: 1.13.3
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
+    version: 2.0.0
   original:
     subdir: brillo
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
 - completed:
     name: brillo-algorithms
     pantry-tree:
-      sha256: 1f26bcf0ebc59c940d22d26234b40ea6fa245c31eb4bd0b5a37b1cd7eea8c6bb
+      sha256: 759967bf6643471ce492ccdeb04ab143c11547a5e8d8770d0047b66369ea2e23
       size: 368
-    sha256: b29f3060b8866041959fe710df79b401e665d0a0c61fcf36951bf7c0b2f3ca9d
-    size: 10314019
+    sha256: 345eb5dc16e4f15aa05424ab6bfec99a1104c26779a75d45eb78ae79db41eccc
+    size: 10990872
     subdir: brillo-algorithms
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
-    version: 1.13.3
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
+    version: 2.0.0
   original:
     subdir: brillo-algorithms
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
 - completed:
     name: brillo-juicy
     pantry-tree:
-      sha256: 83976e2e0e8575be37884388ee00a35f0a6cd56d1be0c2bfa8307b3702148916
+      sha256: 5be75bd5ee38bb11b8d98429cb7ec93885d9748814f73e060235d14d0f57d8e6
       size: 315
-    sha256: b29f3060b8866041959fe710df79b401e665d0a0c61fcf36951bf7c0b2f3ca9d
-    size: 10314019
+    sha256: 345eb5dc16e4f15aa05424ab6bfec99a1104c26779a75d45eb78ae79db41eccc
+    size: 10990872
     subdir: brillo-juicy
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
-    version: 0.2.4
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
+    version: 0.3.0
   original:
     subdir: brillo-juicy
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
 - completed:
     name: brillo-rendering
     pantry-tree:
-      sha256: d9eaefcada02e0289d0369345b8bf586ab97fca3f988f868043d767f7e88cac7
+      sha256: c857676558e5d0ef28a404a1e505edcf9d303618f470553342615dcb912ab7fa
       size: 1147
-    sha256: b29f3060b8866041959fe710df79b401e665d0a0c61fcf36951bf7c0b2f3ca9d
-    size: 10314019
+    sha256: 345eb5dc16e4f15aa05424ab6bfec99a1104c26779a75d45eb78ae79db41eccc
+    size: 10990872
     subdir: brillo-rendering
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
-    version: 1.13.3
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
+    version: 2.0.0
   original:
     subdir: brillo-rendering
-    url: https://github.com/ad-si/Brillo/archive/ed58b3667aa270313252122f4959b4119eab35de.tar.gz
+    url: https://github.com/ad-si/Brillo/archive/b47c73b24dc1762d28ec1fbb732c7c8e5533516d.tar.gz
 - completed:
     name: freetype2
     pantry-tree:
