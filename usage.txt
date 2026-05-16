@@ -13,7 +13,9 @@ Options:
                         (FlatCV, Hip, ImageMagick)
 
 Rename Options:
-  --start-with=<int>  First page number
+  --start-with=<int>  First page number. Leading zeros set the zero-padding
+                        width of the output filenames (e.g. --start-with=01
+                        produces 01, 02, …, 10, 11, …).
   --even              The directory contains only even page numbers
   --odd               The directory contains only odd page numbers
   --descending        Pages were photographed in descending order

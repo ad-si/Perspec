@@ -9,14 +9,15 @@ import Protolude as P (
   Foldable (elem, length, null),
   Int,
   Maybe (..),
-  Num ((*), (+), (-)),
-  Ord ((<)),
+  Num (abs, (*), (+), (-)),
+  Ord (max, (<)),
   Semigroup ((<>)),
   Text,
   filter,
   fromMaybe,
   isJust,
   isNothing,
+  replicate,
   show,
   sortBy,
   zipWith,
@@ -27,9 +28,25 @@ import Protolude as P (
 
 import Algorithms.NaturalSort (compare)
 import Data.Text (pack, unpack)
+import Data.Text qualified as T
 import System.FilePath (takeExtension)
 
 import Types (RenameMode (..), SortOrder (..))
+
+
+{-| Format a number with leading zeros so the digit count is at least
+@width@. Negative numbers retain a leading dash before the padded digits.
+A width of @0@ (or any width not larger than the natural representation)
+leaves the number unchanged.
+-}
+padNum :: Int -> Int -> Text
+padNum width n =
+  let
+    absStr = show (abs n)
+    padCount = max 0 (width - T.length absStr)
+    paddedAbs = pack (replicate padCount '0') <> absStr
+  in
+    if n < 0 then "-" <> paddedAbs else paddedAbs
 
 
 mapWithIndex :: Int -> RenameMode -> SortOrder -> (a -> Int -> b) -> [a] -> [b]
@@ -60,11 +77,12 @@ mapWithIndex startNum renameMode sortOrder function elements =
 
 getRenamingBatches ::
   Maybe Int ->
+  Int ->
   RenameMode ->
   SortOrder ->
   [Text] ->
   [[(Text, Text)]]
-getRenamingBatches startNumberMb renameMode sortOrder files =
+getRenamingBatches startNumberMb padding renameMode sortOrder files =
   let
     filesSorted :: [Text]
     filesSorted =
@@ -92,7 +110,7 @@ getRenamingBatches startNumberMb renameMode sortOrder files =
           ( \file index ->
               ( file
               , (if index < 0 then "_todo_" else "")
-                  <> show index
+                  <> padNum padding index
                   <> pack (takeExtension $ unpack file)
               )
           )

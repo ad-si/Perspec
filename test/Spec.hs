@@ -198,7 +198,7 @@ main = hspec $ do
               ]
             ]
 
-        getRenamingBatches Nothing Sequential Ascending files
+        getRenamingBatches Nothing 0 Sequential Ascending files
           `shouldBe` batches
 
       describe "Renaming files in descending order" $ do
@@ -217,7 +217,7 @@ main = hspec $ do
                 ]
               ]
 
-          getRenamingBatches Nothing Sequential Descending files
+          getRenamingBatches Nothing 0 Sequential Descending files
             `shouldBe` batches
 
         it "allows explicitly setting first page number" $ do
@@ -235,7 +235,7 @@ main = hspec $ do
                 ]
               ]
 
-          getRenamingBatches (Just 2) Sequential Descending files
+          getRenamingBatches (Just 2) 0 Sequential Descending files
             `shouldBe` batches
 
       describe "Renaming files with even page numbers" $ do
@@ -250,7 +250,7 @@ main = hspec $ do
             ]
 
         it "automatically sets first page number" $ do
-          getRenamingBatches Nothing Even Ascending files
+          getRenamingBatches Nothing 0 Even Ascending files
             `shouldBe` batchesStartingZero
 
         it "automatically sets first page number with descending order" $ do
@@ -264,11 +264,11 @@ main = hspec $ do
                 ]
               ]
 
-          getRenamingBatches Nothing Even Descending numericFiles
+          getRenamingBatches Nothing 0 Even Descending numericFiles
             `shouldBe` batches
 
         it "allows explicitly setting first page number" $ do
-          getRenamingBatches (Just 0) Even Ascending files
+          getRenamingBatches (Just 0) 0 Even Ascending files
             `shouldBe` batchesStartingZero
 
         it "rounds to next even page number" $ do
@@ -280,7 +280,7 @@ main = hspec $ do
                   ]
                 ]
 
-          getRenamingBatches (Just 1) Even Ascending files
+          getRenamingBatches (Just 1) 0 Even Ascending files
             `shouldBe` batches
 
       describe "Renaming files with odd page numbers" $ do
@@ -295,9 +295,9 @@ main = hspec $ do
                 ]
               ]
 
-          getRenamingBatches Nothing Odd Ascending files `shouldBe` batches
-          getRenamingBatches (Just 0) Odd Ascending files `shouldBe` batches
-          getRenamingBatches (Just 1) Odd Ascending files `shouldBe` batches
+          getRenamingBatches Nothing 0 Odd Ascending files `shouldBe` batches
+          getRenamingBatches (Just 0) 0 Odd Ascending files `shouldBe` batches
+          getRenamingBatches (Just 1) 0 Odd Ascending files `shouldBe` batches
 
         it "works with descending order and automatically sets page number" $ do
           let
@@ -310,7 +310,7 @@ main = hspec $ do
                 ]
               ]
 
-          getRenamingBatches Nothing Odd Descending files `shouldBe` batches
+          getRenamingBatches Nothing 0 Odd Descending files `shouldBe` batches
 
         it "works with descending order and explicit page number" $ do
           let
@@ -323,8 +323,8 @@ main = hspec $ do
                 ]
               ]
 
-          getRenamingBatches (Just 7) Odd Descending files `shouldBe` batches
-          getRenamingBatches (Just 8) Odd Descending files `shouldBe` batches
+          getRenamingBatches (Just 7) 0 Odd Descending files `shouldBe` batches
+          getRenamingBatches (Just 8) 0 Odd Descending files `shouldBe` batches
 
       it "prefixes pages with negative numbers with \"_todo_\"" $ do
         let
@@ -337,6 +337,49 @@ main = hspec $ do
               ]
             ]
 
-        getRenamingBatches (Just 1) Odd Descending files `shouldBe` batches
+        getRenamingBatches (Just 1) 0 Odd Descending files `shouldBe` batches
+
+      describe "Padded output filenames" $ do
+        it "pads output numbers to the given width" $ do
+          let
+            files = ["a.txt", "b.txt", "c.txt"]
+            batches =
+              [
+                [ ("a.txt", "01.txt")
+                , ("b.txt", "02.txt")
+                , ("c.txt", "03.txt")
+                ]
+              ]
+
+          getRenamingBatches (Just 1) 2 Sequential Ascending files
+            `shouldBe` batches
+
+        it "leaves wider numbers untouched when they exceed the width" $ do
+          let
+            files = ["a.txt", "b.txt", "c.txt"]
+            batches =
+              [
+                [ ("a.txt", "09.txt")
+                , ("b.txt", "10.txt")
+                , ("c.txt", "11.txt")
+                ]
+              ]
+
+          getRenamingBatches (Just 9) 2 Sequential Ascending files
+            `shouldBe` batches
+
+        it "pads negative _todo_ pages after the dash" $ do
+          let
+            files = ["8.txt", "10.txt", "9.txt"]
+            batches =
+              [
+                [ ("8.txt", "01.txt")
+                , ("9.txt", "_todo_-01.txt")
+                , ("10.txt", "_todo_-03.txt")
+                ]
+              ]
+
+          getRenamingBatches (Just 1) 2 Odd Descending files
+            `shouldBe` batches
 
   UtilsSpec.spec

@@ -10,11 +10,14 @@ import Protolude (
   Bool (True),
   Char,
   Either (Left, Right),
+  Eq ((==)),
   IO,
   Maybe (Just, Nothing),
   Monad ((>>=)),
   die,
+  dropWhile,
   getArgs,
+  length,
   otherwise,
   reads,
   when,
@@ -105,14 +108,21 @@ execWithArgs confFromFile cliArgs = do
     directory <- args `getArgOrExit` argument "directory"
 
     let
+      startWithStrMb = args `getArg` longOption "start-with"
+
       startNumberMb =
-        args
-          `getArg` longOption "start-with"
+        startWithStrMb
           <&> reads
           & ( \case
-                Just [(int, _)] -> Just int
+                Just [(int, "")] -> Just int
                 _ -> Nothing
             )
+
+      -- Padding width is the digit count of the raw --start-with string
+      -- (excluding any leading sign), so `--start-with=01` pads to 2 digits.
+      padding = case (startWithStrMb, startNumberMb) of
+        (Just s, Just _) -> length (dropWhile (== '-') s)
+        _ -> 0
 
       renameMode
         | args `isPresent` longOption "even" = Even
@@ -130,6 +140,7 @@ execWithArgs confFromFile cliArgs = do
       renamingBatches =
         getRenamingBatches
           startNumberMb
+          padding
           renameMode
           sortOrder
           (files <&> pack)
