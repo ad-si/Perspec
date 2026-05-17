@@ -198,7 +198,12 @@ jobs:
           | Set-Content -NoNewline source\Lib.hs
 
       - name: Build Perspec
-        run: stack install --ghc-options=-O2 --flag hmatrix:openblas
+        run:
+          stack install
+            --ghc-options=-O2
+            --flag hmatrix:openblas
+            --no-executable-stripping
+            --no-library-stripping
         env:
           GHCRTS: -K64M
 
