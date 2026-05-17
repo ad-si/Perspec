@@ -7,7 +7,7 @@
 module Main where
 
 import Protolude (
-  Bool (True),
+  Bool (False, True),
   Char,
   Either (Left, Right),
   Eq ((==)),
@@ -134,9 +134,18 @@ execWithArgs confFromFile cliArgs = do
           then Descending
           else Ascending
 
-    files <- listDirectory directory
+    allFiles <- listDirectory directory
 
     let
+      -- Ignore dotfiles (e.g. .DS_Store, .gitignore)
+      files =
+        allFiles
+          & P.filter
+            ( \case
+                ('.' : _) -> False
+                _ -> True
+            )
+
       renamingBatches =
         getRenamingBatches
           startNumberMb
