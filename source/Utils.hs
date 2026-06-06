@@ -317,24 +317,39 @@ applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped =
       _ -> unflippedCorners
 
 
+-- | File extensions Perspec recognizes as loadable images.
+imageExtensions :: [FilePath]
+imageExtensions =
+  [ ".avif"
+  , ".bmp"
+  , ".gif"
+  , ".hdr"
+  , ".jpeg"
+  , ".jpg"
+  , ".png"
+  , ".ppm"
+  , ".tiff"
+  , ".webp"
+  ]
+
+
+-- | Check (case-insensitively) whether a file path has an image extension.
+isImageFile :: FilePath -> Bool
+isImageFile filePath =
+  let extLower = takeExtension filePath & T.pack & T.toLower & T.unpack
+  in  P.elem extLower imageExtensions
+
+
 loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))
 loadImage filePath = do
   picMetaMaybe <- loadJuicyWithMetadata filePath
 
   let
-    allowedExtensions =
-      [ ".jpeg"
-      , ".jpg"
-      , ".png"
-      , ".bmp"
-      , ".gif"
-      , ".hdr"
-      ]
     fileExtension = takeExtension filePath
 
   case picMetaMaybe of
     Nothing -> do
-      if P.elem fileExtension allowedExtensions
+      if P.elem fileExtension imageExtensions
         then pure $ Left "Error: Image couldn't be loaded"
         else
           pure $

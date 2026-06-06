@@ -67,6 +67,7 @@ import Types (
   TransformBackend (FlatCVBackend, HipBackend, ImageMagickBackend),
   transformBackendFlag,
  )
+import Utils (isImageFile)
 
 
 patterns :: Docopt
@@ -138,14 +139,11 @@ execWithArgs confFromFile cliArgs = do
     allFiles <- listDirectory directory
 
     let
-      -- Ignore dotfiles (e.g. .DS_Store, .gitignore)
+      -- Only rename image files, skipping directories, dotfiles
+      -- (e.g. .DS_Store), AppleDouble files (._*), and other formats
       files =
         allFiles
-          & P.filter
-            ( \case
-                ('.' : _) -> False
-                _ -> True
-            )
+          & P.filter isImageFile
 
       renamingBatches =
         getRenamingBatches
