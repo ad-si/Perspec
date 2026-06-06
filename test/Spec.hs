@@ -49,8 +49,10 @@ import PngExif (
   writePngWithExif,
  )
 import Rename (getRenamingBatches)
+import Rotate (pageNumber, rotationForNumber)
 import Types (
   RenameMode (Even, Odd, Sequential),
+  RotationDirection (Clockwise, CounterClockwise),
   SortOrder (Ascending, Descending),
  )
 import Utils (loadImage)
@@ -381,5 +383,21 @@ main = hspec $ do
 
           getRenamingBatches (Just 1) 2 Odd Descending files
             `shouldBe` batches
+
+    describe "Rotate" $ do
+      it "rotates even pages clockwise and odd pages counter-clockwise" $ do
+        rotationForNumber 0 `shouldBe` Clockwise
+        rotationForNumber 1 `shouldBe` CounterClockwise
+        rotationForNumber 2 `shouldBe` Clockwise
+        rotationForNumber 11 `shouldBe` CounterClockwise
+
+      it "parses page numbers from purely numeric base names" $ do
+        pageNumber "1.png" `shouldBe` Just 1
+        pageNumber "042.png" `shouldBe` Just 42
+
+      it "ignores non-numeric or malformed base names" $ do
+        pageNumber "cover.png" `shouldBe` Nothing
+        pageNumber "1.2.png" `shouldBe` Nothing
+        pageNumber ".png" `shouldBe` Nothing
 
   UtilsSpec.spec

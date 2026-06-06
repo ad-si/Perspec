@@ -7,6 +7,7 @@ Usage:
   perspec gui [--backend=<str>]
   perspec fix [--backend=<str>] <file>...
   perspec rename [options] <directory>
+  perspec rotate <directory>
 
 Options:
   --backend=<str>  Image manipulation backend to use
@@ -22,3 +23,6 @@ Rename Options:
 
 Notes:
   If page numbers go below zero, they are prefixed with "_todo_"
+
+  The `rotate` sub-command rotates sequentially numbered PNGs in place:
+  odd page numbers 90° counter-clockwise, even page numbers 90° clockwise.

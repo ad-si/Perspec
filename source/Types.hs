@@ -132,6 +132,12 @@ data RenameMode
   deriving (Show)
 
 
+data RotationDirection
+  = Clockwise
+  | CounterClockwise
+  deriving (Show, Eq)
+
+
 data SortOrder
   = Ascending
   | Descending

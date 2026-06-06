@@ -59,6 +59,7 @@ import System.IO (hSetEncoding, stderr, stdout, utf8)
 import Control.Arrow ((>>>))
 import Lib (loadAndStart)
 import Rename (getRenamingBatches)
+import Rotate (rotatePages)
 import Types (
   Config,
   RenameMode (Even, Odd, Sequential),
@@ -165,6 +166,10 @@ execWithArgs confFromFile cliArgs = do
                       (directory </> unpack target)
                 )
         )
+
+  when (args `isPresent` command "rotate") $ do
+    directory <- args `getArgOrExit` argument "directory"
+    rotatePages directory
 
 
 main :: IO ()
