@@ -1,32 +1,44 @@
 module Rotate where
 
 import Protolude (
+  Either (Left, Right),
   FilePath,
   IO,
   Int,
   Maybe (Just, Nothing),
   Semigroup ((<>)),
-  all,
   die,
   even,
-  not,
+  fromIntegral,
   null,
+  pure,
+  putErrText,
   putText,
   when,
+  zip,
   ($),
   (&),
-  (&&),
   (==),
  )
 import Protolude qualified as P
 
-import Data.Char (isDigit)
+import Codec.Picture (
+  Image (Image, imageData, imageHeight, imageWidth),
+  PixelRGBA8,
+  convertRGBA8,
+  readImage,
+  writePng,
+ )
+import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
+import Data.List (sort)
 import Data.Text (pack)
+import Data.Vector.Storable (Vector)
+import Data.Word (Word32, Word8)
 import System.Directory (listDirectory)
-import System.FilePath (takeBaseName, takeExtension, (</>))
-import Text.Read (readMaybe)
+import System.FilePath (takeExtension, (</>))
 
-import Graphics.Image (readImageRGBA, rotate270, rotate90, writeImage)
+import FlatCV qualified as FCV
+import PngExif (getExifOrientationFromPng)
 import Types (RotationDirection (Clockwise, CounterClockwise))
 
 
@@ -41,21 +53,44 @@ rotationForNumber number =
     else CounterClockwise
 
 
-{-| Parse the page number from a filename's base name.
-Returns 'Nothing' if the base name is empty or not purely numeric
-(e.g. @"cover.png"@ or @"1.2.png"@).
+{-| Bake an EXIF orientation into the RGBA pixel buffer so the stored pixels
+match what an EXIF-aware viewer would display.
+Returns the upright width, height, and buffer.
+
+PNG eXIf orientation support isn't universal among viewers, so the rotate
+sub-command normalizes the pixels here and writes the output without an
+orientation tag, instead of relying on the tag to be honored.
+
+FlatCV's primitives map directly onto the eight EXIF orientations.
 -}
-pageNumber :: FilePath -> Maybe Int
-pageNumber file =
-  let base = takeBaseName file
-  in  if not (null base) && all isDigit base
-        then readMaybe base
-        else Nothing
+bakeOrientation ::
+  Maybe ExifData ->
+  Word32 ->
+  Word32 ->
+  Vector Word8 ->
+  IO (Word32, Word32, Vector Word8)
+bakeOrientation orientation width height buffer =
+  let keep buf = pure (width, height, buf)
+      swap buf = pure (height, width, buf)
+  in  case orientation of
+        Just (ExifShort 2) -> FCV.flipX width height buffer P.>>= keep
+        Just (ExifShort 3) -> FCV.rotate180 width height buffer P.>>= keep
+        Just (ExifShort 4) -> FCV.flipY width height buffer P.>>= keep
+        Just (ExifShort 5) -> FCV.transpose width height buffer P.>>= swap
+        Just (ExifShort 6) -> FCV.rotate90CW width height buffer P.>>= swap
+        Just (ExifShort 7) -> FCV.transverse width height buffer P.>>= swap
+        Just (ExifShort 8) -> FCV.rotate270CW width height buffer P.>>= swap
+        _ -> keep buffer
 
 
-{-| Rotate sequentially numbered PNGs in a directory, in place:
-odd page numbers 90° counter-clockwise, even page numbers 90° clockwise.
-Non-numeric filenames are skipped.
+{-| Rotate the PNGs in a directory in place, treating the alphabetically
+sorted list of files as the page sequence: the first file is page 1, the
+second page 2, and so on. Odd pages are rotated 90° counter-clockwise,
+even pages 90° clockwise.
+
+Any existing EXIF orientation is first baked into the pixels, then the page
+rotation is applied to the pixels, and the result is written without an
+orientation tag so it displays correctly regardless of EXIF support.
 Exits with an error if the directory contains no PNGs.
 -}
 rotatePages :: FilePath -> IO ()
@@ -66,26 +101,50 @@ rotatePages directory = do
     pngFiles =
       allFiles
         & P.filter (\file -> takeExtension file == ".png")
+        & sort
 
   when (null pngFiles) $
     die "No PNG files found"
 
-  pngFiles
+  zip [1 :: Int ..] pngFiles
     & P.mapM_
-      ( \file ->
-          case pageNumber file of
-            Nothing ->
-              putText $ "Skip " <> pack file <> " (not a numeric filename)"
-            Just number -> do
-              let path = directory </> file
+      ( \(number, file) -> do
+          let path = directory </> file
 
-              image <- readImageRGBA path
+          dynImageEither <- readImage path
 
-              case rotationForNumber number of
-                Clockwise -> do
-                  putText $ "Rotate " <> pack file <> " 90° clockwise"
-                  writeImage path (rotate90 image)
-                CounterClockwise -> do
-                  putText $ "Rotate " <> pack file <> " 90° counter-clockwise"
-                  writeImage path (rotate270 image)
+          case dynImageEither of
+            Left err ->
+              putErrText $ "Skip " <> pack file <> ": " <> pack err
+            Right dynImage -> do
+              orientation <- getExifOrientationFromPng path
+
+              let
+                rgba = convertRGBA8 dynImage
+                rawWidth = fromIntegral (imageWidth rgba)
+                rawHeight = fromIntegral (imageHeight rgba)
+
+              (uprightWidth, uprightHeight, uprightBuffer) <-
+                bakeOrientation orientation rawWidth rawHeight (imageData rgba)
+
+              let
+                (label, rotate) =
+                  case rotationForNumber number of
+                    Clockwise -> ("clockwise", FCV.rotate90CW)
+                    CounterClockwise -> ("counter-clockwise", FCV.rotate270CW)
+
+              putText $ "Rotate " <> pack file <> " 90° " <> label
+
+              -- Both rotations swap the dimensions (w × h becomes h × w).
+              rotated <- rotate uprightWidth uprightHeight uprightBuffer
+
+              let
+                outImage :: Image PixelRGBA8
+                outImage =
+                  Image
+                    (fromIntegral uprightHeight)
+                    (fromIntegral uprightWidth)
+                    rotated
+
+              writePng path outImage
       )

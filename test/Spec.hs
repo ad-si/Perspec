@@ -35,7 +35,15 @@ import Brillo (
  )
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
-import Codec.Picture (DynamicImage (ImageRGBA8), PixelRGBA8 (..), generateImage)
+import Codec.Picture (
+  DynamicImage (ImageRGBA8),
+  PixelRGBA8 (..),
+  convertRGBA8,
+  generateImage,
+  imageHeight,
+  imageWidth,
+  readImage,
+ )
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
@@ -49,7 +57,14 @@ import PngExif (
   writePngWithExif,
  )
 import Rename (getRenamingBatches)
-import Rotate (pageNumber, rotationForNumber)
+import Rotate (rotatePages, rotationForNumber)
+import System.Directory (
+  copyFile,
+  createDirectoryIfMissing,
+  getTemporaryDirectory,
+  removePathForcibly,
+ )
+import System.FilePath ((</>))
 import Types (
   RenameMode (Even, Odd, Sequential),
   RotationDirection (Clockwise, CounterClockwise),
@@ -391,13 +406,31 @@ main = hspec $ do
         rotationForNumber 2 `shouldBe` Clockwise
         rotationForNumber 11 `shouldBe` CounterClockwise
 
-      it "parses page numbers from purely numeric base names" $ do
-        pageNumber "1.png" `shouldBe` Just 1
-        pageNumber "042.png" `shouldBe` Just 42
+      it "bakes EXIF orientation into pixels and clears the tag" $ do
+        -- rotated.png stores raw 1800×1280 pixels with EXIF orientation 6,
+        -- so it displays as an upright 1280×1800 portrait.
+        tmpDir <- getTemporaryDirectory
+        let workDir = tmpDir </> "perspec-rotate-test"
+        removePathForcibly workDir
+        createDirectoryIfMissing True workDir
+        copyFile "images/rotated.png" (workDir </> "1.png")
 
-      it "ignores non-numeric or malformed base names" $ do
-        pageNumber "cover.png" `shouldBe` Nothing
-        pageNumber "1.2.png" `shouldBe` Nothing
-        pageNumber ".png" `shouldBe` Nothing
+        rotatePages workDir
+
+        let outPath = workDir </> "1.png"
+        -- Page 1 is odd, so the upright 1280×1800 image is rotated 90° CCW,
+        -- yielding raw 1800×1280 pixels (not the orientation-blind 1280×1800).
+        rotatedEither <- readImage outPath
+        case rotatedEither of
+          Left err -> expectationFailure err
+          Right dynImage -> do
+            let rgba = convertRGBA8 dynImage
+            (imageWidth rgba, imageHeight rgba) `shouldBe` (1800, 1280)
+
+        -- The output must not carry an orientation tag anymore.
+        orientation <- getExifOrientationFromPng outPath
+        orientation `shouldBe` Nothing
+
+        removePathForcibly workDir
 
   UtilsSpec.spec
