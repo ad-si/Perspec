@@ -128,10 +128,10 @@ If you selected multiple photos, they will be opened one after another.
 ### Prebuilt
 
 You can get the current and previous versions from
-[the releases page](https://github.com/feramhq/Perspec/releases).
+[the releases page](https://github.com/ad-si/Perspec/releases).
 
 The current nightly version can be downloaded at
-[feramhq/Perspec/actions](https://github.com/feramhq/Perspec/actions).
+[ad-si/Perspec/actions](https://github.com/ad-si/Perspec/actions).
 However, it's necessary to fix the file permissions after download:
 
 ```sh
@@ -157,7 +157,7 @@ Platypus, with
 , is required to build from source.
 
 ```sh
-git clone https://github.com/feramhq/Perspec
+git clone https://github.com/ad-si/Perspec
 cd Perspec
 make install
 ```
