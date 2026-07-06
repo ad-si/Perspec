@@ -57,7 +57,7 @@ import System.Info (os)
 import FlatCV (Corners (..), detectCornersPtr)
 import Foreign.Marshal.Alloc (free)
 import Foreign.Storable (peek)
-import PngExif (getExifOrientationFromPng)
+import PngExif (getOrientationFromPng)
 import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
@@ -525,7 +525,7 @@ loadFileIntoState appState = do
               let juicyOrientation = lookup (Exif TagOrientation) metadata
               orientationData <- case juicyOrientation of
                 Just _ -> pure juicyOrientation
-                Nothing -> getExifOrientationFromPng filePath
+                Nothing -> getOrientationFromPng filePath
 
               let
                 (rotation, isFlipped) =

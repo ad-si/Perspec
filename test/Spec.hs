@@ -53,7 +53,8 @@ import PngExif (
   extractExifBytesFromFile,
   extractExifBytesFromPng,
   extractExifFromPng,
-  getExifOrientationFromPng,
+  extractXmpOrientationFromPng,
+  getOrientationFromPng,
   writePngWithExif,
  )
 import Rename (getRenamingBatches)
@@ -96,8 +97,23 @@ main = hspec $ do
       it "Applies EXIF rotation to PNGs" $ do
         -- Test that our PngExif module can extract orientation from PNG eXIf chunk
         -- (JuicyPixels doesn't support this: https://github.com/Twinside/Juicy.Pixels/issues/204)
-        orientation <- getExifOrientationFromPng "images/rotated.png"
+        orientation <- getOrientationFromPng "images/rotated.png"
         orientation `shouldBe` Just (ExifShort 6)
+
+      it "reads orientation from a compressed XMP raw profile (attribute form)" $ do
+        -- ImageMagick stores XMP as a zlib-compressed "Raw profile type xmp"
+        -- zTXt chunk with tiff:Orientation as an XML attribute. `-auto-orient`
+        -- ignores this, which is why these files export sideways.
+        orientation <- getOrientationFromPng "images/xmp_rotated.png"
+        orientation `shouldBe` Just (ExifShort 6)
+
+      it "reads orientation from an uncompressed XMP iTXt (element form)" $ do
+        orientation <- getOrientationFromPng "images/xmp_itxt_rotated.png"
+        orientation `shouldBe` Just (ExifShort 6)
+
+      it "extractXmpOrientationFromPng returns Nothing when no XMP is present" $ do
+        pngBytes <- BS.readFile "images/no_xmp.png"
+        extractXmpOrientationFromPng pngBytes `shouldBe` Nothing
 
         -- Also verify the image loads correctly
         pictureMetadataEither <- loadImage "images/rotated.png"
@@ -428,7 +444,7 @@ main = hspec $ do
             (imageWidth rgba, imageHeight rgba) `shouldBe` (1800, 1280)
 
         -- The output must not carry an orientation tag anymore.
-        orientation <- getExifOrientationFromPng outPath
+        orientation <- getOrientationFromPng outPath
         orientation `shouldBe` Nothing
 
         removePathForcibly workDir

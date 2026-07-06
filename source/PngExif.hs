@@ -15,8 +15,9 @@ This module provides:
 Reference: https://ftp-osl.osuosl.org/pub/libpng/documents/pngext-1.5.0.html
 -}
 module PngExif (
-  getExifOrientationFromPng,
+  getOrientationFromPng,
   extractExifFromPng,
+  extractXmpOrientationFromPng,
   extractExifBytesFromJpeg,
   extractExifBytesFromPng,
   extractExifBytesFromFile,
@@ -40,6 +41,7 @@ import Protolude (
   Word16,
   Word32,
   Word8,
+  drop,
   fmap,
   fromIntegral,
   fromMaybe,
@@ -51,8 +53,10 @@ import Protolude (
   (||),
  )
 
+import Codec.Compression.Zlib qualified as Zlib
 import Codec.Picture (DynamicImage, encodeDynamicPng)
 import Codec.Picture.Metadata.Exif (ExifData (..))
+import Control.Exception (SomeException, evaluate, try)
 import Data.Bits (shiftL, shiftR, xor, (.&.), (.|.))
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
@@ -278,11 +282,154 @@ extractExifFromPng pngBytes
   | otherwise = Nothing
 
 
--- | Convenience function to read a PNG file and extract orientation
-getExifOrientationFromPng :: FilePath -> IO (Maybe ExifData)
-getExifOrientationFromPng path = do
-  contents <- BL.readFile path
-  pure $ extractExifFromPng (BL.toStrict contents)
+{-| Read a PNG file and extract its orientation.
+Prefers the EXIF eXIf chunk, then falls back to an XMP packet
+(@tiff:Orientation@), which ImageMagick's @-auto-orient@ does not honor
+when it is serialized as an XML attribute.
+-}
+getOrientationFromPng :: FilePath -> IO (Maybe ExifData)
+getOrientationFromPng path = do
+  contents <- BS.readFile path
+  case extractExifFromPng contents of
+    Just orientation -> pure (Just orientation)
+    Nothing -> do
+      -- XMP may be zlib-compressed (zTXt / compressed iTXt); a malformed
+      -- stream would throw from pure code, so force and guard it here.
+      result <- try (evaluate (extractXmpOrientationFromPng contents))
+      pure $ case result of
+        Right orientation -> orientation
+        Left (_ :: SomeException) -> Nothing
+
+
+-- ============================================================================
+-- XMP Orientation Extraction
+-- ============================================================================
+
+-- | Keyword of the iTXt/tEXt chunk that stores a standalone XMP packet.
+xmpKeyword :: BS.ByteString
+xmpKeyword = "XML:com.adobe.xmp"
+
+
+-- | Keyword ImageMagick uses to store XMP as a hex-encoded "raw profile".
+rawXmpKeyword :: BS.ByteString
+rawXmpKeyword = "Raw profile type xmp"
+
+
+-- | Decompress a zlib stream (RFC 1950), as used by zTXt / compressed iTXt.
+zlibDecompress :: BS.ByteString -> BS.ByteString
+zlibDecompress bs = BL.toStrict (Zlib.decompress (BL.fromStrict bs))
+
+
+{-| Decode a PNG text chunk (tEXt/zTXt/iTXt) into its keyword and text bytes,
+decompressing where the chunk is zlib-compressed.
+-}
+decodeTextChunk :: PngChunk -> Maybe (BS.ByteString, BS.ByteString)
+decodeTextChunk chunk =
+  let (keyword, afterKeyword) = BS.break (== 0) chunk.chunkData
+  in  case chunk.chunkType of
+        -- keyword \0 text
+        "tEXt" -> case BS.uncons afterKeyword of
+          Just (_, text) -> Just (keyword, text)
+          Nothing -> Nothing
+        -- keyword \0 compressionMethod compressedText
+        "zTXt" -> case BS.uncons afterKeyword of
+          Just (_, methodAndData) -> case BS.uncons methodAndData of
+            Just (_, compressed) -> Just (keyword, zlibDecompress compressed)
+            Nothing -> Nothing
+          Nothing -> Nothing
+        -- keyword \0 compFlag compMethod langTag \0 translatedKeyword \0 text
+        "iTXt" -> case BS.uncons afterKeyword of
+          Just (_, rest)
+            | BS.length rest >= 2 ->
+                let compFlag = BS.index rest 0
+                    afterFlags = BS.drop 2 rest
+                    afterLang = BS.drop 1 (BS.dropWhile (/= 0) afterFlags)
+                    text = BS.drop 1 (BS.dropWhile (/= 0) afterLang)
+                in  Just (keyword, if compFlag == 1 then zlibDecompress text else text)
+          _ -> Nothing
+        _ -> Nothing
+
+
+{-| Decode ImageMagick's "raw profile" payload. After a short header
+(@\\n\<name\>\\n\<length\>\\n@) the profile is stored as whitespace-wrapped hex.
+-}
+decodeRawProfile :: BS.ByteString -> BS.ByteString
+decodeRawProfile payload =
+  let hexPart = BS.concat (drop 3 (BS.split 0x0A payload))
+  in  hexDecode (BS.filter isHexDigitByte hexPart)
+
+
+isHexDigitByte :: Word8 -> Bool
+isHexDigitByte w =
+  (w >= 0x30 && w <= 0x39)
+    || (w >= 0x41 && w <= 0x46)
+    || (w >= 0x61 && w <= 0x66)
+
+
+hexDigitValue :: Word8 -> Word8
+hexDigitValue w
+  | w >= 0x30 && w <= 0x39 = w - 0x30
+  | w >= 0x41 && w <= 0x46 = w - 0x41 + 10
+  | otherwise = w - 0x61 + 10
+
+
+hexDecode :: BS.ByteString -> BS.ByteString
+hexDecode bs = BS.pack (go (BS.unpack bs))
+  where
+    go (a : b : rest) = (hexDigitValue a * 16 + hexDigitValue b) : go rest
+    go _ = []
+
+
+-- | Return the raw XMP XML carried by a text chunk, if it holds one.
+xmpFromChunk :: PngChunk -> Maybe BS.ByteString
+xmpFromChunk chunk =
+  case decodeTextChunk chunk of
+    Just (keyword, payload)
+      | keyword == xmpKeyword -> Just payload
+      | keyword == rawXmpKeyword -> Just (decodeRawProfile payload)
+    _ -> Nothing
+
+
+{-| Find @tiff:Orientation@ in an XMP packet, handling both serializations:
+the attribute form (@tiff:Orientation="6"@) and the element form
+(@\<tiff:Orientation\>6\</tiff:Orientation\>@).
+-}
+parseXmpOrientation :: BS.ByteString -> Maybe ExifData
+parseXmpOrientation xmp =
+  let (_, afterTag) = BS.breakSubstring "tiff:Orientation" xmp
+  in  if BS.null afterTag
+        then Nothing
+        else
+          -- The value ("6") follows within a few chars as ="6", >6< etc.
+          let window = BS.take 12 (BS.drop 16 afterTag)
+              digits = BS.filter isOrientationDigit window
+          in  case BS.uncons digits of
+                Just (d, _) -> Just (ExifShort (fromIntegral (d - 0x30)))
+                Nothing -> Nothing
+
+
+isOrientationDigit :: Word8 -> Bool
+isOrientationDigit w = w >= 0x31 && w <= 0x38 -- '1'..'8'
+
+
+{-| Extract the EXIF orientation from any XMP packet embedded in a PNG,
+regardless of whether it is stored uncompressed, zlib-compressed, or via
+ImageMagick's "raw profile" hex encoding.
+-}
+extractXmpOrientationFromPng :: BS.ByteString -> Maybe ExifData
+extractXmpOrientationFromPng pngBytes
+  | BS.length pngBytes < 8 = Nothing
+  | BS.take 8 pngBytes == pngSignature =
+      firstOrientation (parseChunks (BS.drop 8 pngBytes))
+  | otherwise = Nothing
+  where
+    firstOrientation [] = Nothing
+    firstOrientation (chunk : rest) =
+      case xmpFromChunk chunk of
+        Just xmp -> case parseXmpOrientation xmp of
+          Just orientation -> Just orientation
+          Nothing -> firstOrientation rest
+        Nothing -> firstOrientation rest
 
 
 -- ============================================================================

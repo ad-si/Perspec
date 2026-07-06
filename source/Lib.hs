@@ -28,7 +28,6 @@ import Protolude (
   flip,
   fromIntegral,
   fromMaybe,
-  fromRight,
   fst,
   otherwise,
   putText,
@@ -55,7 +54,6 @@ import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (free)
 import Foreign.Marshal.Utils (new)
 import Foreign.Ptr (castPtr)
-import Foreign.Storable (peek)
 import GHC.Float (float2Double, int2Double)
 import Protolude qualified as P
 import System.Directory (getCurrentDirectory)
@@ -63,7 +61,7 @@ import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath (replaceExtension)
 import System.Info (os)
-import System.Process (callProcess, spawnProcess)
+import System.Process (callProcess)
 
 import Brillo (
   Display (InWindow),
@@ -121,15 +119,12 @@ import PngExif (clearExifOrientation, extractExifBytesFromFile, savePngWithExif)
 import Correct (calculatePerspectiveTransform, determineOutputSize)
 import FlatCV (
   Corners (..),
-  prettyShowCorners,
-  prettyShowMatrix3x3,
  )
 import FlatCV qualified as FCV
 import Home (handleHomeEvent)
 import Types (
   AppState (..),
   Config (licenseKey, transformBackendFlag),
-  ConversionMode (CallConversion, SpawnConversion),
   Corner,
   CornersTup,
   EdgeIndex (..),
@@ -771,7 +766,7 @@ drawButton
 drawUiComponent :: AppState -> UiComponent -> Int -> Picture
 drawUiComponent appState uiComponent componentIndex =
   case uiComponent of
-    Button btnText btnWidth btnHeight _ ->
+    Button btnText btnWidth btnHeight ->
       drawButton
         (appState.appWidth, appState.appHeight)
         appState.sidebarWidth
@@ -878,8 +873,9 @@ calcDistance (x1, y1) (x2, y2) =
     sqrt (xDelta * xDelta + yDelta * yDelta)
 
 
--- | Get index of closest point
+-- | Get index of closest point. Returns 0 if the list is empty.
 getIndexClosest :: [Point] -> Point -> Int
+getIndexClosest [] _ = 0
 getIndexClosest points point =
   let
     distances = fmap (calcDistance point) points
@@ -1018,51 +1014,42 @@ performExport :: ThreadId -> AppState -> ExportMode -> IO AppState
 performExport mainTid appState exportMode = do
   case appState.images of
     [] -> pure appState
-    image : otherImages -> do
-      let
-        cornersTrans = getCorners appState
-        cornerTuple =
-          fromRight
-            ((0, 0), (0, 0), (0, 0), (0, 0))
-            (toQuadTuple cornersTrans)
-        targetShape = getTargetShape cornerTuple
-        projectionMapNorm =
-          toCounterClock $
-            getProjectionMap cornerTuple targetShape
+    image : otherImages ->
+      case toQuadTuple (getCorners appState) of
+        Left err -> do
+          P.putErrLn $ "Cannot export: " <> err
+          pure appState
+        Right cornerTuple -> do
+          let
+            targetShape = getTargetShape cornerTuple
+            projectionMapNorm =
+              toCounterClock $
+                getProjectionMap cornerTuple targetShape
+            convertArgs =
+              getConvertArgs
+                image.inputPath
+                image.outputPath
+                projectionMapNorm
+                targetShape
+                exportMode
+                image.rotation
+                image.isFlipped
 
-      putText $ "Target shape: " <> show targetShape
-      putText $ "Marked corners: " <> show cornerTuple
-      putText $ "Projection map: " <> show projectionMapNorm
-
-      let
-        convertArgs =
-          getConvertArgs
+          correctAndWrite
+            appState.transformBackend
             image.inputPath
             image.outputPath
             projectionMapNorm
-            targetShape
             exportMode
+            convertArgs
+            image.rotation
+            image.isFlipped
 
-      when (appState.transformBackend == ImageMagickBackend) $ do
-        putText $
-          "Arguments for convert command:\n"
-            <> T.unlines convertArgs
-
-      correctAndWrite
-        appState.transformBackend
-        image.inputPath
-        image.outputPath
-        projectionMapNorm
-        exportMode
-        convertArgs
-        image.rotation
-        image.isFlipped
-
-      if P.null otherImages
-        then do
-          exitCleanly mainTid
-          pure appState
-        else loadFileIntoState appState{images = otherImages}
+          if P.null otherImages
+            then do
+              exitCleanly mainTid
+              pure appState
+            else loadFileIntoState appState{images = otherImages}
 
 
 handleImageViewEvent ::
@@ -1083,7 +1070,7 @@ handleImageViewEvent stateRef controller event appState =
         clickedComponent =
           P.find
             ( \(component, componentIndex) -> case component of
-                Button _ width height _ ->
+                Button _ width height ->
                   checkSidebarRectHit
                     (appState.appWidth, appState.appHeight)
                     appState.sidebarWidth
@@ -1151,7 +1138,7 @@ handleImageViewEvent stateRef controller event appState =
         hoveredBtn =
           P.find
             ( \(component, componentIndex) -> case component of
-                Button _ width height _ ->
+                Button _ width height ->
                   checkSidebarRectHit
                     (appState.appWidth, appState.appHeight)
                     appState.sidebarWidth
@@ -1246,34 +1233,48 @@ fixOutputPath exportMode outPath =
 
 
 getConvertArgs ::
-  FilePath -> FilePath -> ProjMap -> (Float, Float) -> ExportMode -> [Text]
-getConvertArgs inPath outPath projMap shape exportMode =
-  [ T.pack inPath
-  , "-auto-orient"
-  , "-define"
-  , "distort:viewport="
-      <> show (fst shape)
-      <> "x"
-      <> show (snd shape)
-      <> "+0+0"
-  , -- TODO: Add flag to support this
-    -- Use interpolated lookup instead of area resampling
-    -- https://www.imagemagick.org/Usage/distorts/#area_vs_super
-    -- , "-filter", "point"
+  FilePath ->
+  FilePath ->
+  ProjMap ->
+  (Float, Float) ->
+  ExportMode ->
+  Float ->
+  Bool ->
+  [Text]
+getConvertArgs inPath outPath projMap shape exportMode rotation isFlipped =
+  [T.pack inPath]
+    -- Normalize orientation explicitly instead of relying on `-auto-orient`,
+    -- which ignores orientation stored as an XMP `tiff:Orientation` attribute.
+    -- `rotation`/`isFlipped` come from PngExif, which also reads XMP.
+    <> ( if (P.round rotation :: Int) P./= 0
+           then ["-rotate", show (P.round rotation :: Int)]
+           else []
+       )
+    <> (if isFlipped then ["-flop"] else [])
+    <> [ "-define"
+       , "distort:viewport="
+           <> show (fst shape)
+           <> "x"
+           <> show (snd shape)
+           <> "+0+0"
+       , -- TODO: Add flag to support this
+         -- Use interpolated lookup instead of area resampling
+         -- https://www.imagemagick.org/Usage/distorts/#area_vs_super
+         -- , "-filter", "point"
 
-    -- Prevent interpolation of unused pixels and avoid adding alpha channel
-    "-virtual-pixel"
-  , "black"
-  , -- TODO: Add flag to support switching
-    -- , "-virtual-pixel", "Edge" -- default
-    -- , "-virtual-pixel", "Dither"
-    -- , "-virtual-pixel", "Random"
-    -- TODO: Implement more sophisticated one upstream in Imagemagick
+         -- Prevent interpolation of unused pixels and avoid adding alpha channel
+         "-virtual-pixel"
+       , "black"
+       , -- TODO: Add flag to support switching
+         -- , "-virtual-pixel", "Edge" -- default
+         -- , "-virtual-pixel", "Dither"
+         -- , "-virtual-pixel", "Random"
+         -- TODO: Implement more sophisticated one upstream in Imagemagick
 
-    "-distort"
-  , "Perspective"
-  , showProjectionMap projMap
-  ]
+         "-distort"
+       , "Perspective"
+       , showProjectionMap projMap
+       ]
     <> case exportMode of
       UnmodifiedExport -> []
       GrayscaleExport -> ["-colorspace", "gray", "-normalize"]
@@ -1281,7 +1282,14 @@ getConvertArgs inPath outPath projMap shape exportMode =
       -- TODO: Use the correct algorithm as seen in
       --       https://github.com/ad-si/dotfiles/blob/master/bin/level
       BlackWhiteSmoothExport -> ["-auto-threshold", "OTSU", "-monochrome"]
-    <> [ "+repage"
+    <> [ -- Reset the orientation attribute and strip the source EXIF/XMP
+         -- profiles (keeping ICC) so the upright output carries no stale
+         -- orientation flag for viewers to re-apply.
+         "-orient"
+       , "TopLeft"
+       , "+profile"
+       , "!icc,*"
+       , "+repage"
        , fixOutputPath exportMode outPath
        ]
 
@@ -1304,11 +1312,11 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
     ImageMagickBackend -> do
       P.putText "ℹ️ Use ImageMagick backend"
       let
-        conversionMode = CallConversion
         magickBin = case os of
           "darwin" -> currentDir ++ "/imagemagick/bin/magick"
-          "mingw32" -> "TODO_implement"
-          _ -> "TODO_bundle_imagemagick"
+          -- Fall back to a system-installed `magick` on Windows and Linux;
+          -- we don't bundle ImageMagick on those platforms.
+          _ -> "magick"
 
       when (os == "darwin") $ do
         setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
@@ -1320,40 +1328,34 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
           "✅ Successfully saved converted image at "
             <> fixOutputPath exportMode outPath
 
-      -- TODO: Add CLI flag to switch between them
-      case conversionMode of
-        CallConversion -> do
-          resultBundled <- try $ callProcess magickBin argsNorm
+      resultBundled <- try $ callProcess magickBin argsNorm
 
-          case resultBundled of
+      case resultBundled of
+        Right _ -> putText successMessage
+        Left (errBundled :: IOException) -> do
+          P.putErrLn $ P.displayException errBundled
+          putText "Use global installation of ImageMagick"
+
+          -- Add more possible installation paths to PATH
+          path <- getEnv "PATH"
+          setEnv "PATH" $
+            path
+              <> ":"
+              <> P.intercalate
+                ":"
+                [ "/usr/local/bin"
+                , "/usr/local/sbin"
+                , "/opt/homebrew/bin"
+                ]
+
+          resultMagick <- try $ callProcess "magick" argsNorm
+          case resultMagick of
             Right _ -> putText successMessage
-            Left (errLocal :: IOException) -> do
-              P.putErrLn $ P.displayException errLocal
-              putText "Use global installation of ImageMagick"
-
-              -- Add more possible installation paths to PATH
-              path <- getEnv "PATH"
-              setEnv "PATH" $
-                path
-                  <> ":"
-                  <> P.intercalate
-                    ":"
-                    [ "/usr/local/bin"
-                    , "/usr/local/sbin"
-                    , "/opt/homebrew/bin"
-                    ]
-
-              resultMagick <- try $ callProcess "magick" argsNorm
-              case resultMagick of
-                Right _ -> putText successMessage
-                Left (error :: IOException) -> do
-                  P.putErrLn $ P.displayException error
-                  putText $
-                    "⚠️  Please install ImageMagick first: "
-                      <> "https://imagemagick.org/script/download.php"
-        SpawnConversion -> do
-          _ <- spawnProcess magickBin (fmap T.unpack args)
-          putText "✅ Successfully initiated conversion"
+            Left (errSystem :: IOException) -> do
+              P.putErrLn $ P.displayException errSystem
+              putText $
+                "⚠️  Please install ImageMagick first: "
+                  <> "https://imagemagick.org/script/download.php"
     --
     HipBackend -> do
       P.putText "ℹ️ Use Hip backend"
@@ -1416,9 +1418,14 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 
           case exportMode of
             UnmodifiedExport -> writeImage outPath corrected
-            GrayscaleExport -> pure ()
-            BlackWhiteExport -> pure ()
-            BlackWhiteSmoothExport -> pure ()
+            _ ->
+              P.putErrLn
+                ( "⚠️  The Hip backend only supports the Save export mode. "
+                    <> "Use the FlatCV or ImageMagick backend for "
+                    <> show exportMode
+                    <> "." ::
+                    Text
+                )
         --
         Right _ -> do
           P.putText "Unsupported image format"
@@ -1594,26 +1601,11 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             adjustedSrcCorners =
               applyRotationToCorners srcCorners srcWidth srcHeight rotation isFlipped
 
-          putText "\nOriginal Source Corners:"
-          P.putStrLn $ prettyShowCorners srcCorners
-
-          putText "\nDestination Corners:"
-          putText $ toS (prettyShowCorners dstCorners) & T.replace ".0" ""
-
-          putText $ "\nEXIF Rotation: " <> show rotation
-
-          putText "\nAdjusted Source Corners:"
-          P.putStrLn $ prettyShowCorners adjustedSrcCorners
-
           srcCornersPtr <- new adjustedSrcCorners
           dstCornersPtr <- new dstCorners
           transMatPtr <- FCV.calculatePerspectiveTransformPtr dstCornersPtr srcCornersPtr
           free srcCornersPtr
           free dstCornersPtr
-          transMat <- peek transMatPtr
-
-          putText "\nTransformation Matrix:"
-          P.putStrLn $ prettyShowMatrix3x3 transMat
 
           let pngOutPath = replaceExtension outPath "png"
 
@@ -1670,7 +1662,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
 loadAndStart config filePathsMb = do
   let
-    isRegistered = config.licenseKey `elem` licenses
+    isRegistered = True -- config.licenseKey `elem` licenses
     stateDraft =
       initialState
         { transformBackend = config.transformBackendFlag

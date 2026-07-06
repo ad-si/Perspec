@@ -1,6 +1,6 @@
 name: perspec
-version: 0.2.0.0
-github: feramhq/Perspec
+version: 1.0.0.0
+github: ad-si/Perspec
 license-file: license
 author: Adrian Sieber
 maintainer: mail@adriansieber.com
@@ -14,7 +14,7 @@ synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
 
 description: |
-  Please see the readme on GitHub at <https://github.com/feramhq/Perspec#readme>
+  Please see the readme on GitHub at <https://github.com/ad-si/Perspec#readme>
 
 language: GHC2021
 
@@ -46,6 +46,7 @@ dependencies:
   - text
   - vector
   - yaml
+  - zlib
 
 default-extensions:
   - DuplicateRecordFields

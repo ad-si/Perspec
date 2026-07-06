@@ -5,7 +5,7 @@ import Protolude (
   FilePath,
   IO,
   Int,
-  Maybe (Just, Nothing),
+  Maybe (Just),
   Semigroup ((<>)),
   die,
   even,
@@ -38,7 +38,7 @@ import System.Directory (listDirectory)
 import System.FilePath (takeExtension, (</>))
 
 import FlatCV qualified as FCV
-import PngExif (getExifOrientationFromPng)
+import PngExif (getOrientationFromPng)
 import Types (RotationDirection (Clockwise, CounterClockwise))
 
 
@@ -117,7 +117,7 @@ rotatePages directory = do
             Left err ->
               putErrText $ "Skip " <> pack file <> ": " <> pack err
             Right dynImage -> do
-              orientation <- getExifOrientationFromPng path
+              orientation <- getOrientationFromPng path
 
               let
                 rgba = convertRGBA8 dynImage
