@@ -111,15 +111,13 @@ data ConversionMode
 
 
 data TransformBackend
-  = ImageMagickBackend
-  | HipBackend
+  = HipBackend
   | FlatCVBackend
   deriving (Show, Eq)
 
 
 instance FromJSON TransformBackend where
   parseJSON = withText "TransformBackend" $ \case
-    "ImageMagick" -> return ImageMagickBackend
     "Hip" -> return HipBackend
     "FlatCV" -> return FlatCVBackend
     _ -> return FlatCVBackend

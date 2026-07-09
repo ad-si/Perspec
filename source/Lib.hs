@@ -37,7 +37,6 @@ import Protolude (
   toS,
   try,
   void,
-  when,
   ($),
   (&),
   (&&),
@@ -56,8 +55,6 @@ import Foreign.Marshal.Utils (new)
 import Foreign.Ptr (castPtr)
 import GHC.Float (float2Double, int2Double)
 import Protolude qualified as P
-import System.Directory (getCurrentDirectory)
-import System.Environment (getEnv, setEnv)
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath (replaceExtension)
 import System.Info (os)
@@ -932,7 +929,7 @@ getProjectionMap (tl, tr, br, bl) (wdth, hgt) =
   )
 
 
--- | Accommodate ImageMagick's counter-clockwise direction
+-- | Reorder corners to counter-clockwise direction
 toCounterClock :: (a, a, a, a) -> (a, a, a, a)
 toCounterClock (tl, tr, br, bl) = (tl, bl, br, tr)
 
@@ -1025,15 +1022,6 @@ performExport mainTid appState exportMode = do
             projectionMapNorm =
               toCounterClock $
                 getProjectionMap cornerTuple targetShape
-            convertArgs =
-              getConvertArgs
-                image.inputPath
-                image.outputPath
-                projectionMapNorm
-                targetShape
-                exportMode
-                image.rotation
-                image.isFlipped
 
           correctAndWrite
             appState.transformBackend
@@ -1041,7 +1029,6 @@ performExport mainTid appState exportMode = do
             image.outputPath
             projectionMapNorm
             exportMode
-            convertArgs
             image.rotation
             image.isFlipped
 
@@ -1215,85 +1202,6 @@ handleEvent stateRef controller event appState =
     BannerView -> pure appState
 
 
--- FIXME: Don't rely on show implementation
-showProjectionMap :: ProjMap -> Text
-showProjectionMap pMap =
-  pMap
-    & show
-    & T.replace "),(" " "
-    & T.replace "(" ""
-    & T.replace ")" ""
-
-
-fixOutputPath :: ExportMode -> FilePath -> Text
-fixOutputPath exportMode outPath =
-  case exportMode of
-    BlackWhiteExport -> T.pack $ replaceExtension outPath "png"
-    _ -> T.pack outPath
-
-
-getConvertArgs ::
-  FilePath ->
-  FilePath ->
-  ProjMap ->
-  (Float, Float) ->
-  ExportMode ->
-  Float ->
-  Bool ->
-  [Text]
-getConvertArgs inPath outPath projMap shape exportMode rotation isFlipped =
-  [T.pack inPath]
-    -- Normalize orientation explicitly instead of relying on `-auto-orient`,
-    -- which ignores orientation stored as an XMP `tiff:Orientation` attribute.
-    -- `rotation`/`isFlipped` come from PngExif, which also reads XMP.
-    <> ( if (P.round rotation :: Int) P./= 0
-           then ["-rotate", show (P.round rotation :: Int)]
-           else []
-       )
-    <> (if isFlipped then ["-flop"] else [])
-    <> [ "-define"
-       , "distort:viewport="
-           <> show (fst shape)
-           <> "x"
-           <> show (snd shape)
-           <> "+0+0"
-       , -- TODO: Add flag to support this
-         -- Use interpolated lookup instead of area resampling
-         -- https://www.imagemagick.org/Usage/distorts/#area_vs_super
-         -- , "-filter", "point"
-
-         -- Prevent interpolation of unused pixels and avoid adding alpha channel
-         "-virtual-pixel"
-       , "black"
-       , -- TODO: Add flag to support switching
-         -- , "-virtual-pixel", "Edge" -- default
-         -- , "-virtual-pixel", "Dither"
-         -- , "-virtual-pixel", "Random"
-         -- TODO: Implement more sophisticated one upstream in Imagemagick
-
-         "-distort"
-       , "Perspective"
-       , showProjectionMap projMap
-       ]
-    <> case exportMode of
-      UnmodifiedExport -> []
-      GrayscaleExport -> ["-colorspace", "gray", "-normalize"]
-      BlackWhiteExport -> ["-auto-threshold", "OTSU", "-monochrome"]
-      -- TODO: Use the correct algorithm as seen in
-      --       https://github.com/ad-si/dotfiles/blob/master/bin/level
-      BlackWhiteSmoothExport -> ["-auto-threshold", "OTSU", "-monochrome"]
-    <> [ -- Reset the orientation attribute and strip the source EXIF/XMP
-         -- profiles (keeping ICC) so the upright output carries no stale
-         -- orientation flag for viewers to re-apply.
-         "-orient"
-       , "TopLeft"
-       , "+profile"
-       , "!icc,*"
-       , "+repage"
-       , fixOutputPath exportMode outPath
-       ]
-
-
 -- TODO: Projection map output coordinates must be used and not recalculated
 correctAndWrite ::
   TransformBackend ->
@@ -1301,62 +1209,11 @@ correctAndWrite ::
   FilePath ->
   ProjMap ->
   ExportMode ->
-  [Text] ->
   Float ->
   Bool ->
   IO ()
-correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode args rotation isFlipped = do
-  currentDir <- getCurrentDirectory
-
+correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode rotation isFlipped = do
   case transformBackend of
-    ImageMagickBackend -> do
-      P.putText "ℹ️ Use ImageMagick backend"
-      let
-        magickBin = case os of
-          "darwin" -> currentDir ++ "/imagemagick/bin/magick"
-          -- Fall back to a system-installed `magick` on Windows and Linux;
-          -- we don't bundle ImageMagick on those platforms.
-          _ -> "magick"
-
-      when (os == "darwin") $ do
-        setEnv "MAGICK_HOME" (currentDir ++ "/imagemagick")
-        setEnv "DYLD_LIBRARY_PATH" (currentDir ++ "/imagemagick/lib")
-
-      let
-        argsNorm = args <&> T.unpack
-        successMessage =
-          "✅ Successfully saved converted image at "
-            <> fixOutputPath exportMode outPath
-
-      resultBundled <- try $ callProcess magickBin argsNorm
-
-      case resultBundled of
-        Right _ -> putText successMessage
-        Left (errBundled :: IOException) -> do
-          P.putErrLn $ P.displayException errBundled
-          putText "Use global installation of ImageMagick"
-
-          -- Add more possible installation paths to PATH
-          path <- getEnv "PATH"
-          setEnv "PATH" $
-            path
-              <> ":"
-              <> P.intercalate
-                ":"
-                [ "/usr/local/bin"
-                , "/usr/local/sbin"
-                , "/opt/homebrew/bin"
-                ]
-
-          resultMagick <- try $ callProcess "magick" argsNorm
-          case resultMagick of
-            Right _ -> putText successMessage
-            Left (errSystem :: IOException) -> do
-              P.putErrLn $ P.displayException errSystem
-              putText $
-                "⚠️  Please install ImageMagick first: "
-                  <> "https://imagemagick.org/script/download.php"
-    --
     HipBackend -> do
       P.putText "ℹ️ Use Hip backend"
       pictureMetadataEither <- loadImage inPath
@@ -1421,7 +1278,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             _ ->
               P.putErrLn
                 ( "⚠️  The Hip backend only supports the Save export mode. "
-                    <> "Use the FlatCV or ImageMagick backend for "
+                    <> "Use the FlatCV backend for "
                     <> show exportMode
                     <> "." ::
                     Text

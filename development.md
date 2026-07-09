@@ -12,24 +12,6 @@ Corners of landscape calibration image:
 )
 ```
 
-## Benchmarking
-
-Use the `-bench` flag to benchmark [ImageMagick] operations.
-For example:
-
-```sh
-magick \
-  doc.jpg \
-  -bench 50 \
-  -virtual-pixel black \
-  -define distort:viewport=1191x598+0+0 \
-  -distort Perspective \
-    '277,181 0,0 214,776 0,598 1405,723 1191,598 1256,175 1191,0' \
-  +repage \
-  doc-fixed.jpg
-```
-
-
 ## Generate Icons
 
 With <https://gist.github.com/zlbruce/883605a635df8d5964bab11ed75e46ad:>

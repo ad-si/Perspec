@@ -64,7 +64,7 @@ import Types (
   Config,
   RenameMode (Even, Odd, Sequential),
   SortOrder (Ascending, Descending),
-  TransformBackend (FlatCVBackend, HipBackend, ImageMagickBackend),
+  TransformBackend (FlatCVBackend, HipBackend),
   transformBackendFlag,
  )
 import Utils (isImageFile)
@@ -92,7 +92,6 @@ execWithArgs confFromFile cliArgs = do
                         >>> T.toLower
                         >>> \case
                           "hip" -> HipBackend
-                          "imagemagick" -> ImageMagickBackend
                           _ -> FlatCVBackend
                     )
             }

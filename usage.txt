@@ -11,7 +11,7 @@ Usage:
 
 Options:
   --backend=<str>  Image manipulation backend to use
-                        (FlatCV, Hip, ImageMagick)
+                        (FlatCV, Hip)
 
 Rename Options:
   --start-with=<int>  First page number. Leading zeros set the zero-padding

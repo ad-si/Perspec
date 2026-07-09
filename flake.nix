@@ -30,7 +30,6 @@
               supportedGhcVersions = [ "9103" ];
             })
             haskellPackages.stack
-            imagemagick
             lapack
             libllvm
           ];

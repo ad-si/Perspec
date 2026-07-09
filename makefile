@@ -35,55 +35,6 @@ Perspec.app: ~/.local/bin/perspec
 		$@
 
 
-# TODO: Fix crash after dropping image
-# TODO: Implement drag & drop for dock icon (WIP at macos-app-wrapper)
-PerspecSimple.app: ~/.local/bin/perspec
-	mkdir -p $@
-	mkdir -p $@/Contents
-
-	mkdir -p $@/Contents/MacOS
-	cp $< $@/Contents/MacOS/PerspecSimple
-
-	mkdir -p $@/Contents/Resources
-	cp app-aux-files/Info.plist $@/Contents
-	cp images/icon.icns $@/Contents/Resources/AppIcon.icns
-	cp app-aux-files/Credits.html $@/Contents/Resources
-	cp $< $@/Contents/Resources
-
-
-PerspecWithMagick.app: ~/.local/bin/perspec imagemagick
-	platypus \
-		--name PerspecWithMagick \
-		--app-icon images/icon.icns \
-		--interface-type 'Text Window' \
-		--app-version 0.2.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
-		--author "Adrian Sieber" \
-		--bundled-file ~/.local/bin/perspec \
-		--bundled-file app-aux-files/Credits.html \
-		--bundled-file imagemagick \
-		--bundled-file scripts \
-		--bundle-identifier com.adriansieber.PerspecWithMagick \
-		--droppable \
-		--optimize-nib \
-		--overwrite \
-		--quit-after-execution \
-		--suffixes 'png|jpg|jpeg|bmp|gif|tiff|tif' \
-		--interpreter '/bin/dash' \
-		app-aux-files/perspec.sh \
-		$@
-
-
-# For macOS
-imagemagick:
-	curl -L \
-		https://download.imagemagick.org/ImageMagick/download/binaries/ImageMagick-x86_64-apple-darwin20.1.0.tar.gz \
-		-o imagemagick.tar.gz
-	tar -xzf imagemagick.tar.gz
-
-	rm -rf imagemagick
-	mv ImageMagick-7.* imagemagick
-
-
 ~/.local/bin/perspec: app source
 	stack install $(STACK_OPTS)
 
@@ -103,6 +54,4 @@ clean:
 	-rm -rf \
 		~/.local/bin/perspec \
 		.stack-work \
-		imagemagick \
-		imagemagick.tar.gz \
 		Perspec.app \
