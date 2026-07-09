@@ -1519,7 +1519,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
 loadAndStart config filePathsMb = do
   let
-    isRegistered = True -- config.licenseKey `elem` licenses
+    isRegistered = config.licenseKey `elem` licenses
     stateDraft =
       initialState
         { transformBackend = config.transformBackendFlag
