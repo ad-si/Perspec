@@ -12,8 +12,6 @@ import Protolude as P (
   Monad (return),
   Show,
   Text,
-  fst,
-  snd,
   ($),
   (<>),
  )
@@ -26,7 +24,6 @@ import Data.Aeson (
   withObject,
   withText,
   (.!=),
-  (.:),
   (.:?),
  )
 
@@ -59,55 +56,6 @@ type ProjMap =
   , (Corner, Corner)
   , (Corner, Corner)
   )
-
-
-data Coordinate = Coordinate
-  { x :: Float
-  , y :: Float
-  }
-  deriving (Show, Eq)
-
-
-instance FromJSON Coordinate where
-  parseJSON = withObject "Coordinate" $ \o -> do
-    x <- o .: "x"
-    y <- o .: "y"
-    pure $ Coordinate{..}
-
-
-coordToCornersTup :: [Coordinate] -> CornersTup
-coordToCornersTup coordinates =
-  case coordinates of
-    [c1, c2, c3, c4] ->
-      ( (c1.x, c1.y)
-      , (c2.x, c2.y)
-      , (c3.x, c3.y)
-      , (c4.x, c4.y)
-      )
-    _ -> ((0, 0), (0, 0), (0, 0), (0, 0))
-
-
-cornersTupToCoord :: CornersTup -> [Coordinate]
-cornersTupToCoord (c1, c2, c3, c4) =
-  [ Coordinate (P.fst c1) (P.snd c1)
-  , Coordinate (P.fst c2) (P.snd c2)
-  , Coordinate (P.fst c3) (P.snd c3)
-  , Coordinate (P.fst c4) (P.snd c4)
-  ]
-
-
-{-| Not used at the moment
-rotateProjMap :: Float -> ProjMap -> ProjMap
-rotateProjMap rotation pMap@((f1,t1), (f2,t2), (f3,t3), (f4,t4)) =
-  case rotation of
-    -90 -> ((f1,t4), (f2,t1), (f3,t2), (f4,t3))
-    90  -> ((f1,t2), (f1,t3), (f1,t4), (f1,t1))
-    180 -> ((f1,t3), (f1,t4), (f1,t1), (f1,t2))
-    _   -> pMap
--}
-data ConversionMode
-  = CallConversion
-  | SpawnConversion
 
 
 data TransformBackend
@@ -154,7 +102,6 @@ data UiComponent
       { text :: Text
       , width :: Int
       , height :: Int
-      , bgColor :: Int
       }
   | Select
   deriving (Show)
@@ -202,17 +149,14 @@ data AppState = AppState
   , images :: [ImageData]
   , appWidth :: Int
   , appHeight :: Int
-  , scaleFactor :: Float -- TODO: Should be smaller than 1
+  , scaleFactor :: Float
   , transformBackend :: TransformBackend
   , isRegistered :: Bool
   , bannerIsVisible :: Bool
   , bannerUrlError :: Maybe Text
   -- ^ Set when opening the Buy License URL in a browser fails
   , sidebarWidth :: Int
-  , sidebarColor :: Int
   , uiComponents :: [UiComponent]
-  , pendingExport :: Maybe ExportMode
-  -- ^ Pending export mode when showing license banner
   , hoveredButton :: Maybe Int
   -- ^ Index of the button currently being hovered
   }
@@ -236,9 +180,7 @@ instance Show AppState where
       <> (", bannerIsVisible = " <> show appState.bannerIsVisible)
       <> (", bannerUrlError = " <> show appState.bannerUrlError)
       <> (", sidebarWidth = " <> show appState.sidebarWidth)
-      <> (", sidebarColor = " <> show appState.sidebarColor)
       <> (", uiComponents = " <> show appState.uiComponents)
-      <> (", pendingExport = " <> show appState.pendingExport)
       <> (", hoveredButton = " <> show appState.hoveredButton)
       <> "}"
 
@@ -267,33 +209,27 @@ initialState =
     , bannerIsVisible = False
     , bannerUrlError = Nothing
     , sidebarWidth = sidebarInitialWidth
-    , sidebarColor = 0
     , uiComponents =
         [ Button
             { text = "Save"
             , width = 160
             , height = 30
-            , bgColor = 0
             }
         , Button
             { text = "Save Gray"
             , width = 160
             , height = 30
-            , bgColor = 0
             }
         , Button
             { text = "Save BW"
             , width = 160
             , height = 30
-            , bgColor = 0
             }
         , Button
             { text = "Save BW Smooth"
             , width = 160
             , height = 30
-            , bgColor = 0
             }
         ]
-    , pendingExport = Nothing
     , hoveredButton = Nothing
     }
