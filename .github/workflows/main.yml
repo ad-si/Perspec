@@ -5,6 +5,7 @@ on: [push]
 jobs:
   macos:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-14
@@ -53,6 +54,21 @@ jobs:
             's/licenses = \[\]/licenses = \[${{ secrets.LICENSE_KEYS }}\]/'
             source/Lib.hs
 
+      # Cold `~/.stack` caches must fetch the full Hackage index, which
+      # intermittently times out. Prime it with retries before building.
+      - name: Prime Stack package index
+        run: |
+          n=0
+          until stack update; do
+            n=$((n + 1))
+            if [ "$n" -ge 5 ]; then
+              echo "::error::stack update failed after $n attempts"
+              exit 1
+            fi
+            echo "::warning::stack update failed (attempt $n), retrying in $((n * 15))s..."
+            sleep $((n * 15))
+          done
+
       - name: Build Perspec App
         run: make Perspec.app
         env:
@@ -70,6 +86,7 @@ jobs:
 
   linux:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
@@ -126,6 +143,21 @@ jobs:
             # For arm64, symlink the system ImageMagick
             sudo ln -sf $(which magick || which convert) /usr/local/bin/magick
           fi
+
+      # Cold `~/.stack` caches must fetch the full Hackage index, which
+      # intermittently times out. Prime it with retries before building.
+      - name: Prime Stack package index
+        run: |
+          n=0
+          until stack update; do
+            n=$((n + 1))
+            if [ "$n" -ge 5 ]; then
+              echo "::error::stack update failed after $n attempts"
+              exit 1
+            fi
+            echo "::warning::stack update failed (attempt $n), retrying in $((n * 15))s..."
+            sleep $((n * 15))
+          done
 
       - name: Build Perspec CLI tool
         run: make perspec
