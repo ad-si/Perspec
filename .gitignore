@@ -1,10 +1,12 @@
 /.stack-work
+/dist-newstyle
 /imagemagick
 /imagemagick.tar.gz
 /images/*-fixed.*
 /images/*.bmp
 /magick
 /ml-test
+/output
 /Perspec_macOS_*
 /Perspec*.app
 /perspec.cabal
