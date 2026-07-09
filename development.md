@@ -23,11 +23,19 @@ svg2icns icon.svg
 
 ## New Release
 
-- [ ] Bump version number
+- [ ] Bump version number in all of:
+  - `package.yaml` (`version:`)
+  - `makefile` (`--app-version`)
+  - `app-aux-files/Info.plist` (`CFBundleShortVersionString`)
+- [ ] Regenerate `perspec.cabal` via `hpack` (or let `stack build` do it)
+      and commit the result.
+- [ ] Update `changelog.md` with the new release heading and notes.
+- [ ] Run `make test` and smoke-test the GUI locally.
+- [ ] Push and verify all CI matrix jobs pass.
 - [ ] Create new release on GitHub
-  - [ ] Download artifacts, fix file permission, zip them, add them to release
+  - [ ] Download artifacts, fix file permissions, zip them, attach to release
 - [ ] Update the [cask file]
 - [ ] Update version on [Gumroad]
 
 [cask file]: https://github.com/ad-si/homebrew-tap/blob/master/Casks/perspec.rb
-[Gumroad]: https://gumroad.com/feram
+[Gumroad]: https://feram.gumroad.com/l/perspec

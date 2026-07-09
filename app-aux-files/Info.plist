@@ -45,12 +45,12 @@
     <key>CFBundleIconFile</key>
     <string>AppIcon.icns</string>
     <key>LSMinimumSystemVersion</key>
-    <string>10.11.0</string>
+    <string>11.0.0</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>NSHumanReadableCopyright</key>
-    <string>© 2025 Adrian Sieber</string>
+    <string>© 2026 Adrian Sieber</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.0.0-2025-01-18t22:36</string>
+    <string>1.0.0.0</string>
   </dict>
 </plist>

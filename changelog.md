@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-04-?? - [1.0](https://github.com/ad-si/Perspec/releases/tag/v1.0.0.0)
+## 2026-07-09 - [1.0](https://github.com/ad-si/Perspec/releases/tag/v1.0.0.0)
 
 - Automatically detect corners and place the selection polygon
 - Handle EXIF rotation data for PNGs
