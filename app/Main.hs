@@ -7,7 +7,7 @@
 module Main where
 
 import Protolude (
-  Bool (False, True),
+  Bool (True),
   Char,
   Either (Left, Right),
   Eq ((==)),
