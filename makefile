@@ -23,7 +23,6 @@ Perspec.app: ~/.local/bin/perspec
 		--author "Adrian Sieber" \
 		--bundled-file ~/.local/bin/perspec \
 		--bundled-file app-aux-files/Credits.html \
-		--bundled-file scripts \
 		--bundle-identifier com.adriansieber.Perspec \
 		--droppable \
 		--optimize-nib \
