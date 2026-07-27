@@ -262,3 +262,26 @@ mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 
 Check out [ad-si/awesome-scanning](https://github.com/ad-si/awesome-scanning)
 for an extensive list of related projects.
+
+
+## License
+
+Perspec's source code is licensed under the [AGPL-3.0](license).
+
+The app itself is fully functional without buying a license.
+There are no locked features, no watermarks, and no export limits.
+Unlicensed versions merely remind you to buy one:
+
+- The window title is suffixed with `⚠️ NOT REGISTERED`.
+- Before an image is saved, a "Buy License" banner is shown for 10 seconds.
+  The image is saved afterwards either way.
+
+If you'd like to get rid of those reminders and support further development,
+you can [buy a license](https://feram.gumroad.com/l/perspec).
+Then add the license key to Perspec's config file
+at `~/.config/Perspec/config.yaml`
+(it's created automatically on first launch):
+
+```yaml
+licenseKey: your-license-key
+```
