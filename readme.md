@@ -27,22 +27,21 @@ For example whiteboards, document scans, or facades.
 <!-- toc -->
 
 - [App Workflow](#app-workflow)
+  * [1. Take photos](#1-take-photos)
+  * [2. Open Perspec app](#2-open-perspec-app)
+  * [3. Select photos to correct](#3-select-photos-to-correct)
+  * [4. Save the corrected image](#4-save-the-corrected-image)
 - [Installation](#installation)
   * [Prebuilt](#prebuilt)
   * [From Source](#from-source)
 - [Usage via CLI](#usage-via-cli)
 - [Photo Digitization Workflow](#photo-digitization-workflow)
   * [Additional Steps](#additional-steps)
-- [Features](#features)
-- [Algorithms](#algorithms)
-  * [Perspective Transformation](#perspective-transformation)
-  * [Grayscale Conversion](#grayscale-conversion)
-  * [BW Conversion](#bw-conversion)
 - [Technologies](#technologies)
 - [Related](#related)
+- [License](#license)
 
 <!-- tocstop -->
-
 
 ## App Workflow
 

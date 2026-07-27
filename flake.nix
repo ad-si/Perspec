@@ -32,6 +32,7 @@
             haskellPackages.stack
             lapack
             libllvm
+            nodejs # Provides `npx` for `markdown-toc` in `make format`
           ];
         };
         formatter = pkgs.nixfmt-tree; # Format this file with `nix fmt`

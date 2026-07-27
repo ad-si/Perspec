@@ -6,6 +6,7 @@ help: makefile
 .PHONY: format
 format:
 	fourmolu --mode inplace $$(fd -e hs)
+	npx --yes markdown-toc --maxdepth 3 -i readme.md
 
 
 .PHONY: test
