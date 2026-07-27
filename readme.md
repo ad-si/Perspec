@@ -38,7 +38,6 @@ For example whiteboards, document scans, or facades.
   * [Perspective Transformation](#perspective-transformation)
   * [Grayscale Conversion](#grayscale-conversion)
   * [BW Conversion](#bw-conversion)
-  * [Interpolation of Missing Parts](#interpolation-of-missing-parts)
 - [Technologies](#technologies)
 - [Related](#related)
 
