@@ -245,6 +245,7 @@ jobs:
           mkdir artifact
           $binPath = (stack path --local-bin).Trim()
           Copy-Item "$binPath\perspec.exe" artifact\
+          Copy-Item "$binPath\perspecw.exe" artifact\
 
           # Copy all non-system DLLs that perspec.exe depends on.
           # Filter by excluding the Windows directory rather than matching

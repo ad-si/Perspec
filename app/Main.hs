@@ -7,14 +7,11 @@
 module Main where
 
 import Protolude (
-  Bool (True),
   Char,
-  Either (Left, Right),
   Eq ((==)),
   IO,
   Maybe (Just, Nothing),
   Monad ((>>=)),
-  die,
   dropWhile,
   getArgs,
   length,
@@ -22,7 +19,6 @@ import Protolude (
   otherwise,
   reads,
   when,
-  writeFile,
   ($),
   (&),
   (&&),
@@ -32,7 +28,6 @@ import Protolude qualified as P
 
 import Data.Text (pack, unpack)
 import Data.Text qualified as T
-import Data.Yaml (decodeFileEither, prettyPrintParseException)
 import System.Console.Docopt as Docopt (
   Arguments,
   Docopt,
@@ -48,9 +43,6 @@ import System.Console.Docopt as Docopt (
   parseArgsOrExit,
  )
 import System.Directory (
-  XdgDirectory (..),
-  createDirectoryIfMissing,
-  getXdgDirectory,
   listDirectory,
   makeAbsolute,
   renameFile,
@@ -59,6 +51,7 @@ import System.FilePath ((</>))
 import System.IO (hSetEncoding, stderr, stdout, utf8)
 import System.Info (os)
 
+import ConfigLoader (loadConfig)
 import Control.Arrow ((>>>))
 import Lib (loadAndStart)
 import Rename (getRenamingBatches)
@@ -184,27 +177,5 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 
-  let appName = "Perspec"
-
-  configDirectory <- getXdgDirectory XdgConfig appName
-  createDirectoryIfMissing True configDirectory
-
-  let configPath = configDirectory </> "config.yaml"
-
-  configResult <- decodeFileEither configPath
-
-  case configResult of
-    Left error -> do
-      if "file not found"
-        `T.isInfixOf` T.pack (prettyPrintParseException error)
-        then do
-          writeFile configPath "licenseKey:\n"
-          configResult2 <- decodeFileEither configPath
-
-          case configResult2 of
-            Left error2 -> die $ T.pack $ prettyPrintParseException error2
-            Right config -> do
-              getArgs >>= execWithArgs config
-        else die $ T.pack $ prettyPrintParseException error
-    Right config -> do
-      getArgs >>= execWithArgs config
+  config <- loadConfig
+  getArgs >>= execWithArgs config

@@ -72,12 +72,31 @@ executables:
   perspec:
     main: Main.hs
     source-dirs: app
+    other-modules: []
     ghc-options:
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
     dependencies:
       - perspec
+
+  # Windowed GUI launcher (the `pythonw.exe` pattern):
+  # on Windows it's linked with the GUI subsystem,
+  # so double-clicking it doesn't open a console window next to the app.
+  perspecw:
+    main: GuiMain.hs
+    source-dirs: app
+    other-modules: []
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - perspec
+    when:
+      - condition: os(windows)
+        ghc-options:
+          - -optl-mwindows
 
 tests:
   perspec-test:
