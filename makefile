@@ -33,6 +33,7 @@ Perspec.app: ~/.local/bin/perspec
 		--interpreter '/bin/dash' \
 		app-aux-files/perspec-gui.sh \
 		$@
+	app-aux-files/bundle-dylibs.sh $@
 
 
 ~/.local/bin/perspec: app source

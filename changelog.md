@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fix crash on launch on macOS machines without Homebrew's `libwebp`
+    by bundling all non-system libraries into the app
+
+
 ## 2026-07-09 - [1.0](https://github.com/ad-si/Perspec/releases/tag/v1.0.0.0)
 
 - Automatically detect corners and place the selection polygon
