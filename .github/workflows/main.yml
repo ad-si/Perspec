@@ -246,21 +246,33 @@ jobs:
           $binPath = (stack path --local-bin).Trim()
           Copy-Item "$binPath\perspec.exe" artifact\
 
-          # Copy all non-system DLLs that perspec.exe depends on
-          $msysRoot = stack exec -- bash -c 'echo $MINGW_PREFIX'
-          $msysBin = "$msysRoot/bin"
+          # Copy all non-system DLLs that perspec.exe depends on.
+          # Filter by excluding the Windows directory rather than matching
+          # $MINGW_PREFIX, which is unset under `stack exec` (no MSYS2 login
+          # shell) and made the old filter match every DLL, bundling system
+          # DLLs that crash the app on other Windows versions.
+          $bundled = 0
           $lddOutput = stack exec -- ldd "$binPath\perspec.exe"
           $lddOutput | ForEach-Object {
             if ($_ -match '^\s*(\S+\.dll)\s+=>\s+(/\S+)') {
               $dllName = $Matches[1]
               $dllPath = $Matches[2]
-              # Skip Windows system DLLs
-              if ($dllPath -like "$msysRoot/*") {
+              if ($dllPath -match '^/c/windows/') {
+                Write-Host "Skipping system DLL $dllName"
+              }
+              else {
                 $winPath = stack exec -- cygpath -w $dllPath
                 Write-Host "Bundling $dllName from $winPath"
                 Copy-Item $winPath artifact\
+                $bundled++
               }
             }
+          }
+          if ($bundled -eq 0) {
+            throw "No MSYS2 DLLs were bundled, ldd output filtering is broken"
+          }
+          if (Test-Path artifact\ntdll.dll) {
+            throw "Windows system DLLs were bundled, ldd output filtering is broken"
           }
 
       - name: Upload Windows Release
