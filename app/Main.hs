@@ -18,12 +18,14 @@ import Protolude (
   dropWhile,
   getArgs,
   length,
+  null,
   otherwise,
   reads,
   when,
   writeFile,
   ($),
   (&),
+  (&&),
   (<&>),
  )
 import Protolude qualified as P
@@ -55,6 +57,7 @@ import System.Directory (
  )
 import System.FilePath ((</>))
 import System.IO (hSetEncoding, stderr, stdout, utf8)
+import System.Info (os)
 
 import Control.Arrow ((>>>))
 import Lib (loadAndStart)
@@ -80,7 +83,14 @@ getArgOrExit = getArgOrExitWith patterns
 
 execWithArgs :: Config -> [[Char]] -> IO ()
 execWithArgs confFromFile cliArgs = do
-  args <- parseArgsOrExit patterns cliArgs
+  -- On Windows, no arguments (e.g. the exe was double-clicked) starts the GUI.
+  -- On other platforms the GUI is started via the app bundle,
+  -- so a bare `perspec` should print the usage text.
+  let effectiveArgs =
+        if null cliArgs && os == "mingw32"
+          then ["gui"]
+          else cliArgs
+  args <- parseArgsOrExit patterns effectiveArgs
 
   let config = case args `getArg` longOption "backend" of
         Nothing -> confFromFile

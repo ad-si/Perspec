@@ -22,6 +22,8 @@ Rename Options:
   --descending        Pages were photographed in descending order
 
 Notes:
+  On Windows, running `perspec` without any arguments starts the GUI
+
   If page numbers go below zero, they are prefixed with "_todo_"
 
   The `rotate` sub-command rotates sequentially numbered PNGs in place:
