@@ -136,12 +136,12 @@ import Utils (
   applyRotationToCorners,
   calcInitWindowPos,
   calculateSizes,
-  defaultFontPath,
   getCorners,
   getTextPicture,
   loadFileIntoState,
   loadImage,
   prettyPrintArray,
+  resolveFontPath,
  )
 
 
@@ -301,9 +301,15 @@ textWidthApprox sz txt =
     T.foldr (\c acc -> charFactor c * sizeF + acc) 0 txt
 
 
-bannerImage :: Maybe Text -> Picture
-bannerImage urlErrorMb =
+bannerImage :: Maybe FilePath -> Maybe Text -> Picture
+bannerImage fontPathMb urlErrorMb =
   let
+    trueTypeText :: Int -> Text -> Picture
+    trueTypeText sz txt =
+      case fontPathMb of
+        Nothing -> mempty
+        Just fontPath -> TrueTypeText fontPath sz txt
+
     bgColor = makeColor 0.92 0.92 0.92 1.0
     titleColor = greyN 0.15
     bodyColor = greyN 0.25
@@ -324,7 +330,7 @@ bannerImage urlErrorMb =
     centeredText sz y col txt =
       Translate (-(textWidthApprox sz txt / 2)) (y - fromIntegral sz / 2) $
         Color col $
-          TrueTypeText defaultFontPath sz txt
+          trueTypeText sz txt
 
     (btnCx, btnCy) = buyLicenseButtonCenter
     (btnW, btnH) = buyLicenseButtonSize
@@ -339,7 +345,7 @@ bannerImage urlErrorMb =
               (-(btnLabelW / 2))
               (-(fromIntegral buttonTextSize * 3 / 8))
               ( Color buttonTextColor $
-                  TrueTypeText defaultFontPath buttonTextSize btnLabel
+                  trueTypeText buttonTextSize btnLabel
               )
           ]
 
@@ -731,8 +737,17 @@ drawSidebar appWidth appHeight width =
     )
 
 
-drawButton :: (Int, Int) -> Int -> Int -> Text -> (Int, Int) -> Bool -> Picture
+drawButton ::
+  Maybe FilePath ->
+  (Int, Int) ->
+  Int ->
+  Int ->
+  Text ->
+  (Int, Int) ->
+  Bool ->
+  Picture
 drawButton
+  fontPathMb
   (appWidth, appHeight)
   sidebarWidth
   topOffset
@@ -755,7 +770,7 @@ drawButton
               (fromIntegral btnHeight)
               buttonCornerRadius
         , Translate (-(fromIntegral btnWidth / 2.0) + 8) (-6) $
-            getTextPicture btnText
+            getTextPicture fontPathMb btnText
         ]
 
 
@@ -764,6 +779,7 @@ drawUiComponent appState uiComponent componentIndex =
   case uiComponent of
     Button btnText btnWidth btnHeight ->
       drawButton
+        appState.fontPath
         (appState.appWidth, appState.appHeight)
         appState.sidebarWidth
         (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
@@ -791,7 +807,8 @@ makePicture appState =
           Pictures
             [ Color (greyN $ if isHovered then 0.35 else 0.2) $
                 roundedRectSolid fileSelectBtnWidth fileSelectBtnHeight buttonCornerRadius
-            , Translate (-43) (-7) $ getTextPicture "Select Files"
+            , Translate (-43) (-7) $
+                getTextPicture appState.fontPath "Select Files"
             ]
       pure uiElements
     ImageView -> do
@@ -829,7 +846,7 @@ makePicture appState =
                   appState.uiComponents
                   [0 ..]
                 <> [ if appState.bannerIsVisible
-                       then bannerImage appState.bannerUrlError
+                       then bannerImage appState.fontPath appState.bannerUrlError
                        else mempty
                    , if appState.bannerIsVisible
                        then
@@ -1517,6 +1534,15 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
 
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
 loadAndStart config filePathsMb = do
+  fontPathMb <- resolveFontPath
+
+  case fontPathMb of
+    Just _ -> pure ()
+    Nothing ->
+      P.putErrText
+        "Warning: No usable font found on this system. \
+        \Install a font like DejaVu Sans to display text."
+
   let
     isRegistered = config.licenseKey `elem` licenses
     stateDraft =
@@ -1524,6 +1550,7 @@ loadAndStart config filePathsMb = do
         { transformBackend = config.transformBackendFlag
         , isRegistered = isRegistered
         , bannerIsVisible = False
+        , fontPath = fontPathMb
         }
 
   screenSize <- getScreenSize

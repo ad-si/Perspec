@@ -10,13 +10,17 @@ import Protolude (
   FilePath,
   Float,
   IO,
+  IOException,
   Int,
   Maybe (Just, Nothing),
+  Monoid (mempty),
   Text,
   fmap,
   fromIntegral,
   fromMaybe,
   min,
+  not,
+  otherwise,
   pure,
   putText,
   realToFrac,
@@ -30,10 +34,14 @@ import Protolude (
   (+),
   (-),
   (/),
+  (<),
+  (<$>),
   (<&>),
   (<=),
   (<>),
+  (==),
   (>=),
+  (>>=),
  )
 import Protolude qualified as P
 
@@ -51,8 +59,22 @@ import Data.Text qualified as T
 import Foreign.ForeignPtr (castForeignPtr, withForeignPtr)
 import Foreign.Ptr (castPtr)
 import GHC.Float (int2Double)
-import System.FilePath (replaceBaseName, takeBaseName, takeExtension)
+import System.Directory (
+  doesDirectoryExist,
+  doesFileExist,
+  getHomeDirectory,
+  listDirectory,
+ )
+import System.Exit (ExitCode (ExitSuccess))
+import System.FilePath (
+  replaceBaseName,
+  takeBaseName,
+  takeExtension,
+  takeFileName,
+  (</>),
+ )
 import System.Info (os)
+import System.Process (readProcessWithExitCode)
 
 import FlatCV (Corners (..), detectCornersPtr)
 import Foreign.Marshal.Alloc (free)
@@ -61,13 +83,222 @@ import PngExif (getOrientationFromPng)
 import Types (AppState (..), Corner, ImageData (..), View (..))
 
 
--- | Font path for TrueType text rendering (platform-specific)
-defaultFontPath :: FilePath
-defaultFontPath = case os of
-  "darwin" -> "/System/Library/Fonts/Supplemental/Arial.ttf"
-  "linux" -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-  "mingw32" -> "C:\\Windows\\Fonts\\Arial.ttf"
-  _ -> "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf" -- Fallback to Linux path
+{-| Well known font locations for the current OS.
+
+Checked first, as hitting one avoids both spawning a process
+and walking the font directories.
+-}
+fontCandidates :: [FilePath]
+fontCandidates = case os of
+  "darwin" ->
+    [ "/System/Library/Fonts/Supplemental/Arial.ttf"
+    , "/Library/Fonts/Arial.ttf"
+    , "/System/Library/Fonts/Helvetica.ttc"
+    ]
+  "mingw32" ->
+    [ "C:\\Windows\\Fonts\\arial.ttf"
+    , "C:\\Windows\\Fonts\\segoeui.ttf"
+    , "C:\\Windows\\Fonts\\tahoma.ttf"
+    ]
+  _ ->
+    [ "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf" -- Debian, Ubuntu
+    , "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf" -- Fedora
+    , "/usr/share/fonts/dejavu/DejaVuSans.ttf" -- RHEL, older Fedora
+    , "/usr/share/fonts/TTF/DejaVuSans.ttf" -- Arch
+    , "/usr/share/fonts/truetype/DejaVuSans.ttf" -- openSUSE
+    , "/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf" -- Fedora
+    , "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf" -- Debian
+    , "/usr/share/fonts/liberation/LiberationSans-Regular.ttf" -- RHEL
+    , "/usr/share/fonts/noto/NotoSans-Regular.ttf" -- Arch
+    , "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf" -- Debian
+    , "/usr/share/fonts/gnu-free/FreeSans.otf" -- Fedora
+    , "/usr/share/fonts/truetype/freefont/FreeSans.ttf" -- Debian
+    ]
+
+
+{-| Font file names to look for when scanning the font directories,
+in order of preference.
+-}
+preferredFontFiles :: [FilePath]
+preferredFontFiles =
+  [ "DejaVuSans.ttf"
+  , "LiberationSans-Regular.ttf"
+  , "NotoSans-Regular.ttf"
+  , "FreeSans.ttf"
+  , "FreeSans.otf"
+  , "Arial.ttf"
+  , "Helvetica.ttc"
+  ]
+
+
+{-| Extensions of the scalable font formats FreeType can rasterize
+at arbitrary pixel sizes. Bitmap formats like @.pcf@ are excluded,
+as they only render at their built-in sizes.
+-}
+scalableFontExtensions :: [Text]
+scalableFontExtensions = [".ttf", ".ttc", ".otf", ".otc"]
+
+
+-- | How deep to descend into the font directories during a scan
+fontScanDepth :: Int
+fontScanDepth = 4
+
+
+-- | Directories the OS and the user keep fonts in
+fontDirectories :: IO [FilePath]
+fontDirectories = do
+  homeEither <- P.try getHomeDirectory
+  let
+    home = case homeEither :: Either IOException FilePath of
+      Left _ -> Nothing
+      Right dir -> Just dir
+    inHome subDirs = case home of
+      Nothing -> []
+      Just dir -> subDirs <&> (dir </>)
+
+  pure $ case os of
+    "darwin" ->
+      [ "/System/Library/Fonts"
+      , "/Library/Fonts"
+      ]
+        <> inHome ["Library/Fonts"]
+    "mingw32" ->
+      ["C:\\Windows\\Fonts"]
+    _ ->
+      [ "/usr/share/fonts"
+      , "/usr/local/share/fonts"
+      ]
+        <> inHome [".local/share/fonts", ".fonts"]
+
+
+-- | Whether the path points to an existing font file Brillo can render with
+isUsableFont :: FilePath -> IO Bool
+isUsableFont path = do
+  let extension = T.toLower $ T.pack $ takeExtension path
+  if extension `P.notElem` scalableFontExtensions
+    then pure False
+    else doesFileExist path
+
+
+-- | First of the paths that points to a usable font file
+firstUsableFont :: [FilePath] -> IO (Maybe FilePath)
+firstUsableFont = \case
+  [] -> pure Nothing
+  path : remainingPaths -> do
+    isUsable <- isUsableFont path
+    if isUsable
+      then pure $ Just path
+      else firstUsableFont remainingPaths
+
+
+{-| Ask fontconfig for the system's default sans-serif font.
+
+This is how GTK, Qt, and Cairo locate fonts and therefore
+the authoritative answer on Linux and BSD.
+
+Beware: Fontconfig never fails, it returns the closest match it can find
+even for a request it can't satisfy. The result must be validated.
+-}
+fontFromFontconfig :: IO (Maybe FilePath)
+fontFromFontconfig = do
+  resultEither <-
+    P.try $
+      readProcessWithExitCode "fc-match" ["-f", "%{file}", "sans-serif"] ""
+
+  case resultEither :: Either IOException (ExitCode, [P.Char], [P.Char]) of
+    -- `fc-match` is not installed
+    Left _ -> pure Nothing
+    Right (ExitSuccess, stdOut, _) -> do
+      let path = T.unpack $ T.strip $ T.pack stdOut
+      firstUsableFont [path]
+    Right _ -> pure Nothing
+
+
+{-| All files below the directory, up to the given depth.
+
+Unreadable directories are skipped instead of aborting the whole scan,
+as font directories can contain entries the user may not descend into.
+-}
+listFilesRecursive :: Int -> FilePath -> IO [FilePath]
+listFilesRecursive depth directory
+  | depth < 0 = pure []
+  | otherwise = do
+      entriesEither <- P.try $ listDirectory directory
+      case entriesEither :: Either IOException [FilePath] of
+        Left _ -> pure []
+        Right entries -> do
+          let paths = entries <&> (directory </>)
+          nestedFiles <- P.forM paths $ \path -> do
+            isDirectory <- doesDirectoryExist path
+            if isDirectory
+              then listFilesRecursive (depth - 1) path
+              else pure [path]
+          pure $ P.concat nestedFiles
+
+
+{-| Search the given directories for a usable font,
+regardless of how they lay their fonts out.
+-}
+fontInDirectories :: [FilePath] -> IO (Maybe FilePath)
+fontInDirectories directories = do
+  files <- P.concat <$> P.forM directories (listFilesRecursive fontScanDepth)
+
+  let
+    lowerName = takeFileName >>> T.pack >>> T.toLower
+    sortedFiles = P.sort files
+    byPreferredName preferredFile =
+      sortedFiles
+        & P.find (\file -> lowerName file == lowerName preferredFile)
+    -- Any sans-serif looking font, for systems with none of the above
+    sansSerifFiles =
+      sortedFiles
+        & P.filter (\file -> "sans" `T.isInfixOf` lowerName file)
+        & P.filter
+          (\file -> not $ "mono" `T.isInfixOf` lowerName file)
+
+  usablePreferred <-
+    firstUsableFont $ preferredFontFiles & P.mapMaybe byPreferredName
+  case usablePreferred of
+    Just path -> pure $ Just path
+    Nothing -> firstUsableFont sansSerifFiles
+
+
+{-| Search the system's font directories for a usable font.
+
+Last resort for systems whose font layout isn't covered by 'fontCandidates'
+and which don't ship the @fc-match@ binary.
+-}
+fontFromDirectoryScan :: IO (Maybe FilePath)
+fontFromDirectoryScan =
+  fontDirectories >>= fontInDirectories
+
+
+{-| Path of the font to render the UI text with.
+
+Tried in order:
+
+1. Well known font paths for the current OS
+2. Fontconfig's default sans-serif font (Linux and BSD)
+3. A scan of the system's font directories
+
+Hardcoding a single path doesn't work,
+as the layout differs between distributions
+(see https://github.com/ad-si/Perspec/issues/57).
+
+'Nothing' means no usable font was found and text won't be rendered.
+This must not be fatal, as it would otherwise take down the whole app
+on the first frame.
+-}
+resolveFontPath :: IO (Maybe FilePath)
+resolveFontPath = do
+  candidateMb <- firstUsableFont fontCandidates
+  case candidateMb of
+    Just path -> pure $ Just path
+    Nothing -> do
+      fontconfigMb <- fontFromFontconfig
+      case fontconfigMb of
+        Just path -> pure $ Just path
+        Nothing -> fontFromDirectoryScan
 
 
 -- | Pixel height for button text
@@ -76,10 +307,13 @@ buttonTextHeight = 16
 
 
 -- | Render text using TrueType fonts
-getTextPicture :: Text -> Picture
-getTextPicture txt =
-  Color (greyN 0.9) $
-    TrueTypeText defaultFontPath buttonTextHeight txt
+getTextPicture :: Maybe FilePath -> Text -> Picture
+getTextPicture fontPathMb txt =
+  case fontPathMb of
+    Nothing -> mempty
+    Just fontPath ->
+      Color (greyN 0.9) $
+        TrueTypeText fontPath buttonTextHeight txt
 
 
 isInRect :: Point -> (Float, Float, Float, Float) -> Bool

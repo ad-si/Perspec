@@ -1,11 +1,27 @@
 module UtilsSpec where
 
-import Protolude (Bool (False, True), ($))
+import Protolude (
+  Bool (False, True),
+  FilePath,
+  IO,
+  Maybe (Just, Nothing),
+  pure,
+  writeFile,
+  ($),
+ )
 
-import Test.Hspec (Spec, describe, it, shouldBe)
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath (takeDirectory, (</>))
+import System.IO.Temp (withSystemTempDirectory)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldReturn)
 
 import FlatCV (Corners (..))
-import Utils (applyRotationToCorners)
+import Utils (
+  applyRotationToCorners,
+  firstUsableFont,
+  fontInDirectories,
+  isUsableFont,
+ )
 
 
 spec :: Spec
@@ -246,3 +262,74 @@ spec = do
             , blX = 29.0
             , blY = 100.0
             }
+
+    describe "Font resolution" $ do
+      let
+        -- The resolver only inspects the name and the existence of a file,
+        -- so the contents don't matter
+        writeFontFile :: FilePath -> FilePath -> IO FilePath
+        writeFontFile fontDir relativePath = do
+          let path = fontDir </> relativePath
+          createDirectoryIfMissing True (takeDirectory path)
+          writeFile path ""
+          pure path
+
+        withFontDir :: (FilePath -> IO a) -> IO a
+        withFontDir action =
+          withSystemTempDirectory "perspec-fonts" $ \tmpDir -> do
+            let fontDir = tmpDir </> "fonts"
+            createDirectoryIfMissing True fontDir
+            action fontDir
+
+      it "rejects paths that don't exist" $ do
+        isUsableFont "/definitely/not/a/font.ttf" `shouldReturn` False
+
+      it "rejects bitmap font formats" $ do
+        withFontDir $ \fontDir -> do
+          path <- writeFontFile fontDir "DejaVuSans.pcf"
+          isUsableFont path `shouldReturn` False
+
+      it "accepts scalable font formats" $ do
+        withFontDir $ \fontDir -> do
+          path <- writeFontFile fontDir "DejaVuSans.ttf"
+          isUsableFont path `shouldReturn` True
+
+      it "skips missing paths and takes the first existing font" $ do
+        withFontDir $ \fontDir -> do
+          path <- writeFontFile fontDir "DejaVuSans.ttf"
+          firstUsableFont ["/nope/Arial.ttf", path] `shouldReturn` Just path
+
+      -- https://github.com/ad-si/Perspec/issues/61
+      it "finds the font in Fedora's layout" $ do
+        withFontDir $ \fontDir -> do
+          path <- writeFontFile fontDir "dejavu-sans-fonts/DejaVuSans.ttf"
+          fontInDirectories [fontDir] `shouldReturn` Just path
+
+      -- https://github.com/ad-si/Perspec/issues/57
+      it "finds the font in Arch's layout" $ do
+        withFontDir $ \fontDir -> do
+          path <- writeFontFile fontDir "TTF/DejaVuSans.ttf"
+          fontInDirectories [fontDir] `shouldReturn` Just path
+
+      it "prefers DejaVu Sans over other sans-serif fonts" $ do
+        withFontDir $ \fontDir -> do
+          _ <- writeFontFile fontDir "aardvark/AardvarkSans-Regular.ttf"
+          dejaVuPath <- writeFontFile fontDir "TTF/DejaVuSans.ttf"
+          fontInDirectories [fontDir] `shouldReturn` Just dejaVuPath
+
+      it "falls back to any sans-serif font" $ do
+        withFontDir $ \fontDir -> do
+          path <- writeFontFile fontDir "aardvark/AardvarkSans-Regular.ttf"
+          fontInDirectories [fontDir] `shouldReturn` Just path
+
+      it "doesn't fall back to a monospace font" $ do
+        withFontDir $ \fontDir -> do
+          _ <- writeFontFile fontDir "aardvark/AardvarkSansMono-Regular.ttf"
+          fontInDirectories [fontDir] `shouldReturn` Nothing
+
+      it "returns Nothing when no font is installed" $ do
+        withFontDir $ \fontDir -> do
+          fontInDirectories [fontDir] `shouldReturn` Nothing
+
+      it "ignores font directories that don't exist" $ do
+        fontInDirectories ["/definitely/not/a/font/dir"] `shouldReturn` Nothing

@@ -159,6 +159,11 @@ data AppState = AppState
   , uiComponents :: [UiComponent]
   , hoveredButton :: Maybe Int
   -- ^ Index of the button currently being hovered
+  , fontPath :: Maybe FilePath
+  {- ^ Font to render the UI text with, resolved at startup.
+  ^ 'Nothing' if the system has no usable font, in which case
+  ^ text is skipped instead of crashing the renderer.
+  -}
   }
 
 
@@ -182,6 +187,7 @@ instance Show AppState where
       <> (", sidebarWidth = " <> show appState.sidebarWidth)
       <> (", uiComponents = " <> show appState.uiComponents)
       <> (", hoveredButton = " <> show appState.hoveredButton)
+      <> (", fontPath = " <> show appState.fontPath)
       <> "}"
 
 
@@ -232,4 +238,5 @@ initialState =
             }
         ]
     , hoveredButton = Nothing
+    , fontPath = Nothing
     }
