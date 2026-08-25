@@ -2,8 +2,23 @@
 
 ## Unreleased
 
+
+## 2026-08-25 - [1.1](https://github.com/ad-si/Perspec/releases/tag/v1.1.0.0)
+
 - Fix crash on launch on macOS machines without Homebrew's `libwebp`
     by bundling all non-system libraries into the app
+- Fix OpenGL crash on launch on Windows
+    by upgrading [Brillo](https://github.com/ad-si/Brillo)
+- Fix crash on launch on Linux distributions
+    that don't ship the font at the hardcoded path.
+    The font is now resolved at runtime and text is skipped
+    instead of crashing if the system has no usable font.
+- Fix crash on Windows versions other than the one the release was built on
+    by no longer bundling system DLLs into the artifact
+- Start the GUI when `perspec` is run without arguments on Windows
+- Add `perspecw.exe`, a windowed launcher for Windows
+    that doesn't open a console window next to the app
+- Document licensing and license key setup in the readme
 
 
 ## 2026-07-09 - [1.0](https://github.com/ad-si/Perspec/releases/tag/v1.0.0.0)
