@@ -18,6 +18,7 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldReturn)
 import FlatCV (Corners (..))
 import Utils (
   applyRotationToCorners,
+  calcInitWindowPos,
   firstUsableFont,
   fontInDirectories,
   isUsableFont,
@@ -333,3 +334,13 @@ spec = do
 
       it "ignores font directories that don't exist" $ do
         fontInDirectories ["/definitely/not/a/font/dir"] `shouldReturn` Nothing
+
+    describe "calcInitWindowPos" $ do
+      it "centers the window on the screen" $ do
+        calcInitWindowPos (1920, 1080) (1280, 960) `shouldBe` (320, 60)
+
+      it "centers a window with odd margins" $ do
+        calcInitWindowPos (1000, 800) (500, 401) `shouldBe` (250, 200)
+
+      it "doesn't position a window off-screen" $ do
+        calcInitWindowPos (1280, 800) (1280, 960) `shouldBe` (0, 0)

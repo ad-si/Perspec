@@ -414,7 +414,7 @@ appStateToWindow screenSize appState = do
     windowPos = calcInitWindowPos screenSize appSize
 
   case appState.images of
-    [] -> InWindow "Perspec" appSize (0, 0)
+    [] -> InWindow "Perspec" appSize windowPos
     image : _otherImages -> do
       case appState.currentView of
         HomeView -> InWindow "Perspec - Select a file" appSize windowPos
