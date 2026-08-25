@@ -6,9 +6,11 @@ import Protolude (
   FilePath,
   IO,
   Maybe (Just, Nothing),
+  fst,
   pure,
   putErrText,
   ($),
+  (&),
   (<>),
   (==),
  )
@@ -26,7 +28,7 @@ import Control.Exception (
   throwIO,
   try,
  )
-import Data.Text (pack)
+import Data.Text (breakOn, pack, strip)
 import GHC.IO.Handle (hDuplicateTo)
 import System.Directory (
   XdgDirectory (XdgCache),
@@ -100,6 +102,14 @@ reportFatalError logPathMb exception =
     Nothing -> do
       let
         errorMessage = pack $ displayException exception
+
+        -- The call stack is only noise in a dialog, but stays in the log
+        errorSummary =
+          errorMessage
+            & breakOn "HasCallStack backtrace:"
+            & fst
+            & strip
+
         logHint = case logPathMb of
           Nothing -> ""
           Just logPath -> "\n\nThe full log is available at:\n" <> pack logPath
@@ -108,7 +118,7 @@ reportFatalError logPathMb exception =
       _ <-
         messageBox
           "Perspec"
-          ("Perspec could not be started:\n\n" <> errorMessage <> logHint)
+          ("Perspec could not be started:\n\n" <> errorSummary <> logHint)
           Error
           OK
       exitFailure
