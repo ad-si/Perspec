@@ -208,25 +208,6 @@ jobs:
             .stack-work
           key: ${{ runner.os }}-x86_64-stack-${{ hashFiles('stack.yaml', 'stack.yaml.lock', 'package.yaml') }}
 
-      # Defender scans every file the toolchain writes, which intermittently
-      # keeps a freshly linked executable locked while Cabal's copy step runs
-      # `strip` on it. That surfaces as `strip.exe: error: Permission denied`
-      # and fails the build, most likely on a cache miss, when all the
-      # dependencies are compiled instead of restored.
-      - name: Exclude the build directories from Defender
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          foreach ($path in @(
-            "$env:USERPROFILE\AppData\Roaming\stack",
-            "$env:USERPROFILE\AppData\Local\Programs\stack",
-            "$env:USERPROFILE\AppData\Local\Temp",
-            "C:\sr",
-            "${{ github.workspace }}"
-          )) {
-            Add-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue
-          }
-
       - name: Setup Stack
         uses: haskell-actions/setup@v2
         with:
