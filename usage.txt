@@ -22,7 +22,8 @@ Rename Options:
   --descending        Pages were photographed in descending order
 
 Notes:
-  On Windows, running `perspec` without any arguments starts the GUI
+  On Windows, double-clicking perspec.exe starts the GUI.
+  Use perspecw.exe to start it without a console window next to it.
 
   If page numbers go below zero, they are prefixed with "_todo_"
 

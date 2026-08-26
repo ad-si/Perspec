@@ -8,6 +8,9 @@
     on a high DPI display set to 175 % scaling.
     The scaling can be overridden with the `PERSPEC_UI_SCALE` env variable.
 - Shrink the initial window if it wouldn't fit on the screen
+- Only start the GUI when `perspec.exe` is run without arguments
+    from a console of its own, i.e. was double-clicked.
+    Running it without arguments in a terminal prints the usage text again.
 
 
 ## 2026-08-25 - [1.1](https://github.com/ad-si/Perspec/releases/tag/v1.1.0.0)
