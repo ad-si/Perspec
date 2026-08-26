@@ -33,6 +33,7 @@ import Brillo (
   PixelFormat (PxRGBA),
   RowOrder (TopToBottom),
  )
+import Brillo.Interface.IO.Game (Event (EventDrop, EventMotion, EventResize))
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
 
 import Codec.Picture (
@@ -48,6 +49,7 @@ import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import FlatCV (otsuThresholdPtr)
+import Lib (toLogicalEvent)
 import PngExif (
   clearExifOrientation,
   extractExifBytesFromFile,
@@ -214,6 +216,23 @@ main = hspec $ do
                     _ -> False
           Right _ ->
             P.putText "Unsupported image format"
+
+      describe "toLogicalEvent" $ do
+        it "leaves coordinates untouched on a display without scaling" $ do
+          toLogicalEvent 1 (EventMotion (100, -50))
+            `shouldBe` EventMotion (100, -50)
+
+        it "converts mouse positions to logical units" $ do
+          toLogicalEvent 2 (EventMotion (100, -50))
+            `shouldBe` EventMotion (50, -25)
+
+        it "converts the window size to logical units" $ do
+          toLogicalEvent 1.75 (EventResize (2240, 1680))
+            `shouldBe` EventResize (1280, 960)
+
+        it "passes events without coordinates through" $ do
+          toLogicalEvent 2 (EventDrop ["doc.jpg"])
+            `shouldBe` EventDrop ["doc.jpg"]
 
     describe "Rename" $ do
       it "renames files according to natural sort and avoids collisions" $ do

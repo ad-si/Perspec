@@ -134,6 +134,7 @@ import Types (
  )
 import Utils (
   applyRotationToCorners,
+  calcInitAppSize,
   calcInitWindowPos,
   calculateSizes,
   getCorners,
@@ -142,6 +143,7 @@ import Utils (
   loadImage,
   prettyPrintArray,
   resolveFontPath,
+  resolveUiScale,
  )
 
 
@@ -410,7 +412,15 @@ bannerImage fontPathMb urlErrorMb =
 appStateToWindow :: (Int, Int) -> AppState -> Display
 appStateToWindow screenSize appState = do
   let
-    appSize = (appState.appWidth, appState.appHeight)
+    toWindowUnits value =
+      P.round (fromIntegral value * appState.uiScale)
+
+    -- Windows are sized in the window coordinates of the display,
+    -- while the app lays itself out in logical units
+    appSize =
+      ( toWindowUnits appState.appWidth
+      , toWindowUnits appState.appHeight
+      )
     windowPos = calcInitWindowPos screenSize appSize
 
   case appState.images of
@@ -431,7 +441,10 @@ appStateToWindow screenSize appState = do
             appSize
             windowPos
         BannerView ->
-          InWindow "Perspec - Banner" (800, 600) (10, 10)
+          InWindow
+            "Perspec - Banner"
+            (toWindowUnits (800 :: Int), toWindowUnits (600 :: Int))
+            (10, 10)
 
 
 drawCorner :: Gl.Color -> Point -> Picture
@@ -1210,8 +1223,38 @@ handleImageViewEvent stateRef controller event appState =
       pure appState
 
 
+{-| Convert the window coordinates of an event
+to the logical units the interface is laid out in.
+
+Brillo reports positions and sizes in window coordinates,
+which are physical pixels on Windows and X11.
+Doing the conversion once here keeps every hit test and layout calculation
+in the same coordinate system as 'makePicture'.
+-}
+toLogicalEvent :: Float -> Event -> Event
+toLogicalEvent uiScale event =
+  let
+    toLogicalPoint (x, y) = (x / uiScale, y / uiScale)
+    toLogicalLength value = P.round (fromIntegral value / uiScale)
+  in
+    case event of
+      EventKey key keyState modifiers point ->
+        EventKey key keyState modifiers (toLogicalPoint point)
+      EventMotion point ->
+        EventMotion (toLogicalPoint point)
+      EventResize (windowWidth, windowHeight) ->
+        EventResize
+          ( toLogicalLength windowWidth
+          , toLogicalLength windowHeight
+          )
+      EventDrop filePaths -> EventDrop filePaths
+      EventPick filePaths -> EventPick filePaths
+
+
 handleEvent :: IORef AppState -> Controller -> Event -> AppState -> IO AppState
-handleEvent stateRef controller event appState =
+handleEvent stateRef controller windowEvent appState = do
+  let event = toLogicalEvent appState.uiScale windowEvent
+
   case appState.currentView of
     HomeView -> handleHomeEvent stateRef controller event appState
     ImageView -> handleImageViewEvent stateRef controller event appState
@@ -1543,17 +1586,22 @@ loadAndStart config filePathsMb = do
         "Warning: No usable font found on this system. \
         \Install a font like DejaVu Sans to display text."
 
+  uiScale <- resolveUiScale
+  screenSize <- getScreenSize
+
   let
     isRegistered = config.licenseKey `elem` licenses
+    (initAppWidth, initAppHeight) = calcInitAppSize screenSize uiScale
     stateDraft =
       initialState
         { transformBackend = config.transformBackendFlag
         , isRegistered = isRegistered
         , bannerIsVisible = False
         , fontPath = fontPathMb
+        , uiScale = uiScale
+        , appWidth = initAppWidth
+        , appHeight = initAppHeight
         }
-
-  screenSize <- getScreenSize
 
   putText "Starting the app …"
 
@@ -1595,11 +1643,16 @@ loadAndStart config filePathsMb = do
         (initController controllerRef)
 
 
--- | Wrapper to read state from IORef and render
+{-| Wrapper to read state from IORef and render.
+
+'makePicture' draws in logical units,
+so the result is scaled to the window coordinates of the display here.
+-}
 makePictureFromRef :: IORef AppState -> IORef AppState -> IO Picture
 makePictureFromRef stateRef _ = do
   appState <- readIORef stateRef
-  makePicture appState
+  picture <- makePicture appState
+  pure $ Scale appState.uiScale appState.uiScale picture
 
 
 -- | Wrapper to handle events and update IORef

@@ -148,7 +148,14 @@ data AppState = AppState
   -- ^ Last mouse position during edge dragging
   , images :: [ImageData]
   , appWidth :: Int
+  -- ^ Width of the window in logical units (see 'uiScale')
   , appHeight :: Int
+  -- ^ Height of the window in logical units (see 'uiScale')
+  , uiScale :: Float
+  {- ^ Factor between the logical units the interface is laid out in
+  ^ and the window coordinates of the display it's shown on.
+  ^ 1.75 on a Windows display set to 175 % scaling, 1 on a normal one.
+  -}
   , scaleFactor :: Float
   , transformBackend :: TransformBackend
   , isRegistered :: Bool
@@ -179,6 +186,7 @@ instance Show AppState where
       <> (", images = " <> show appState.images)
       <> (", appWidth = " <> show appState.appWidth)
       <> (", appHeight = " <> show appState.appHeight)
+      <> (", uiScale = " <> show appState.uiScale)
       <> (", scaleFactor = " <> show appState.scaleFactor)
       <> (", transformBackend = " <> show appState.transformBackend)
       <> (", isRegistered = " <> show appState.isRegistered)
@@ -209,6 +217,7 @@ initialState =
     , images = []
     , appWidth = appInitialWidth
     , appHeight = appInitialHeight
+    , uiScale = 1
     , scaleFactor = 1
     , transformBackend = FlatCVBackend
     , isRegistered = False

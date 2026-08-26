@@ -5,6 +5,7 @@ module Utils where
 
 import Protolude (
   Bool (..),
+  Char,
   Double,
   Either (..),
   FilePath,
@@ -23,6 +24,7 @@ import Protolude (
   otherwise,
   pure,
   putText,
+  reads,
   realToFrac,
   round,
   show,
@@ -51,6 +53,7 @@ import Brillo (
   Point,
   greyN,
  )
+import Brillo.Interface.Environment (getDpiScale)
 import Brillo.Juicy (loadJuicyWithMetadata)
 import Codec.Picture.Metadata (Keys (Exif), Metadatas, lookup)
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort), ExifTag (..))
@@ -65,6 +68,7 @@ import System.Directory (
   getHomeDirectory,
   listDirectory,
  )
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath (
   replaceBaseName,
@@ -80,7 +84,14 @@ import FlatCV (Corners (..), detectCornersPtr)
 import Foreign.Marshal.Alloc (free)
 import Foreign.Storable (peek)
 import PngExif (getOrientationFromPng)
-import Types (AppState (..), Corner, ImageData (..), View (..))
+import Types (
+  AppState (..),
+  Corner,
+  ImageData (..),
+  View (..),
+  appInitialHeight,
+  appInitialWidth,
+ )
 
 
 {-| Well known font locations for the current OS.
@@ -325,6 +336,65 @@ getOutPath :: FilePath -> FilePath
 getOutPath filePath = do
   let outName = takeBaseName filePath <> "-fixed"
   replaceBaseName filePath outName
+
+
+{-| Environment variable to override the automatically detected UI scale.
+
+An escape hatch for setups where the display server reports a scale
+that doesn't match what the user actually wants (e.g. a misconfigured
+@Xft.dpi@ on X11), and the only way to test the scaling on a display
+that has none.
+-}
+uiScaleEnvVar :: [Char]
+uiScaleEnvVar = "PERSPEC_UI_SCALE"
+
+
+{-| Resolve the factor between the logical units the interface is laid out in
+and the window coordinates of the display it's shown on.
+-}
+resolveUiScale :: IO Float
+resolveUiScale = do
+  overrideMb <- lookupEnv uiScaleEnvVar
+
+  let
+    parsedOverrideMb = case overrideMb of
+      Nothing -> Nothing
+      Just override -> case reads override of
+        [(scale, "")] -> Just scale
+        _ -> Nothing
+
+  scale <- case parsedOverrideMb of
+    Just override -> pure override
+    Nothing -> getDpiScale
+
+  -- Scaling below 1 would make the interface unusably small,
+  -- and no display scaling in use goes anywhere near 4.
+  pure $ P.max 1 $ min 4 scale
+
+
+{-| Size of the initial window in logical units.
+
+The window keeps its physical size across displays by growing
+with the UI scale, but never beyond what fits on the screen.
+-}
+calcInitAppSize :: (Int, Int) -> Float -> (Int, Int)
+calcInitAppSize (screenWidth, screenHeight) uiScale =
+  let
+    -- Leave room for the taskbar / dock and the window decorations
+    maxScreenFraction = 0.9
+    maxWidth = (fromIntegral screenWidth * maxScreenFraction) / uiScale
+    maxHeight = (fromIntegral screenHeight * maxScreenFraction) / uiScale
+
+    shrinkFactor =
+      P.minimum
+        [ 1
+        , maxWidth / fromIntegral appInitialWidth
+        , maxHeight / fromIntegral appInitialHeight
+        ]
+  in
+    ( round (fromIntegral appInitialWidth * shrinkFactor)
+    , round (fromIntegral appInitialHeight * shrinkFactor)
+    )
 
 
 calcInitWindowPos :: (Int, Int) -> (Int, Int) -> (Int, Int)

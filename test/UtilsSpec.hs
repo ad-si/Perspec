@@ -18,6 +18,7 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldReturn)
 import FlatCV (Corners (..))
 import Utils (
   applyRotationToCorners,
+  calcInitAppSize,
   calcInitWindowPos,
   firstUsableFont,
   fontInDirectories,
@@ -344,3 +345,20 @@ spec = do
 
       it "doesn't position a window off-screen" $ do
         calcInitWindowPos (1280, 800) (1280, 960) `shouldBe` (0, 0)
+
+    describe "calcInitAppSize" $ do
+      it "keeps the default size on a screen without scaling" $ do
+        calcInitAppSize (1920, 1080) 1 `shouldBe` (1280, 960)
+
+      it "keeps the logical size on a high DPI screen" $ do
+        -- 1280 x 960 logical are 2240 x 1680 physical pixels,
+        -- which still fit on a 2880 x 1800 screen
+        calcInitAppSize (3840, 2160) 1.75 `shouldBe` (1280, 960)
+
+      it "shrinks the window to fit a high DPI screen" $ do
+        -- 1680 physical pixels of height exceed 90 % of 1800,
+        -- so the window is scaled down to 1620 physical pixels
+        calcInitAppSize (2880, 1800) 1.75 `shouldBe` (1234, 926)
+
+      it "shrinks the window to fit a small screen" $ do
+        calcInitAppSize (1366, 768) 1 `shouldBe` (922, 691)

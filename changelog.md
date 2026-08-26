@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Scale the interface with the display scaling setting,
+    instead of drawing it at a fixed pixel size.
+    It used to come out at a third of its intended size
+    on a high DPI display set to 175 % scaling.
+    The scaling can be overridden with the `PERSPEC_UI_SCALE` env variable.
+- Shrink the initial window if it wouldn't fit on the screen
+
 
 ## 2026-08-25 - [1.1](https://github.com/ad-si/Perspec/releases/tag/v1.1.0.0)
 

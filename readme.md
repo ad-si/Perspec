@@ -35,6 +35,7 @@ For example whiteboards, document scans, or facades.
   * [Prebuilt](#prebuilt)
   * [From Source](#from-source)
 - [Usage via CLI](#usage-via-cli)
+- [Interface Scaling](#interface-scaling)
 - [Photo Digitization Workflow](#photo-digitization-workflow)
   * [Additional Steps](#additional-steps)
 - [Technologies](#technologies)
@@ -177,6 +178,20 @@ It's also possible to directly invoke Perspec via the CLI like so:
 You can also pass several images and they will all be opened
 one after another.
 This is very useful for batch correcting a large set of images.
+
+
+## Interface Scaling
+
+Perspec scales its interface with the scaling setting of the display
+it's shown on, so that it has the same physical size everywhere.
+
+If the detected scaling doesn't match what you want
+(e.g. because of a misconfigured `Xft.dpi` on X11),
+set the `PERSPEC_UI_SCALE` environment variable to override it:
+
+```sh
+PERSPEC_UI_SCALE=1.5 perspec gui
+```
 
 
 ## Photo Digitization Workflow
