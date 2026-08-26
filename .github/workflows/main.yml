@@ -229,13 +229,32 @@ jobs:
             -replace 'licenses = \[\]', 'licenses = [${{ secrets.LICENSE_KEYS }}]'
           | Set-Content -NoNewline source\Lib.hs
 
+      # Cabal's copy step runs `strip` on the build tools it installs
+      # (alex, c2hs, happy), which intermittently fails with
+      # `strip.exe: error: Permission denied` while the virus scanner still
+      # holds the file that was just linked. `--no-executable-stripping` only
+      # covers the packages built for this project, and opting the snapshot
+      # out via `configure-options` would invalidate all of its 120+ packages.
+      # Stack resumes where it left off, so a retry gets past the flake.
       - name: Build Perspec
-        run:
-          stack install
-            --ghc-options=-O2
-            --flag hmatrix:openblas
-            --no-executable-stripping
-            --no-library-stripping
+        shell: pwsh
+        run: |
+          # Keep a failed attempt from aborting the script, so it can retry.
+          # PowerShell 7.4 turns a non-zero exit code of a native command into
+          # a terminating error, and the runner sets $ErrorActionPreference.
+          $PSNativeCommandUseErrorActionPreference = $false
+          $ErrorActionPreference = 'Continue'
+
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            stack install `
+              --ghc-options=-O2 `
+              --flag hmatrix:openblas `
+              --no-executable-stripping `
+              --no-library-stripping
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "::warning::Build failed (attempt $attempt of 3)"
+          }
+          exit 1
         env:
           GHCRTS: -K64M
 
