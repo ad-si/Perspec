@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix crash on launch on Linux and Windows
+    with "GLFW.createWindow failed to create a … window".
+    GLFW rejected the requested OpenGL 2.1 context,
+    since it was combined with a profile hint
+    which is only defined for OpenGL 3.2 and above.
+    The AppImage of version 1.1 was affected on every Linux distribution.
 - Scale the interface with the display scaling setting,
     instead of drawing it at a fixed pixel size.
     It used to come out at a third of its intended size
