@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2026-09-11 - [1.2](https://github.com/ad-si/Perspec/releases/tag/v1.2.0.0)
 
 - Fix crash on launch on Linux and Windows
     with "GLFW.createWindow failed to create a … window".

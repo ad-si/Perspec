@@ -20,7 +20,7 @@ Perspec.app: ~/.local/bin/perspec
 		--name Perspec \
 		--app-icon images/icon.icns \
 		--interface-type 'None' \
-		--app-version 1.1.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
+		--app-version 1.2.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
 		--author "Adrian Sieber" \
 		--bundled-file ~/.local/bin/perspec \
 		--bundled-file app-aux-files/Credits.html \
