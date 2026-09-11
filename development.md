@@ -35,7 +35,5 @@ svg2icns icon.svg
 - [ ] Create new release on GitHub
   - [ ] Download artifacts, fix file permissions, zip them, attach to release
 - [ ] Update the [cask file]
-- [ ] Update version on [Gumroad]
 
 [cask file]: https://github.com/ad-si/homebrew-tap/blob/master/Casks/perspec.rb
-[Gumroad]: https://feram.gumroad.com/l/perspec
