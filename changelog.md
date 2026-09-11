@@ -8,6 +8,8 @@
     since it was combined with a profile hint
     which is only defined for OpenGL 3.2 and above.
     The AppImage of version 1.1 was affected on every Linux distribution.
+- Smoke test the AppImage in CI by starting the GUI on a virtual X server,
+    so crashes on launch are caught before a release
 - Scale the interface with the display scaling setting,
     instead of drawing it at a fixed pixel size.
     It used to come out at a third of its intended size

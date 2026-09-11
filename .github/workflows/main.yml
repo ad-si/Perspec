@@ -114,13 +114,17 @@ jobs:
         run:
           sudo add-apt-repository universe
 
+      # `fonts-dejavu-core`, `libgl1-mesa-dri`, and `xvfb`
+      # are only needed by the smoke test of the AppImage
       - name: Install dependencies
         run:
           sudo apt-get install
+            fonts-dejavu-core
             libblas-dev
             libblas3
             libfuse2
             libgl1-mesa-dev
+            libgl1-mesa-dri
             libglfw3
             libglu1-mesa-dev
             liblapack-dev
@@ -131,6 +135,7 @@ jobs:
             libxinerama-dev
             libxrandr-dev
             libxxf86vm-dev
+            xvfb
 
       - name: Download bundable ImageMagick binary and install globally
         run: |
@@ -187,6 +192,28 @@ jobs:
             --icon-file ./perspec.png \
             --custom-apprun ./AppRun
           mv Perspec-${LINUX_ARCH}.AppImage Perspec_${{ matrix.arch }}.AppImage
+
+      # Start the GUI on a virtual X server with Mesa's software renderer
+      # and require it to still be running when the timeout hits.
+      # Errors like a rejected OpenGL context or a missing font
+      # only surface when the window is created and the first frame is drawn,
+      # so `stack test` can't catch them.
+      # Without a terminal, the AppImage starts the GUI when run without arguments.
+      - name: Smoke test AppImage
+        run: |
+          set +e
+          timeout --kill-after=5 20 \
+            xvfb-run --auto-servernum --server-args='-screen 0 1600x1200x24' \
+            ./Perspec_${{ matrix.arch }}.AppImage
+          exitCode=$?
+          set -e
+          if test "$exitCode" -ne 124
+          then
+            echo "::error::The GUI exited with code $exitCode instead of running until the timeout"
+            exit 1
+          fi
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 1
 
       - name: Upload Linux Release
         uses: actions/upload-artifact@v7
