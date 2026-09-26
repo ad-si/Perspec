@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add version bounds to all dependencies
+
 ## 2026-09-11 - [1.2](https://github.com/ad-si/Perspec/releases/tag/v1.2.0.0)
 
 - Fix crash on launch on Linux and Windows
