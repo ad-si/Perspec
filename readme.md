@@ -166,6 +166,13 @@ and makes the `perspec` command available on your path.
 You can then either drop images on the app window,
 or use it via the CLI like `perspec fix image.jpeg`
 
+On Linux and NixOS, the Nix Flake provides all necessary dependencies:
+
+```sh
+nix develop
+stack install  # Or: hpack && cabal install
+```
+
 
 ## Usage via CLI
 

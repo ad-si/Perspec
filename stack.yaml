@@ -6,6 +6,12 @@ resolver: lts-24.27
 # Necessary as the Nix Flake sets the GHC version
 system-ghc: true
 
+# The Nix Flake provides GHC and all native libraries.
+# Otherwise, Stack would build in its own Nix shell on NixOS,
+# which doesn't include the native libraries.
+nix:
+  enable: false
+
 packages:
   - .
 
@@ -41,3 +47,9 @@ extra-deps:
     commit: a98990a882da8f2cb3ff6730d614f5d37adbde33
 
 allow-newer: true
+
+configure-options:
+  # c2hs can't parse C23's `bool` keyword,
+  # which is the default since GCC 15
+  flatcv:
+    - --c2hs-options=--cppopts=-std=gnu17

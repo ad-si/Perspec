@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix building from source on NixOS:
+    The Nix Flake's dev shell now provides the OpenGL and X11 libraries,
+    and Stack no longer switches to its own Nix integration.
+- Add a `cabal.project` so Perspec can also be built with `cabal`
 - Add version bounds to all dependencies
 
 ## 2026-09-11 - [1.2](https://github.com/ad-si/Perspec/releases/tag/v1.2.0.0)
