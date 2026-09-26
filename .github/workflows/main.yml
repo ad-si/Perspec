@@ -241,13 +241,19 @@ jobs:
           enable-stack: true
           stack-no-global: true
 
+      # Stack uses the CLANG64 environment since 3.11,
+      # as MSYS2 deprecated MINGW64.
+      # `-y` refreshes the package database of Stack's MSYS2 snapshot,
+      # whose package versions are no longer available on the mirrors.
+      # The keyring must be updated first to verify the newer packages.
       - name: Install MSYS2 dependencies
-        run:
-          stack exec -- pacman -S --noconfirm
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-glfw
-            mingw-w64-x86_64-openblas
-            mingw-w64-x86_64-libwebp
+        run: |
+          stack exec -- pacman -Sy --noconfirm --needed msys2-keyring
+          stack exec -- pacman -S --noconfirm --needed `
+            mingw-w64-clang-x86_64-pkgconf `
+            mingw-w64-clang-x86_64-glfw `
+            mingw-w64-clang-x86_64-openblas `
+            mingw-w64-clang-x86_64-libwebp
 
       - name: Inject license keys
         shell: pwsh
