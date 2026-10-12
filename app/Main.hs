@@ -30,7 +30,9 @@ import Protolude qualified as P
 
 
 #if defined(mingw32_HOST_OS)
+import Control.Exception (finally)
 import Data.Word (Word32)
+import Foreign.C.Types (CInt (..))
 import Foreign.Marshal.Array (allocaArray)
 import Foreign.Ptr (Ptr)
 #endif
@@ -80,6 +82,37 @@ patterns = [docoptFile|usage.txt|]
 #if defined(mingw32_HOST_OS)
 foreign import ccall unsafe "windows.h GetConsoleProcessList"
   c_GetConsoleProcessList :: Ptr Word32 -> Word32 -> IO Word32
+
+foreign import ccall unsafe "windows.h GetConsoleOutputCP"
+  c_GetConsoleOutputCP :: IO Word32
+
+foreign import ccall unsafe "windows.h SetConsoleOutputCP"
+  c_SetConsoleOutputCP :: Word32 -> IO CInt
+#endif
+
+
+{-| Run an action with the console decoding its output as UTF-8.
+
+The standard handles are encoded as UTF-8,
+but a Windows console decodes them with its own code page
+(usually an OEM one like 437), which garbles all non-ASCII characters.
+The original code page is restored afterwards,
+as it's shared with the shell the exe was started from.
+A no-op on platforms without console code pages.
+-}
+withUtf8Console :: IO a -> IO a
+#if defined(mingw32_HOST_OS)
+withUtf8Console action = do
+  originalCodePage <- c_GetConsoleOutputCP
+  -- 0 means there is no console whose code page could be changed
+  if originalCodePage == 0
+    then action
+    else do
+      let utf8CodePage = 65001
+      _ <- c_SetConsoleOutputCP utf8CodePage
+      action `finally` c_SetConsoleOutputCP originalCodePage
+#else
+withUtf8Console action = action
 #endif
 
 
@@ -217,5 +250,6 @@ main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
 
-  config <- loadConfig
-  getArgs >>= execWithArgs config
+  withUtf8Console $ do
+    config <- loadConfig
+    getArgs >>= execWithArgs config
