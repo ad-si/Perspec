@@ -1212,13 +1212,6 @@ handleImageViewEvent stateRef controller event appState =
       submitSelection stateRef controller appState UnmodifiedExport
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState{corners = []}
-    EventResize (windowWidth, windowHeight) -> do
-      pure $
-        calculateSizes $
-          appState
-            { appWidth = windowWidth
-            , appHeight = windowHeight
-            }
     _ ->
       pure appState
 
@@ -1255,10 +1248,20 @@ handleEvent :: IORef AppState -> Controller -> Event -> AppState -> IO AppState
 handleEvent stateRef controller windowEvent appState = do
   let event = toLogicalEvent appState.uiScale windowEvent
 
-  case appState.currentView of
-    HomeView -> handleHomeEvent stateRef controller event appState
-    ImageView -> handleImageViewEvent stateRef controller event appState
-    BannerView -> pure appState
+  case event of
+    -- Track the window size in every view,
+    -- so that images loaded later are laid out for the current size
+    EventResize (windowWidth, windowHeight) ->
+      pure $
+        calculateSizes $
+          appState
+            { appWidth = windowWidth
+            , appHeight = windowHeight
+            }
+    _ -> case appState.currentView of
+      HomeView -> handleHomeEvent stateRef controller event appState
+      ImageView -> handleImageViewEvent stateRef controller event appState
+      BannerView -> pure appState
 
 
 -- TODO: Projection map output coordinates must be used and not recalculated
