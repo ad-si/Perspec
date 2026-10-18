@@ -18,6 +18,7 @@ import Protolude (
   show,
   ($),
   (&&),
+  (<&>),
   (==),
   (>),
   (||),
@@ -50,6 +51,8 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import FlatCV (otsuThresholdPtr)
 import Lib (toLogicalEvent)
+import Ocr (OcrWord (..), recognizeWords)
+import Pdf (writeSearchablePdf)
 import PngExif (
   clearExifOrientation,
   extractExifBytesFromFile,
@@ -68,6 +71,7 @@ import System.Directory (
   removePathForcibly,
  )
 import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 import Types (
   RenameMode (Even, Odd, Sequential),
   RotationDirection (Clockwise, CounterClockwise),
@@ -216,6 +220,72 @@ main = hspec $ do
                     _ -> False
           Right _ ->
             P.putText "Unsupported image format"
+
+      describe "OCR" $ do
+        it "recognizes the words of a document" $ do
+          imageEither <- readImage "images/examples/package_slip_bw.png"
+          case imageEither of
+            Left err -> expectationFailure err
+            Right dynImage -> do
+              wordsEither <- recognizeWords (convertRGBA8 dynImage)
+              case wordsEither of
+                Left err -> expectationFailure $ P.toS err
+                Right ocrWords -> do
+                  (ocrWords <&> (.text)) `shouldContain` ["Max", "Mustermann"]
+                  (ocrWords <&> (.text)) `shouldContain` ["Musterstraße", "12"]
+                  ocrWords
+                    `shouldSatisfy` P.all
+                      ( \word ->
+                          word.left P.< word.right
+                            && word.top P.< word.bottom
+                            && word.right P.<= 1256
+                            && word.bottom P.<= 887
+                      )
+
+        it "recognizes Spanish text" $ do
+          imageEither <- readImage "images/spanish_text.png"
+          case imageEither of
+            Left err -> expectationFailure err
+            Right dynImage -> do
+              wordsEither <- recognizeWords (convertRGBA8 dynImage)
+              case wordsEither of
+                Left err -> expectationFailure $ P.toS err
+                Right ocrWords ->
+                  (ocrWords <&> (.text))
+                    `shouldBe` [ "El"
+                               , "niño"
+                               , "comió"
+                               , "una"
+                               , "piña"
+                               , "en"
+                               , "el"
+                               , "jardín."
+                               , "¿Dónde"
+                               , "está"
+                               , "la"
+                               , "estación"
+                               , "de"
+                               , "autobús?"
+                               ]
+
+        it "writes a PDF with the image and the recognized text" $ do
+          imageEither <- readImage "images/examples/package_slip_bw.png"
+          case imageEither of
+            Left err -> expectationFailure err
+            Right dynImage -> do
+              let image = convertRGBA8 dynImage
+              wordsEither <- recognizeWords image
+              case wordsEither of
+                Left err -> expectationFailure $ P.toS err
+                Right ocrWords ->
+                  withSystemTempDirectory "perspec-pdf" $ \tempDir -> do
+                    let pdfPath = tempDir </> "package_slip.pdf"
+                    writeResult <- writeSearchablePdf pdfPath image ocrWords
+                    writeResult `shouldBe` Right ()
+                    pdfBytes <- BS.readFile pdfPath
+                    pdfBytes `shouldSatisfy` BS.isPrefixOf "%PDF-"
+                    pdfBytes `shouldSatisfy` BS.isInfixOf "/Helvetica"
+                    pdfBytes `shouldSatisfy` BS.isInfixOf "/Width 1256"
 
       describe "toLogicalEvent" $ do
         it "leaves coordinates untouched on a display without scaling" $ do

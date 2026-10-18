@@ -118,6 +118,8 @@ import FlatCV (
  )
 import FlatCV qualified as FCV
 import Home (handleHomeEvent)
+import Ocr (recognizeWords)
+import Pdf (writeSearchablePdf)
 import Types (
   AppState (..),
   Config (licenseKey, transformBackendFlag),
@@ -1107,6 +1109,8 @@ handleImageViewEvent stateRef controller event appState =
           submitSelection stateRef controller appState BlackWhiteExport
         Just (Button{text = "Save BW Smooth"}) ->
           submitSelection stateRef controller appState BlackWhiteSmoothExport
+        Just (Button{text = "Save PDF"}) ->
+          submitSelection stateRef controller appState PdfExport
         _ -> do
           let
             point = appCoordToImgCoord appState clickedPoint
@@ -1540,9 +1544,11 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             resultImgForeignPtr <- newForeignPtr_ (castPtr resultImg)
             free transMatPtr
 
-            let saveWithExif img = void $ savePngWithExif exifBytes (ImageRGBA8 img) pngOutPath
+            let saveWithExif img = do
+                  void $ savePngWithExif exifBytes (ImageRGBA8 img) pngOutPath
+                  pure $ Right pngOutPath
 
-            case exportMode of
+            writtenPathEither <- case exportMode of
               UnmodifiedExport -> do
                 let img = imageFromUnsafePtr outWidth outHeight resultImgForeignPtr
                 saveWithExif img
@@ -1570,9 +1576,25 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
                 let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
                 saveWithExif bwImg
+              --
+              PdfExport -> do
+                let
+                  img = imageFromUnsafePtr outWidth outHeight resultImgForeignPtr
+                  pdfOutPath = replaceExtension outPath "pdf"
+                putText "ℹ️ Recognize text …"
+                ocrWordsEither <- recognizeWords img
+                case ocrWordsEither of
+                  Left error -> pure $ Left error
+                  Right ocrWords -> do
+                    writeResult <- writeSearchablePdf pdfOutPath img ocrWords
+                    pure $ writeResult <&> const pdfOutPath
 
-            putText "\n✅ Wrote file to:"
-            P.putStrLn pngOutPath
+            case writtenPathEither of
+              Left error ->
+                P.putErrText $ "❌ Failed to export the image: " <> error
+              Right writtenPath -> do
+                putText "\n✅ Wrote file to:"
+                P.putStrLn writtenPath
         --
         Right _ -> do
           P.putText "Unsupported image format"

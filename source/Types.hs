@@ -94,6 +94,8 @@ data ExportMode
   | GrayscaleExport
   | BlackWhiteExport
   | BlackWhiteSmoothExport
+  | -- | Searchable PDF with the text recognized by Tesseract
+    PdfExport
   deriving (Show)
 
 
@@ -242,6 +244,11 @@ initialState =
             }
         , Button
             { text = "Save BW Smooth"
+            , width = 160
+            , height = 30
+            }
+        , Button
+            { text = "Save PDF"
             , width = 160
             , height = 30
             }

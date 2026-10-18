@@ -9,6 +9,7 @@ copyright: Adrian Sieber
 extra-source-files:
   - readme.md
   - changelog.md
+  - tessdata/*.traineddata
 
 synopsis: Scan documents and books with as little hardware as possible.
 category: Scan
@@ -36,6 +37,7 @@ dependencies:
   # as the latest version on Hackage is still 1.5
   - hip >= 2.0 && < 2.1
   - hmatrix >= 0.20 && < 0.21
+  - HPDF >= 1.7 && < 1.8
   - JuicyPixels >= 3.3 && < 3.4
   - lens >= 5.2 && < 5.4
   - linear >= 1.22 && < 1.24
@@ -69,6 +71,8 @@ ghc-options:
 
 library:
   source-dirs: source
+  dependencies:
+    - tesseract-bundled
 
 executables:
   perspec:

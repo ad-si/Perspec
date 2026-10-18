@@ -118,6 +118,11 @@ If you selected multiple photos, they will be opened one after another.
       <td>Saves the image in mostly black &amp; white with some grayscale edge smoothing. This is the recommended option for documents, receipts, and whiteboards.</td>
       <td><img src="images/examples/package_slip_bw_smooth.png" alt="Corrected image bw smooth" style="max-width: 20rem;" /></td>
     </tr>
+    <tr>
+      <td><code>Save PDF</code></td>
+      <td>Saves the image in 24-bit color as a searchable PDF. The text is recognized with Tesseract and added as an invisible layer, so it can be searched, selected, and copied. English, German, and Spanish are supported, and the text layer is limited to Latin characters.</td>
+      <td></td>
+    </tr>
   </tbody>
 </table>
 
@@ -276,6 +281,11 @@ mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
 
 - Core is written in [Haskell](https://haskell.org)
 - Image manipulation and computer vision are handled by [FlatCV](https://flatcv.ad-si.com)
+- Text recognition is handled by [Tesseract](https://github.com/tesseract-ocr/tesseract),
+    which is compiled from source as part of the build
+    (see [`tesseract-bundled`](./tesseract-bundled/readme.md)).
+    Its English, German, and Spanish models are embedded into the binary.
+- PDFs are created with [HPDF](https://hackage.haskell.org/package/HPDF)
 - App bundle is created with [Platypus](https://sveinbjorn.org/platypus)
 
 

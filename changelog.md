@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add a "Save PDF" button to export a searchable PDF.
+    The text is recognized with the embedded Tesseract library
+    and added as an invisible layer on top of the image.
+    English, German, and Spanish are supported.
+    Tesseract is compiled from source as part of the build,
+    so it doesn't need to be installed.
 - Fix building from source on NixOS:
     The Nix Flake's dev shell now provides the OpenGL and X11 libraries,
     and Stack no longer switches to its own Nix integration.
