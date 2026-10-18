@@ -1,4 +1,5 @@
 /.stack-work
+/tesseract-bundled/.stack-work
 /dist-newstyle
 /imagemagick
 /imagemagick.tar.gz

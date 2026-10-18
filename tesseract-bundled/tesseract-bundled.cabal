@@ -1,0 +1,503 @@
+cabal-version: 3.0
+name: tesseract-bundled
+version: 5.5.3
+synopsis: Tesseract OCR library compiled from source
+description:
+  Builds the C and C++ sources of Tesseract (5.5.3)
+  and its image processing library Leptonica (1.87.0),
+  so that Tesseract's C API can be used without a system installation.
+  .
+  Only the LSTM engine is included,
+  and Leptonica is built without any image format libraries,
+  so images must be passed to Tesseract as raw pixels.
+  .
+  Run @vendor.sh@ to update the vendored sources.
+
+license: Apache-2.0
+license-files:
+  tesseract/LICENSE
+  leptonica/leptonica-license.txt
+
+build-type: Simple
+extra-doc-files:
+  readme.md
+
+extra-source-files:
+  config/leptonica-include/*.h
+  config/leptonica/*.h
+  config/tesseract-include/tesseract/*.h
+  config/tesseract/*.h
+  leptonica/src/*.h
+  tesseract/include/tesseract/*.h
+  tesseract/src/**/*.h
+  vendor.sh
+
+common tesseract-options
+  default-language: Haskell2010
+  build-depends: system-cxx-std-lib ==1.0
+  cxx-options:
+    -std=c++20
+    -O2
+    -w
+    -DHAVE_CONFIG_H
+    -- Keep the images of text lines as Leptonica pixes
+    -- instead of encoding them as PNG, which is only needed for training.
+    -- Must be the same for all files, as it changes the layout of `ImageData`.
+    -DTESSERACT_IMAGEDATA_AS_PIX
+
+  include-dirs:
+    config/tesseract
+    config/tesseract-include
+    tesseract/include
+    tesseract/src/api
+    tesseract/src/arch
+    tesseract/src/ccmain
+    tesseract/src/ccstruct
+    tesseract/src/ccutil
+    tesseract/src/classify
+    tesseract/src/cutil
+    tesseract/src/dict
+    tesseract/src/lstm
+    tesseract/src/textord
+    tesseract/src/viewer
+    tesseract/src/wordrec
+    leptonica/src
+    config/leptonica-include
+
+-- Leptonica as a separate library, as it needs a different `config_auto.h`
+library leptonica
+  visibility: private
+  default-language: Haskell2010
+  cc-options:
+    -O2
+    -w
+    -DHAVE_CONFIG_H
+    -- Don't print messages to stderr.
+    -- Tesseract always creates a bitmap font for debug images,
+    -- which fails without libtiff and would print errors on every run.
+    -DNO_CONSOLE_IO
+    -- GHC's runtime system defines functions with the same names
+    -DstartTimer=leptStartTimer
+    -DstopTimer=leptStopTimer
+
+  include-dirs:
+    config/leptonica
+    config/leptonica-include
+    leptonica/src
+
+  c-sources:
+    leptonica/src/adaptmap.c
+    leptonica/src/affine.c
+    leptonica/src/affinecompose.c
+    leptonica/src/arrayaccess.c
+    leptonica/src/bardecode.c
+    leptonica/src/baseline.c
+    leptonica/src/bbuffer.c
+    leptonica/src/bilateral.c
+    leptonica/src/bilinear.c
+    leptonica/src/binarize.c
+    leptonica/src/binexpand.c
+    leptonica/src/binreduce.c
+    leptonica/src/blend.c
+    leptonica/src/bmf.c
+    leptonica/src/bmpio.c
+    leptonica/src/bmpiostub.c
+    leptonica/src/bootnumgen1.c
+    leptonica/src/bootnumgen2.c
+    leptonica/src/bootnumgen3.c
+    leptonica/src/bootnumgen4.c
+    leptonica/src/boxbasic.c
+    leptonica/src/boxfunc1.c
+    leptonica/src/boxfunc2.c
+    leptonica/src/boxfunc3.c
+    leptonica/src/boxfunc4.c
+    leptonica/src/boxfunc5.c
+    leptonica/src/bytearray.c
+    leptonica/src/ccbord.c
+    leptonica/src/ccthin.c
+    leptonica/src/checkerboard.c
+    leptonica/src/classapp.c
+    leptonica/src/colorcontent.c
+    leptonica/src/colorfill.c
+    leptonica/src/coloring.c
+    leptonica/src/colormap.c
+    leptonica/src/colormorph.c
+    leptonica/src/colorquant1.c
+    leptonica/src/colorquant2.c
+    leptonica/src/colorseg.c
+    leptonica/src/colorspace.c
+    leptonica/src/compare.c
+    leptonica/src/conncomp.c
+    leptonica/src/convertfiles.c
+    leptonica/src/convolve.c
+    leptonica/src/correlscore.c
+    leptonica/src/dewarp1.c
+    leptonica/src/dewarp2.c
+    leptonica/src/dewarp3.c
+    leptonica/src/dewarp4.c
+    leptonica/src/dnabasic.c
+    leptonica/src/dnafunc1.c
+    leptonica/src/dnahash.c
+    leptonica/src/dwacomb.2.c
+    leptonica/src/dwacomblow.2.c
+    leptonica/src/edge.c
+    leptonica/src/encoding.c
+    leptonica/src/enhance.c
+    leptonica/src/fhmtauto.c
+    leptonica/src/fhmtgen.1.c
+    leptonica/src/fhmtgenlow.1.c
+    leptonica/src/finditalic.c
+    leptonica/src/flipdetect.c
+    leptonica/src/fmorphauto.c
+    leptonica/src/fmorphgen.1.c
+    leptonica/src/fmorphgenlow.1.c
+    leptonica/src/fpix1.c
+    leptonica/src/fpix2.c
+    leptonica/src/gifio.c
+    leptonica/src/gifiostub.c
+    leptonica/src/gplot.c
+    leptonica/src/graphics.c
+    leptonica/src/graymorph.c
+    leptonica/src/grayquant.c
+    leptonica/src/hashmap.c
+    leptonica/src/heap.c
+    leptonica/src/jbclass.c
+    leptonica/src/jp2kheader.c
+    leptonica/src/jp2kheaderstub.c
+    leptonica/src/jp2kio.c
+    leptonica/src/jp2kiostub.c
+    leptonica/src/jpegio.c
+    leptonica/src/jpegiostub.c
+    leptonica/src/kernel.c
+    leptonica/src/leptwin.c
+    leptonica/src/libversions.c
+    leptonica/src/list.c
+    leptonica/src/map.c
+    leptonica/src/maze.c
+    leptonica/src/morph.c
+    leptonica/src/morphapp.c
+    leptonica/src/morphdwa.c
+    leptonica/src/morphseq.c
+    leptonica/src/numabasic.c
+    leptonica/src/numafunc1.c
+    leptonica/src/numafunc2.c
+    leptonica/src/pageseg.c
+    leptonica/src/paintcmap.c
+    leptonica/src/parseprotos.c
+    leptonica/src/partify.c
+    leptonica/src/partition.c
+    leptonica/src/pdfapp.c
+    leptonica/src/pdfappstub.c
+    leptonica/src/pdfio1.c
+    leptonica/src/pdfio1stub.c
+    leptonica/src/pdfio2.c
+    leptonica/src/pdfio2stub.c
+    leptonica/src/pix1.c
+    leptonica/src/pix2.c
+    leptonica/src/pix3.c
+    leptonica/src/pix4.c
+    leptonica/src/pix5.c
+    leptonica/src/pixabasic.c
+    leptonica/src/pixacc.c
+    leptonica/src/pixafunc1.c
+    leptonica/src/pixafunc2.c
+    leptonica/src/pixalloc.c
+    leptonica/src/pixarith.c
+    leptonica/src/pixcomp.c
+    leptonica/src/pixconv.c
+    leptonica/src/pixlabel.c
+    leptonica/src/pixtiling.c
+    leptonica/src/pngio.c
+    leptonica/src/pngiostub.c
+    leptonica/src/pnmio.c
+    leptonica/src/pnmiostub.c
+    leptonica/src/projective.c
+    leptonica/src/psio1.c
+    leptonica/src/psio1stub.c
+    leptonica/src/psio2.c
+    leptonica/src/psio2stub.c
+    leptonica/src/ptabasic.c
+    leptonica/src/ptafunc1.c
+    leptonica/src/ptafunc2.c
+    leptonica/src/ptra.c
+    leptonica/src/quadtree.c
+    leptonica/src/queue.c
+    leptonica/src/rank.c
+    leptonica/src/rbtree.c
+    leptonica/src/readbarcode.c
+    leptonica/src/readfile.c
+    leptonica/src/recogbasic.c
+    leptonica/src/recogdid.c
+    leptonica/src/recogident.c
+    leptonica/src/recogtrain.c
+    leptonica/src/regutils.c
+    leptonica/src/renderpdf.c
+    leptonica/src/rop.c
+    leptonica/src/roplow.c
+    leptonica/src/rotate.c
+    leptonica/src/rotateam.c
+    leptonica/src/rotateorth.c
+    leptonica/src/rotateshear.c
+    leptonica/src/runlength.c
+    leptonica/src/sarray1.c
+    leptonica/src/sarray2.c
+    leptonica/src/scale1.c
+    leptonica/src/scale2.c
+    leptonica/src/seedfill.c
+    leptonica/src/sel1.c
+    leptonica/src/sel2.c
+    leptonica/src/selgen.c
+    leptonica/src/shear.c
+    leptonica/src/skew.c
+    leptonica/src/spixio.c
+    leptonica/src/stack.c
+    leptonica/src/stringcode.c
+    leptonica/src/strokes.c
+    leptonica/src/sudoku.c
+    leptonica/src/textops.c
+    leptonica/src/tiffio.c
+    leptonica/src/tiffiostub.c
+    leptonica/src/utils1.c
+    leptonica/src/utils2.c
+    leptonica/src/warper.c
+    leptonica/src/watershed.c
+    leptonica/src/webpanimio.c
+    leptonica/src/webpanimiostub.c
+    leptonica/src/webpio.c
+    leptonica/src/webpiostub.c
+    leptonica/src/writefile.c
+    leptonica/src/zlibmem.c
+    leptonica/src/zlibmemstub.c
+
+  if os(windows)
+    extra-libraries: gdi32
+
+-- Cabal can't set compiler flags per source file,
+-- so each file that needs CPU specific instructions gets its own library.
+-- Tesseract detects at runtime which of them the CPU supports.
+-- The files are empty when compiled for other architectures.
+
+-- AVX
+library tesseract-avx
+  import: tesseract-options
+  visibility: private
+  cxx-sources:
+    tesseract/src/arch/dotproductavx.cpp
+
+  if arch(x86_64)
+    cxx-options: -mavx
+
+-- AVX2
+library tesseract-avx2
+  import: tesseract-options
+  visibility: private
+  cxx-sources:
+    tesseract/src/arch/intsimdmatrixavx2.cpp
+
+  if arch(x86_64)
+    cxx-options: -mavx2
+
+-- AVX-512
+library tesseract-avx512f
+  import: tesseract-options
+  visibility: private
+  cxx-sources:
+    tesseract/src/arch/dotproductavx512.cpp
+
+  if arch(x86_64)
+    cxx-options: -mavx512f
+
+-- FMA
+library tesseract-fma
+  import: tesseract-options
+  visibility: private
+  cxx-sources:
+    tesseract/src/arch/dotproductfma.cpp
+
+  if arch(x86_64)
+    cxx-options: -mfma
+
+-- SSE 4.1
+library tesseract-sse41
+  import: tesseract-options
+  visibility: private
+  cxx-sources:
+    tesseract/src/arch/dotproductsse.cpp
+    tesseract/src/arch/intsimdmatrixsse.cpp
+
+  if arch(x86_64)
+    cxx-options: -msse4.1
+
+library
+  import: tesseract-options
+  build-depends:
+    tesseract-bundled:leptonica,
+    tesseract-bundled:tesseract-avx,
+    tesseract-bundled:tesseract-avx2,
+    tesseract-bundled:tesseract-avx512f,
+    tesseract-bundled:tesseract-fma,
+    tesseract-bundled:tesseract-sse41
+
+  cxx-sources:
+    tesseract/src/api/altorenderer.cpp
+    tesseract/src/api/baseapi.cpp
+    tesseract/src/api/capi.cpp
+    tesseract/src/api/hocrrenderer.cpp
+    tesseract/src/api/lstmboxrenderer.cpp
+    tesseract/src/api/pagerenderer.cpp
+    tesseract/src/api/pdfrenderer.cpp
+    tesseract/src/api/renderer.cpp
+    tesseract/src/api/wordstrboxrenderer.cpp
+    tesseract/src/arch/dotproduct.cpp
+    tesseract/src/arch/dotproductneon.cpp
+    tesseract/src/arch/intsimdmatrix.cpp
+    tesseract/src/arch/intsimdmatrixneon.cpp
+    tesseract/src/arch/simddetect.cpp
+    tesseract/src/ccmain/applybox.cpp
+    tesseract/src/ccmain/control.cpp
+    tesseract/src/ccmain/linerec.cpp
+    tesseract/src/ccmain/ltrresultiterator.cpp
+    tesseract/src/ccmain/mutableiterator.cpp
+    tesseract/src/ccmain/output.cpp
+    tesseract/src/ccmain/pageiterator.cpp
+    tesseract/src/ccmain/pagesegmain.cpp
+    tesseract/src/ccmain/pagewalk.cpp
+    tesseract/src/ccmain/paragraphs.cpp
+    tesseract/src/ccmain/paramsd.cpp
+    tesseract/src/ccmain/pgedit.cpp
+    tesseract/src/ccmain/reject.cpp
+    tesseract/src/ccmain/resultiterator.cpp
+    tesseract/src/ccmain/tessedit.cpp
+    tesseract/src/ccmain/tesseractclass.cpp
+    tesseract/src/ccmain/tessvars.cpp
+    tesseract/src/ccmain/thresholder.cpp
+    tesseract/src/ccmain/werdit.cpp
+    tesseract/src/ccstruct/blamer.cpp
+    tesseract/src/ccstruct/blobbox.cpp
+    tesseract/src/ccstruct/blobs.cpp
+    tesseract/src/ccstruct/blread.cpp
+    tesseract/src/ccstruct/boxread.cpp
+    tesseract/src/ccstruct/boxword.cpp
+    tesseract/src/ccstruct/coutln.cpp
+    tesseract/src/ccstruct/detlinefit.cpp
+    tesseract/src/ccstruct/dppoint.cpp
+    tesseract/src/ccstruct/image.cpp
+    tesseract/src/ccstruct/imagedata.cpp
+    tesseract/src/ccstruct/linlsq.cpp
+    tesseract/src/ccstruct/matrix.cpp
+    tesseract/src/ccstruct/mod128.cpp
+    tesseract/src/ccstruct/normalis.cpp
+    tesseract/src/ccstruct/ocrblock.cpp
+    tesseract/src/ccstruct/ocrpara.cpp
+    tesseract/src/ccstruct/ocrrow.cpp
+    tesseract/src/ccstruct/otsuthr.cpp
+    tesseract/src/ccstruct/pageres.cpp
+    tesseract/src/ccstruct/pdblock.cpp
+    tesseract/src/ccstruct/points.cpp
+    tesseract/src/ccstruct/polyblk.cpp
+    tesseract/src/ccstruct/quadlsq.cpp
+    tesseract/src/ccstruct/quspline.cpp
+    tesseract/src/ccstruct/ratngs.cpp
+    tesseract/src/ccstruct/rect.cpp
+    tesseract/src/ccstruct/rejctmap.cpp
+    tesseract/src/ccstruct/seam.cpp
+    tesseract/src/ccstruct/split.cpp
+    tesseract/src/ccstruct/statistc.cpp
+    tesseract/src/ccstruct/stepblob.cpp
+    tesseract/src/ccstruct/werd.cpp
+    tesseract/src/ccutil/ccutil.cpp
+    tesseract/src/ccutil/errcode.cpp
+    tesseract/src/ccutil/params.cpp
+    tesseract/src/ccutil/scanutils.cpp
+    tesseract/src/ccutil/serialis.cpp
+    tesseract/src/ccutil/tessdatamanager.cpp
+    tesseract/src/ccutil/tprintf.cpp
+    tesseract/src/ccutil/unichar.cpp
+    tesseract/src/ccutil/unicharcompress.cpp
+    tesseract/src/ccutil/unicharmap.cpp
+    tesseract/src/ccutil/unicharset.cpp
+    tesseract/src/classify/classify.cpp
+    tesseract/src/cutil/oldlist.cpp
+    tesseract/src/dict/context.cpp
+    tesseract/src/dict/dawg.cpp
+    tesseract/src/dict/dawg_cache.cpp
+    tesseract/src/dict/dict.cpp
+    tesseract/src/dict/stopper.cpp
+    tesseract/src/dict/trie.cpp
+    tesseract/src/lstm/convolve.cpp
+    tesseract/src/lstm/fullyconnected.cpp
+    tesseract/src/lstm/functions.cpp
+    tesseract/src/lstm/input.cpp
+    tesseract/src/lstm/lstm.cpp
+    tesseract/src/lstm/lstmrecognizer.cpp
+    tesseract/src/lstm/maxpool.cpp
+    tesseract/src/lstm/network.cpp
+    tesseract/src/lstm/networkio.cpp
+    tesseract/src/lstm/parallel.cpp
+    tesseract/src/lstm/plumbing.cpp
+    tesseract/src/lstm/recodebeam.cpp
+    tesseract/src/lstm/reconfig.cpp
+    tesseract/src/lstm/reversed.cpp
+    tesseract/src/lstm/series.cpp
+    tesseract/src/lstm/stridemap.cpp
+    tesseract/src/lstm/weightmatrix.cpp
+    tesseract/src/textord/alignedblob.cpp
+    tesseract/src/textord/baselinedetect.cpp
+    tesseract/src/textord/bbgrid.cpp
+    tesseract/src/textord/blkocc.cpp
+    tesseract/src/textord/blobgrid.cpp
+    tesseract/src/textord/ccnontextdetect.cpp
+    tesseract/src/textord/cjkpitch.cpp
+    tesseract/src/textord/colfind.cpp
+    tesseract/src/textord/colpartition.cpp
+    tesseract/src/textord/colpartitiongrid.cpp
+    tesseract/src/textord/colpartitionset.cpp
+    tesseract/src/textord/devanagari_processing.cpp
+    tesseract/src/textord/drawtord.cpp
+    tesseract/src/textord/edgblob.cpp
+    tesseract/src/textord/edgloop.cpp
+    tesseract/src/textord/equationdetectbase.cpp
+    tesseract/src/textord/fpchop.cpp
+    tesseract/src/textord/gap_map.cpp
+    tesseract/src/textord/imagefind.cpp
+    tesseract/src/textord/linefind.cpp
+    tesseract/src/textord/makerow.cpp
+    tesseract/src/textord/oldbasel.cpp
+    tesseract/src/textord/pithsync.cpp
+    tesseract/src/textord/pitsync1.cpp
+    tesseract/src/textord/scanedg.cpp
+    tesseract/src/textord/sortflts.cpp
+    tesseract/src/textord/strokewidth.cpp
+    tesseract/src/textord/tabfind.cpp
+    tesseract/src/textord/tablefind.cpp
+    tesseract/src/textord/tablerecog.cpp
+    tesseract/src/textord/tabvector.cpp
+    tesseract/src/textord/textlineprojection.cpp
+    tesseract/src/textord/textord.cpp
+    tesseract/src/textord/topitch.cpp
+    tesseract/src/textord/tordmain.cpp
+    tesseract/src/textord/tospace.cpp
+    tesseract/src/textord/tovars.cpp
+    tesseract/src/textord/underlin.cpp
+    tesseract/src/textord/wordseg.cpp
+    tesseract/src/textord/workingpartset.cpp
+    tesseract/src/viewer/scrollview.cpp
+    tesseract/src/viewer/svmnode.cpp
+    tesseract/src/viewer/svutil.cpp
+    tesseract/src/wordrec/tface.cpp
+    tesseract/src/wordrec/wordrec.cpp
+
+  -- Enables the runtime selection of the CPU specific implementations
+  if arch(x86_64)
+    cxx-options:
+      -DHAVE_AVX
+      -DHAVE_AVX2
+      -DHAVE_AVX512F
+      -DHAVE_FMA
+      -DHAVE_SSE4_1
+
+  -- Use Apple's Accelerate framework for dot products,
+  -- like Homebrew's build of Tesseract
+  if os(darwin)
+    cxx-options: -DHAVE_FRAMEWORK_ACCELERATE
+    frameworks: Accelerate
