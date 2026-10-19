@@ -33,6 +33,29 @@ jobs:
           enable-stack: true
           stack-no-global: true
 
+      # The macos-26 image ships the preview Command Line Tools 27,
+      # whose MacOSX27.0 SDK lists an `arm64e.x1` architecture
+      # that the linker rejects with "tapi error: malformed file".
+      # Pin the toolchain and SDK to the default stable Xcode instead.
+      # GHC's package database and Homebrew's pkg-config files
+      # hardcode `-L` flags into the Command Line Tools' SDK,
+      # so its `MacOSX.sdk` symlink is also pointed at the stable SDK.
+      - name: Select stable Xcode toolchain
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app
+          sdkPath="$(xcrun --sdk macosx --show-sdk-path)"
+          echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> "$GITHUB_ENV"
+          echo "SDKROOT=$sdkPath" >> "$GITHUB_ENV"
+          cltSdk=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+          if test -d "$cltSdk"
+          then
+            sudo rm -rf "$cltSdk"
+            sudo ln -s "$sdkPath" "$cltSdk"
+          fi
+          ls -l /Library/Developer/CommandLineTools/SDKs || true
+          echo "$sdkPath"
+          ld -v
+
       - name: Install system dependencies
         run: |
           brew list pkg-config &>/dev/null || brew install pkg-config
