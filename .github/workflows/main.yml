@@ -33,6 +33,18 @@ jobs:
           enable-stack: true
           stack-no-global: true
 
+      # The macos-26 image ships the preview Command Line Tools 27,
+      # whose MacOSX27.0 SDK lists an `arm64e.x1` architecture
+      # that the linker rejects with "tapi error: malformed file".
+      # Pin the toolchain and SDK to the default stable Xcode instead.
+      - name: Select stable Xcode toolchain
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app
+          echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> "$GITHUB_ENV"
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+          xcrun --sdk macosx --show-sdk-path
+          ld -v
+
       - name: Install system dependencies
         run: |
           brew list pkg-config &>/dev/null || brew install pkg-config
