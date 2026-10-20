@@ -23,7 +23,6 @@ import Protolude (
   when,
   ($),
   (&),
-  (&&),
   (<&>),
  )
 import Protolude qualified as P
