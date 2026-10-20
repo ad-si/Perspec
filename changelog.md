@@ -8,6 +8,8 @@
     English, German, and Spanish are supported.
     Tesseract is compiled from source as part of the build,
     so it doesn't need to be installed.
+- Open multiple photos sorted naturally by their path
+    instead of in the order they were selected or dropped
 - Fix building from source on NixOS:
     The Nix Flake's dev shell now provides the OpenGL and X11 libraries,
     and Stack no longer switches to its own Nix integration.

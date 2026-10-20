@@ -151,6 +151,7 @@ import Utils (
   getColoredTextPicture,
   getCorners,
   getTextPicture,
+  imagesToLoad,
   loadFileIntoState,
   loadImage,
   prettyPrintArray,
@@ -1933,12 +1934,7 @@ loadAndStart config filePathsMb = do
         (handleEventWithRef stateRef controllerRef)
         (initController controllerRef)
     Just filePaths -> do
-      let
-        images =
-          filePaths <&> \filePath ->
-            ImageToLoad{filePath = filePath}
-
-      appState <- loadFileIntoState stateDraft{images = images}
+      appState <- loadFileIntoState stateDraft{images = imagesToLoad filePaths}
       stateRef <- newIORef appState
 
       interactIO

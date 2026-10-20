@@ -87,7 +87,8 @@ Either click one of the save buttons or hit Enter to save the corrected image.
 This will save the image in the same directory
 as the original photo with `-fixed` appended to the filename.
 
-If you selected multiple photos, they will be opened one after another.
+If you selected multiple photos, they will be opened one after another,
+sorted naturally by their path (e.g. `IMG_9.jpeg` before `IMG_10.jpeg`).
 
 <table>
   <thead>

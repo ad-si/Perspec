@@ -8,6 +8,7 @@ import Protolude (
   pure,
   writeFile,
   ($),
+  (<&>),
  )
 
 import System.Directory (createDirectoryIfMissing)
@@ -16,12 +17,14 @@ import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldReturn)
 
 import FlatCV (Corners (..))
+import Types (ImageData (filePath))
 import Utils (
   applyRotationToCorners,
   calcInitAppSize,
   calcInitWindowPos,
   firstUsableFont,
   fontInDirectories,
+  imagesToLoad,
   isUsableFont,
  )
 
@@ -29,6 +32,13 @@ import Utils (
 spec :: Spec
 spec = do
   describe "Utils" $ do
+    describe "imagesToLoad" $ do
+      it "sorts the images naturally by their path" $ do
+        ( imagesToLoad ["dir/IMG_10.jpeg", "dir/IMG_9.jpeg", "dir/IMG_100.jpeg"]
+            <&> (.filePath)
+          )
+          `shouldBe` ["dir/IMG_9.jpeg", "dir/IMG_10.jpeg", "dir/IMG_100.jpeg"]
+
     let
       -- Image: 200 x 150
       -- Document: 90 x 100

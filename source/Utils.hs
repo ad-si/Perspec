@@ -47,6 +47,7 @@ import Protolude (
  )
 import Protolude qualified as P
 
+import Algorithms.NaturalSort qualified as NaturalSort
 import Brillo (
   BitmapData (bitmapPointer, bitmapSize),
   Color,
@@ -336,6 +337,16 @@ getColoredTextPicture fontPathMb textColor txt =
 isInRect :: Point -> (Float, Float, Float, Float) -> Bool
 isInRect (x, y) (x1, y1, x2, y2) =
   x >= x1 && x <= x2 && y >= y1 && y <= y2
+
+
+{-| Images to load in the natural order of their paths,
+so that e.g. @IMG_9.jpeg@ comes before @IMG_10.jpeg@
+-}
+imagesToLoad :: [FilePath] -> [ImageData]
+imagesToLoad filePaths =
+  filePaths
+    & P.sortBy NaturalSort.compare
+      <&> \filePath -> ImageToLoad{filePath}
 
 
 getOutPath :: FilePath -> FilePath

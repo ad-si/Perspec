@@ -9,7 +9,6 @@ import Protolude (
   putText,
   void,
   ($),
-  (<&>),
  )
 
 import Brillo.Data.Cursor (CursorShape (..))
@@ -24,8 +23,8 @@ import Brillo.Interface.IO.Game as Gl (
 import Brillo.Interface.IO.Interact (Controller (..))
 import Control.Concurrent (forkOS)
 import Data.IORef (IORef, readIORef, writeIORef)
-import Types (AppState (..), ImageData (..), View (..))
-import Utils (isInRect, loadFileIntoState)
+import Types (AppState (..), View (..))
+import Utils (imagesToLoad, isInRect, loadFileIntoState)
 
 
 -- | Open file dialog and update state directly when complete
@@ -49,7 +48,7 @@ openFileDialogAsync stateRef controller = do
         let newState =
               appState
                 { currentView = ImageView
-                , images = files <&> \filePath -> ImageToLoad{filePath}
+                , images = imagesToLoad files
                 }
         loadedState <- loadFileIntoState newState
         writeIORef stateRef loadedState
@@ -78,7 +77,7 @@ handleHomeEvent stateRef controller event appState = do
         newState =
           appState
             { currentView = ImageView
-            , images = filePaths <&> \filePath -> ImageToLoad{filePath}
+            , images = imagesToLoad filePaths
             }
       loadedState <- loadFileIntoState newState
       writeIORef stateRef loadedState
