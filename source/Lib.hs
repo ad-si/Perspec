@@ -42,11 +42,12 @@ import Protolude (
   (&&),
   (<$>),
   (<&>),
+  (||),
  )
 
 import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.List as DL (elemIndex, minimum)
+import Data.List as DL (elemIndex, minimum, zip3)
 import Data.Text qualified as T
 import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (free)
@@ -126,19 +127,28 @@ import Types (
   Corner,
   CornersTup,
   EdgeIndex (..),
-  ExportMode (..),
+  ExportSettings (..),
+  ExportStyle (..),
   ImageData (..),
+  OcrLanguage,
+  OutputFormat (..),
   ProjMap,
+  SidebarTarget (..),
   TransformBackend (..),
-  UiComponent (Button, Select, text),
+  UiComponent (..),
   View (..),
+  exportStyleName,
   initialState,
+  ocrLanguageName,
+  outputFormatName,
  )
 import Utils (
   applyRotationToCorners,
+  buttonTextHeight,
   calcInitAppSize,
   calcInitWindowPos,
   calculateSizes,
+  getColoredTextPicture,
   getCorners,
   getTextPicture,
   loadFileIntoState,
@@ -221,6 +231,47 @@ sidebarPaddingTop = 50
 
 sidebarGridHeight :: Int
 sidebarGridHeight = 40
+
+
+-- | Space between the 30 units high buttons in their grid slots
+sidebarComponentGap :: Int
+sidebarComponentGap = 10
+
+
+-- | Height of the slot a separator takes up in the sidebar
+sidebarSeparatorHeight :: Int
+sidebarSeparatorHeight = 20
+
+
+-- | Height of the slot a label takes up in the sidebar
+sidebarLabelHeight :: Int
+sidebarLabelHeight = 32
+
+
+-- | Distance from the top of a label's slot to the baseline of its text
+sidebarLabelBaseline :: Int
+sidebarLabelBaseline = 24
+
+
+-- | Sidebar component with its position
+data PlacedComponent = PlacedComponent
+  { component :: UiComponent
+  , topOffset :: Int
+  -- ^ Distance from the top of the window to the top of the component
+  }
+
+
+-- | Lay out the sidebar components from top to bottom
+placeComponents :: [UiComponent] -> [PlacedComponent]
+placeComponents components =
+  let
+    slotHeight = \case
+      Label{} -> sidebarLabelHeight
+      Separator{} -> sidebarSeparatorHeight
+      _ -> sidebarGridHeight
+    topOffsets = P.scanl (+) sidebarPaddingTop (components <&> slotHeight)
+  in
+    P.zipWith PlacedComponent components topOffsets
 
 
 buttonCornerRadius :: Float
@@ -752,56 +803,333 @@ drawSidebar appWidth appHeight width =
     )
 
 
-drawButton ::
-  Maybe FilePath ->
-  (Int, Int) ->
-  Int ->
-  Int ->
-  Text ->
-  (Int, Int) ->
-  Bool ->
-  Picture
-drawButton
-  fontPathMb
-  (appWidth, appHeight)
-  sidebarWidth
-  topOffset
-  btnText
-  (btnWidth, btnHeight)
-  isHovered =
-    Translate
-      ( (fromIntegral appWidth / 2.0)
-          - (fromIntegral btnWidth / 2.0)
-          - ((fromIntegral sidebarWidth - fromIntegral btnWidth) / 2.0)
-      )
-      ( (fromIntegral appHeight / 2.0)
-          - fromIntegral topOffset
-          - (fromIntegral btnHeight / 2.0)
-      )
-      $ Pictures
-        [ Color (greyN $ if isHovered then 0.35 else 0.2) $
-            roundedRectSolid
-              (fromIntegral btnWidth)
-              (fromIntegral btnHeight)
-              buttonCornerRadius
-        , Translate (-(fromIntegral btnWidth / 2.0) + 8) (-6) $
-            getTextPicture fontPathMb btnText
-        ]
+-- | Axis-aligned rectangle in window coordinates
+data Rect = Rect
+  { minX :: Float
+  , minY :: Float
+  , maxX :: Float
+  , maxY :: Float
+  }
+  deriving (P.Show, Eq)
 
 
-drawUiComponent :: AppState -> UiComponent -> Int -> Picture
-drawUiComponent appState uiComponent componentIndex =
-  case uiComponent of
-    Button btnText btnWidth btnHeight ->
-      drawButton
-        appState.fontPath
-        (appState.appWidth, appState.appHeight)
-        appState.sidebarWidth
-        (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
-        btnText
-        (btnWidth, btnHeight)
-        (appState.hoveredButton == Just componentIndex)
-    Select -> mempty
+isInsideRect :: Rect -> Point -> Bool
+isInsideRect rect (x, y) =
+  x > rect.minX && x < rect.maxX && y > rect.minY && y < rect.maxY
+
+
+rectCenter :: Rect -> Point
+rectCenter rect =
+  ((rect.minX + rect.maxX) / 2, (rect.minY + rect.maxY) / 2)
+
+
+-- | Shrink the rectangle by the given amount on each side
+insetRect :: Float -> Rect -> Rect
+insetRect amount rect =
+  Rect
+    { minX = rect.minX + amount
+    , minY = rect.minY + amount
+    , maxX = rect.maxX - amount
+    , maxY = rect.maxY - amount
+    }
+
+
+-- | Check if the point (in window coordinates) lies on the sidebar
+isInsideSidebar :: AppState -> Point -> Bool
+isInsideSidebar appState (x, _) =
+  x
+    >= (fromIntegral appState.appWidth / 2.0)
+      - fromIntegral appState.sidebarWidth
+
+
+-- | Bounds of a sidebar component, which is centered horizontally
+sidebarComponentRect :: AppState -> Int -> (Int, Int) -> Rect
+sidebarComponentRect appState topOffset (width, height) =
+  let
+    minX =
+      (fromIntegral appState.appWidth / 2.0)
+        - (fromIntegral appState.sidebarWidth / 2.0)
+        - (fromIntegral width / 2.0)
+    maxY = (fromIntegral appState.appHeight / 2.0) - fromIntegral topOffset
+  in
+    Rect
+      { minX
+      , minY = maxY - fromIntegral height
+      , maxX = minX + fromIntegral width
+      , maxY
+      }
+
+
+{-| Split the rectangle of a segmented control into its segments.
+Each segment fits its text and the remaining space is shared equally.
+-}
+segmentRects :: Rect -> [Text] -> [Rect]
+segmentRects rect labels =
+  let
+    textWidths = labels <&> textWidthApprox buttonTextHeight
+    extraWidth =
+      (rect.maxX - rect.minX - P.sum textWidths)
+        / fromIntegral (P.length labels)
+    widths = textWidths <&> (+ extraWidth)
+    lefts = P.scanl (+) rect.minX widths
+  in
+    P.zipWith
+      (\left width -> rect{minX = left, maxX = left + width})
+      lefts
+      widths
+
+
+data ControlState
+  = IdleControl
+  | HoveredControl
+  | SelectedControl
+  | DisabledControl
+  deriving (Eq)
+
+
+drawControlBackground :: Rect -> ControlState -> Picture
+drawControlBackground rect controlState =
+  let
+    (centerX, centerY) = rectCenter rect
+    shade = case controlState of
+      IdleControl -> 0.2
+      HoveredControl -> 0.35
+      SelectedControl -> 0.45
+      DisabledControl -> 0.15
+  in
+    Translate centerX centerY $
+      Color (greyN shade) $
+        roundedRectSolid
+          (rect.maxX - rect.minX)
+          (rect.maxY - rect.minY)
+          buttonCornerRadius
+
+
+drawControlText :: Maybe FilePath -> ControlState -> Text -> Picture
+drawControlText fontPathMb controlState =
+  getColoredTextPicture
+    fontPathMb
+    (greyN $ if controlState == DisabledControl then 0.45 else 0.9)
+
+
+-- | Button with left-aligned text
+drawButton :: Maybe FilePath -> Rect -> Text -> ControlState -> Picture
+drawButton fontPathMb rect btnText controlState =
+  Pictures
+    [ drawControlBackground rect controlState
+    , Translate (rect.minX + 8) (snd (rectCenter rect) - 6) $
+        drawControlText fontPathMb controlState btnText
+    ]
+
+
+-- | Row of segments of which exactly one is selected
+drawSegmentedControl ::
+  Maybe FilePath -> Rect -> [(Rect, Text, ControlState)] -> Picture
+drawSegmentedControl fontPathMb rect segments =
+  let
+    drawSegment (segmentRect, segmentText, controlState) =
+      let
+        (centerX, centerY) = rectCenter segmentRect
+      in
+        Pictures
+          [ if controlState == IdleControl
+              then mempty
+              else drawControlBackground (insetRect 2 segmentRect) controlState
+          , Translate
+              (centerX - (textWidthApprox buttonTextHeight segmentText / 2))
+              (centerY - 6)
+              $ drawControlText fontPathMb controlState segmentText
+          ]
+  in
+    Pictures $
+      drawControlBackground rect IdleControl : (segments <&> drawSegment)
+
+
+-- | Triangle pointing down to mark a drop-down menu
+drawDropDownArrow :: Rect -> ControlState -> Picture
+drawDropDownArrow rect controlState =
+  Translate (rect.maxX - 14) (snd $ rectCenter rect) $
+    Color (greyN $ if controlState == DisabledControl then 0.45 else 0.9) $
+      Polygon [(-5, 3), (5, 3), (0, -3)]
+
+
+-- | All styles in the order they are listed in the style select
+exportStyles :: [ExportStyle]
+exportStyles = [P.minBound .. P.maxBound]
+
+
+-- | All formats in the order they are listed in the output format select
+outputFormats :: [OutputFormat]
+outputFormats = [P.minBound .. P.maxBound]
+
+
+-- | All languages in the order they are listed in the language select
+ocrLanguages :: [OcrLanguage]
+ocrLanguages = [P.minBound .. P.maxBound]
+
+
+-- | Offset from the top of the window to an option of the language select
+ocrLanguageOptionOffset :: Int -> Int -> Int -> Int
+ocrLanguageOptionOffset selectTopOffset selectHeight optionIndex =
+  selectTopOffset + ((optionIndex + 1) * selectHeight)
+
+
+-- | The OCR language is only relevant for the PDF output
+isOcrLanguageSelectEnabled :: AppState -> Bool
+isOcrLanguageSelectEnabled appState =
+  appState.exportSettings.outputFormat == PdfFormat
+
+
+{-| Clickable parts of the sidebar components with their bounds.
+While the language select is open, only its options can be clicked,
+as they cover the components below the select.
+-}
+sidebarTargets :: AppState -> [(SidebarTarget, Rect)]
+sidebarTargets appState =
+  let
+    placedComponents = placeComponents appState.uiComponents
+    rectOf placed size = sidebarComponentRect appState placed.topOffset size
+
+    componentTargets placed = case placed.component of
+      StyleSelect width height ->
+        P.zip
+          (exportStyles <&> StyleOption)
+          ( segmentRects
+              (rectOf placed (width, height))
+              (exportStyles <&> exportStyleName)
+          )
+      OutputFormatSelect width height ->
+        P.zip
+          (outputFormats <&> OutputFormatOption)
+          ( segmentRects
+              (rectOf placed (width, height))
+              (outputFormats <&> outputFormatName)
+          )
+      OcrLanguageSelect width height
+        | isOcrLanguageSelectEnabled appState ->
+            [(OcrLanguageSelectTarget, rectOf placed (width, height))]
+      SaveButton width height ->
+        [(SaveTarget, rectOf placed (width, height))]
+      _ -> []
+
+    optionTargets placed = case placed.component of
+      OcrLanguageSelect width height ->
+        P.zip [0 ..] ocrLanguages <&> \(optionIndex, language) ->
+          ( OcrLanguageOption language
+          , sidebarComponentRect
+              appState
+              (ocrLanguageOptionOffset placed.topOffset height optionIndex)
+              (width, height)
+          )
+      _ -> []
+  in
+    P.concatMap
+      (if appState.ocrLanguageSelectIsOpen then optionTargets else componentTargets)
+      placedComponents
+
+
+-- | Clickable part of the sidebar at the given point
+findSidebarTargetAt :: AppState -> Point -> Maybe SidebarTarget
+findSidebarTargetAt appState point =
+  sidebarTargets appState
+    & P.find (\(_, rect) -> isInsideRect rect point)
+      <&> fst
+
+
+drawUiComponent :: AppState -> PlacedComponent -> Picture
+drawUiComponent appState placed =
+  let
+    settings = appState.exportSettings
+    rectOf size = sidebarComponentRect appState placed.topOffset size
+    stateOf target =
+      if appState.hoveredSidebarTarget == Just target
+        then HoveredControl
+        else IdleControl
+    segmentStateOf target isSelected
+      | isSelected = SelectedControl
+      | otherwise = stateOf target
+  in
+    case placed.component of
+      Label labelText labelWidth ->
+        Translate
+          (rectOf (labelWidth, 0)).minX
+          ( (fromIntegral appState.appHeight / 2.0)
+              - fromIntegral (placed.topOffset + sidebarLabelBaseline)
+          )
+          $ getColoredTextPicture appState.fontPath (greyN 0.65) labelText
+      StyleSelect selectWidth selectHeight ->
+        let
+          rect = rectOf (selectWidth, selectHeight)
+          labels = exportStyles <&> exportStyleName
+        in
+          drawSegmentedControl appState.fontPath rect $
+            DL.zip3 (segmentRects rect labels) labels $
+              exportStyles <&> \style ->
+                segmentStateOf (StyleOption style) (style == settings.style)
+      OutputFormatSelect selectWidth selectHeight ->
+        let
+          rect = rectOf (selectWidth, selectHeight)
+          labels = outputFormats <&> outputFormatName
+        in
+          drawSegmentedControl appState.fontPath rect $
+            DL.zip3 (segmentRects rect labels) labels $
+              outputFormats <&> \format ->
+                segmentStateOf
+                  (OutputFormatOption format)
+                  (format == settings.outputFormat)
+      OcrLanguageSelect selectWidth selectHeight ->
+        let
+          rect = rectOf (selectWidth, selectHeight)
+          controlState =
+            if isOcrLanguageSelectEnabled appState
+              then stateOf OcrLanguageSelectTarget
+              else DisabledControl
+        in
+          Pictures
+            [ drawButton
+                appState.fontPath
+                rect
+                (ocrLanguageName settings.ocrLanguage)
+                controlState
+            , drawDropDownArrow rect controlState
+            ]
+      Separator lineWidth ->
+        -- Centered in the gap between the neighboring buttons
+        Translate
+          ( (fromIntegral appState.appWidth / 2.0)
+              - (fromIntegral appState.sidebarWidth / 2.0)
+          )
+          ( (fromIntegral appState.appHeight / 2.0)
+              - fromIntegral placed.topOffset
+              - (fromIntegral (sidebarSeparatorHeight - sidebarComponentGap) / 2.0)
+          )
+          $ Color (greyN 0.3)
+          $ rectangleSolid (fromIntegral lineWidth) 1
+      SaveButton btnWidth btnHeight ->
+        drawButton
+          appState.fontPath
+          (rectOf (btnWidth, btnHeight))
+          "Save"
+          (stateOf SaveTarget)
+
+
+{-| Options of the open language select.
+Drawn after all other components, as they overlap the ones below the select.
+-}
+drawOcrLanguageOptions :: AppState -> Picture
+drawOcrLanguageOptions appState =
+  Pictures $
+    sidebarTargets appState <&> \case
+      (target@(OcrLanguageOption language), rect) ->
+        drawButton
+          appState.fontPath
+          rect
+          (ocrLanguageName language)
+          ( if appState.hoveredSidebarTarget == Just target
+              then HoveredControl
+              else IdleControl
+          )
+      _ -> mempty
 
 
 -- | Render the app state to a picture.
@@ -856,10 +1184,10 @@ makePicture appState =
                        appState.appHeight
                        appState.sidebarWidth
                    ]
-                <> P.zipWith
-                  (drawUiComponent appState)
-                  appState.uiComponents
-                  [0 ..]
+                <> ( placeComponents appState.uiComponents
+                       <&> drawUiComponent appState
+                   )
+                <> [drawOcrLanguageOptions appState]
                 <> [ if appState.bannerIsVisible
                        then bannerImage appState.fontPath appState.bannerUrlError
                        else mempty
@@ -972,41 +1300,14 @@ appCoordToImgCoord appState point =
   )
 
 
-checkSidebarRectHit ::
-  (Int, Int) -> Int -> Int -> (Int, Int) -> (Float, Float) -> Bool
-checkSidebarRectHit
-  (appW, appH)
-  sidebarW
-  topOffset
-  (rectW, rectH)
-  (hitX, hitY) =
-    let
-      minX =
-        (fromIntegral appW / 2.0)
-          - fromIntegral rectW
-          - ((fromIntegral sidebarW - fromIntegral rectW) / 2.0)
-      maxX = minX + fromIntegral rectW
-
-      minY =
-        (fromIntegral appH / 2.0)
-          - fromIntegral topOffset
-          - fromIntegral rectH
-      maxY = minY + fromIntegral rectH
-    in
-      hitX > minX
-        && hitX < maxX
-        && hitY > minY
-        && hitY < maxY
-
-
 submitSelection ::
-  IORef AppState -> Controller -> AppState -> ExportMode -> IO AppState
-submitSelection stateRef controller appState exportMode = do
+  IORef AppState -> Controller -> AppState -> IO AppState
+submitSelection stateRef controller appState = do
   -- Captured here because submitSelection runs in the event-handler (main)
   -- thread; the forked worker below needs it to signal exit back to main.
   mainTid <- myThreadId
   if appState.isRegistered
-    then performExport mainTid appState exportMode
+    then performExport mainTid appState appState.exportSettings
     else do
       -- Show banner and spawn delayed export
       let bannerState =
@@ -1032,14 +1333,14 @@ submitSelection stateRef controller appState exportMode = do
         let stateWithBannerHidden = finalState{bannerIsVisible = False}
         writeIORef stateRef stateWithBannerHidden
         controllerSetRedraw controller
-        newState <- performExport mainTid stateWithBannerHidden exportMode
+        newState <- performExport mainTid stateWithBannerHidden appState.exportSettings
         writeIORef stateRef newState
         controllerSetRedraw controller
       pure bannerState
 
 
-performExport :: ThreadId -> AppState -> ExportMode -> IO AppState
-performExport mainTid appState exportMode = do
+performExport :: ThreadId -> AppState -> ExportSettings -> IO AppState
+performExport mainTid appState exportSettings = do
   case appState.images of
     [] -> pure appState
     image : otherImages ->
@@ -1059,7 +1360,7 @@ performExport mainTid appState exportMode = do
             image.inputPath
             image.outputPath
             projectionMapNorm
-            exportMode
+            exportSettings
             image.rotation
             image.isFlipped
 
@@ -1082,36 +1383,43 @@ handleImageViewEvent stateRef controller event appState =
             Left err -> do
               P.putErrLn $ "Failed to open browser: " <> err
               pure appState{bannerUrlError = Just err}
+    -- Any click closes the open language select
+    -- and selects the clicked language, if any
+    EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint
+      | appState.ocrLanguageSelectIsOpen ->
+          let
+            settings = appState.exportSettings
+          in
+            pure
+              appState
+                { exportSettings =
+                    case findSidebarTargetAt appState clickedPoint of
+                      Just (OcrLanguageOption language) ->
+                        settings{ocrLanguage = language}
+                      _ -> settings
+                , ocrLanguageSelectIsOpen = False
+                , hoveredSidebarTarget = Nothing
+                }
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
-      -- Check if a UiComponent was clicked
       let
-        clickedComponent =
-          P.find
-            ( \(component, componentIndex) -> case component of
-                Button _ width height ->
-                  checkSidebarRectHit
-                    (appState.appWidth, appState.appHeight)
-                    appState.sidebarWidth
-                    (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
-                    (width, height)
-                    clickedPoint
-                _ -> False
-            )
-            (P.zip appState.uiComponents [0 ..])
-            <&> fst
+        settings = appState.exportSettings
 
-      case clickedComponent of
-        Just (Button{text = "Save"}) ->
-          submitSelection stateRef controller appState UnmodifiedExport
-        Just (Button{text = "Save Gray"}) ->
-          submitSelection stateRef controller appState GrayscaleExport
-        Just (Button{text = "Save BW"}) ->
-          submitSelection stateRef controller appState BlackWhiteExport
-        Just (Button{text = "Save BW Smooth"}) ->
-          submitSelection stateRef controller appState BlackWhiteSmoothExport
-        Just (Button{text = "Save PDF"}) ->
-          submitSelection stateRef controller appState PdfExport
-        _ -> do
+      case findSidebarTargetAt appState clickedPoint of
+        Just (StyleOption style) ->
+          pure appState{exportSettings = settings{style}}
+        Just (OutputFormatOption outputFormat) ->
+          pure appState{exportSettings = settings{outputFormat}}
+        Just OcrLanguageSelectTarget ->
+          pure appState{ocrLanguageSelectIsOpen = True}
+        Just (OcrLanguageOption _) ->
+          -- Only clickable while the select is open, which is handled above
+          pure appState
+        Just SaveTarget ->
+          submitSelection stateRef controller appState
+        Nothing
+          | isInsideSidebar appState clickedPoint ->
+              pure appState
+        Nothing -> do
           let
             point = appCoordToImgCoord appState clickedPoint
             clickedCorner =
@@ -1154,32 +1462,16 @@ handleImageViewEvent stateRef controller event appState =
       let
         point = appCoordToImgCoord appState newPoint
 
-        -- Check which button is being hovered
-        hoveredBtn =
-          P.find
-            ( \(component, componentIndex) -> case component of
-                Button _ width height ->
-                  checkSidebarRectHit
-                    (appState.appWidth, appState.appHeight)
-                    appState.sidebarWidth
-                    (sidebarPaddingTop + (componentIndex * sidebarGridHeight))
-                    (width, height)
-                    newPoint
-                _ -> False
-            )
-            (P.zip appState.uiComponents [0 ..])
-            <&> snd
+        hoveredTarget = findSidebarTargetAt appState newPoint
 
       -- Set cursor based on hover state
       let
         isBannerButtonHovered =
           appState.bannerIsVisible && isBuyLicenseClick newPoint
       controllerSetCursor controller $
-        if isBannerButtonHovered
+        if isBannerButtonHovered || P.isJust hoveredTarget
           then CursorHand
-          else case hoveredBtn of
-            Just _ -> CursorHand
-            Nothing -> CursorArrow
+          else CursorArrow
 
       pure $ case appState.cornerDragged of
         Just cornerPoint ->
@@ -1190,7 +1482,7 @@ handleImageViewEvent stateRef controller event appState =
                 appState.corners
           in
             case cornerIndexMb of
-              Nothing -> appState{hoveredButton = hoveredBtn}
+              Nothing -> appState{hoveredSidebarTarget = hoveredTarget}
               Just cornerIndex ->
                 appState
                   { corners =
@@ -1199,7 +1491,7 @@ handleImageViewEvent stateRef controller event appState =
                         point
                         appState.corners
                   , cornerDragged = Just point
-                  , hoveredButton = hoveredBtn
+                  , hoveredSidebarTarget = hoveredTarget
                   }
         Nothing -> case (appState.edgeDragged, appState.lastMousePos) of
           (Just edgeIdx, Just lastPos) ->
@@ -1209,11 +1501,18 @@ handleImageViewEvent stateRef controller event appState =
               appState
                 { corners = newCorners
                 , lastMousePos = Just point
-                , hoveredButton = hoveredBtn
+                , hoveredSidebarTarget = hoveredTarget
                 }
-          _ -> appState{hoveredButton = hoveredBtn}
+          _ -> appState{hoveredSidebarTarget = hoveredTarget}
     EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
-      submitSelection stateRef controller appState UnmodifiedExport
+      submitSelection stateRef controller appState
+    EventKey (SpecialKey KeyEsc) Gl.Down _ _
+      | appState.ocrLanguageSelectIsOpen ->
+          pure
+            appState
+              { ocrLanguageSelectIsOpen = False
+              , hoveredSidebarTarget = Nothing
+              }
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState{corners = []}
     _ ->
@@ -1274,11 +1573,11 @@ correctAndWrite ::
   FilePath ->
   FilePath ->
   ProjMap ->
-  ExportMode ->
+  ExportSettings ->
   Float ->
   Bool ->
   IO ()
-correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportMode rotation isFlipped = do
+correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportSettings rotation isFlipped = do
   case transformBackend of
     HipBackend -> do
       P.putText "ℹ️ Use Hip backend"
@@ -1339,13 +1638,13 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                       interpolate Bilinear getPixel (rowCrd', colCrd')
                   )
 
-          case exportMode of
-            UnmodifiedExport -> writeImage outPath corrected
+          case (exportSettings.style, exportSettings.outputFormat) of
+            (ColorStyle, ImageFormat) -> writeImage outPath corrected
             _ ->
               P.putErrLn
-                ( "⚠️  The Hip backend only supports the Save export mode. "
+                ( "⚠️  The Hip backend only supports color images. "
                     <> "Use the FlatCV backend for "
-                    <> show exportMode
+                    <> show exportSettings
                     <> "." ::
                     Text
                 )
@@ -1541,48 +1840,31 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                 (fromIntegral outWidth)
                 (fromIntegral outHeight)
                 transMatPtr
-            resultImgForeignPtr <- newForeignPtr_ (castPtr resultImg)
             free transMatPtr
 
-            let saveWithExif img = do
-                  void $ savePngWithExif exifBytes (ImageRGBA8 img) pngOutPath
-                  pure $ Right pngOutPath
+            styledImgPtr <- case exportSettings.style of
+              ColorStyle -> pure resultImg
+              GrayStyle ->
+                FCV.grayscaleStretchPtr
+                  (fromIntegral outWidth)
+                  (fromIntegral outHeight)
+                  resultImg
+              BlackWhiteStyle ->
+                FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) False resultImg
+              BlackWhiteSmoothStyle ->
+                FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) True resultImg
+            styledImgForeignPtr <- newForeignPtr_ (castPtr styledImgPtr)
+            let img = imageFromUnsafePtr outWidth outHeight styledImgForeignPtr
 
-            writtenPathEither <- case exportMode of
-              UnmodifiedExport -> do
-                let img = imageFromUnsafePtr outWidth outHeight resultImgForeignPtr
-                saveWithExif img
+            writtenPathEither <- case exportSettings.outputFormat of
+              ImageFormat -> do
+                void $ savePngWithExif exifBytes (ImageRGBA8 img) pngOutPath
+                pure $ Right pngOutPath
               --
-              GrayscaleExport -> do
-                grayImgPtr <-
-                  FCV.grayscaleStretchPtr
-                    (fromIntegral outWidth)
-                    (fromIntegral outHeight)
-                    resultImg
-                grayImgForeignPtr <- newForeignPtr_ (castPtr grayImgPtr)
-                let grayImg = imageFromUnsafePtr outWidth outHeight grayImgForeignPtr
-                saveWithExif grayImg
-              --
-              BlackWhiteExport -> do
-                bwImgPtr <-
-                  FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) False resultImg
-                bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
-                let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
-                saveWithExif bwImg
-              --
-              BlackWhiteSmoothExport -> do
-                bwImgPtr <-
-                  FCV.bwSmartPtr (fromIntegral outWidth) (fromIntegral outHeight) True resultImg
-                bwImgForeignPtr <- newForeignPtr_ (castPtr bwImgPtr)
-                let bwImg = imageFromUnsafePtr outWidth outHeight bwImgForeignPtr
-                saveWithExif bwImg
-              --
-              PdfExport -> do
-                let
-                  img = imageFromUnsafePtr outWidth outHeight resultImgForeignPtr
-                  pdfOutPath = replaceExtension outPath "pdf"
+              PdfFormat -> do
+                let pdfOutPath = replaceExtension outPath "pdf"
                 putText "ℹ️ Recognize text …"
-                ocrWordsEither <- recognizeWords img
+                ocrWordsEither <- recognizeWords exportSettings.ocrLanguage img
                 case ocrWordsEither of
                   Left error -> pure $ Left error
                   Right ocrWords -> do

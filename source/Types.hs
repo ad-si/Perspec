@@ -3,6 +3,8 @@ module Types where
 import Protolude as P (
   Applicative (pure),
   Bool (False),
+  Bounded,
+  Enum,
   Eq,
   FilePath,
   Float,
@@ -89,24 +91,100 @@ data SortOrder
   | Descending
 
 
-data ExportMode
-  = UnmodifiedExport
-  | GrayscaleExport
-  | BlackWhiteExport
-  | BlackWhiteSmoothExport
+-- | Color processing applied to the corrected image
+data ExportStyle
+  = ColorStyle
+  | GrayStyle
+  | BlackWhiteStyle
+  | BlackWhiteSmoothStyle
+  deriving (Show, Eq, Enum, Bounded)
+
+
+exportStyleName :: ExportStyle -> Text
+exportStyleName = \case
+  ColorStyle -> "Color"
+  GrayStyle -> "Gray"
+  BlackWhiteStyle -> "BW"
+  BlackWhiteSmoothStyle -> "BW Smooth"
+
+
+data OutputFormat
+  = ImageFormat
   | -- | Searchable PDF with the text recognized by Tesseract
-    PdfExport
-  deriving (Show)
+    PdfFormat
+  deriving (Show, Eq, Enum, Bounded)
+
+
+outputFormatName :: OutputFormat -> Text
+outputFormatName = \case
+  ImageFormat -> "Image"
+  PdfFormat -> "PDF"
+
+
+-- | Language of the text Tesseract recognizes for the searchable PDF
+data OcrLanguage
+  = English
+  | German
+  | Spanish
+  deriving (Show, Eq, Enum, Bounded)
+
+
+ocrLanguageName :: OcrLanguage -> Text
+ocrLanguageName = \case
+  English -> "English"
+  German -> "German"
+  Spanish -> "Spanish"
+
+
+data ExportSettings = ExportSettings
+  { style :: ExportStyle
+  , outputFormat :: OutputFormat
+  , ocrLanguage :: OcrLanguage
+  -- ^ Only used for the 'PdfFormat'
+  }
+  deriving (Show, Eq)
 
 
 data UiComponent
-  = Button
+  = -- | Heading of a group of components
+    Label
       { text :: Text
       , width :: Int
+      }
+  | -- | Segmented control to select the 'ExportStyle'
+    StyleSelect
+      { width :: Int
       , height :: Int
       }
-  | Select
+  | -- | Segmented control to select the 'OutputFormat'
+    OutputFormatSelect
+      { width :: Int
+      , height :: Int
+      }
+  | -- | Drop-down menu to select the 'OcrLanguage'
+    OcrLanguageSelect
+      { width :: Int
+      , height :: Int
+      }
+  | -- | Horizontal line to group the components
+    Separator {width :: Int}
+  | -- | Exports the image with the current 'ExportSettings'
+    SaveButton
+      { width :: Int
+      , height :: Int
+      }
   deriving (Show)
+
+
+-- | Clickable part of a sidebar component
+data SidebarTarget
+  = StyleOption ExportStyle
+  | OutputFormatOption OutputFormat
+  | OcrLanguageSelectTarget
+  | -- | Option of the open language select
+    OcrLanguageOption OcrLanguage
+  | SaveTarget
+  deriving (Show, Eq)
 
 
 data View = HomeView | ImageView | BannerView
@@ -167,7 +245,10 @@ data AppState = AppState
   , sidebarWidth :: Int
   , uiComponents :: [UiComponent]
   , hoveredButton :: Maybe Int
-  -- ^ Index of the button currently being hovered
+  -- ^ Index of the button currently being hovered in the home view
+  , hoveredSidebarTarget :: Maybe SidebarTarget
+  , exportSettings :: ExportSettings
+  , ocrLanguageSelectIsOpen :: Bool
   , fontPath :: Maybe FilePath
   {- ^ Font to render the UI text with, resolved at startup.
   ^ 'Nothing' if the system has no usable font, in which case
@@ -197,6 +278,9 @@ instance Show AppState where
       <> (", sidebarWidth = " <> show appState.sidebarWidth)
       <> (", uiComponents = " <> show appState.uiComponents)
       <> (", hoveredButton = " <> show appState.hoveredButton)
+      <> (", hoveredSidebarTarget = " <> show appState.hoveredSidebarTarget)
+      <> (", exportSettings = " <> show appState.exportSettings)
+      <> (", ocrLanguageSelectIsOpen = " <> show appState.ocrLanguageSelectIsOpen)
       <> (", fontPath = " <> show appState.fontPath)
       <> "}"
 
@@ -204,7 +288,7 @@ instance Show AppState where
 appInitialWidth, appInitialHeight, sidebarInitialWidth :: Int
 appInitialWidth = 1280
 appInitialHeight = 960
-sidebarInitialWidth = 180
+sidebarInitialWidth = 260
 
 
 initialState :: AppState
@@ -227,32 +311,23 @@ initialState =
     , bannerUrlError = Nothing
     , sidebarWidth = sidebarInitialWidth
     , uiComponents =
-        [ Button
-            { text = "Save"
-            , width = 160
-            , height = 30
-            }
-        , Button
-            { text = "Save Gray"
-            , width = 160
-            , height = 30
-            }
-        , Button
-            { text = "Save BW"
-            , width = 160
-            , height = 30
-            }
-        , Button
-            { text = "Save BW Smooth"
-            , width = 160
-            , height = 30
-            }
-        , Button
-            { text = "Save PDF"
-            , width = 160
-            , height = 30
-            }
+        [ Label{text = "Output Style:", width = 240}
+        , StyleSelect{width = 240, height = 30}
+        , Label{text = "Output Format:", width = 240}
+        , OutputFormatSelect{width = 240, height = 30}
+        , Label{text = "OCR Language:", width = 240}
+        , OcrLanguageSelect{width = 240, height = 30}
+        , Separator{width = 240}
+        , SaveButton{width = 240, height = 30}
         ]
     , hoveredButton = Nothing
+    , hoveredSidebarTarget = Nothing
+    , exportSettings =
+        ExportSettings
+          { style = ColorStyle
+          , outputFormat = ImageFormat
+          , ocrLanguage = English
+          }
+    , ocrLanguageSelectIsOpen = False
     , fontPath = Nothing
     }

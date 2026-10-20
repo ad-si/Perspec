@@ -2,6 +2,7 @@
 
 The English, German, and Spanish language models are embedded into the binary,
 so no Tesseract installation or @tessdata@ directory is needed.
+Only the model of the selected 'OcrLanguage' is used for the recognition.
 -}
 module Ocr (
   OcrWord (..),
@@ -24,7 +25,6 @@ import Protolude (
   Show,
   Text,
   bracket,
-  forM_,
   fromIntegral,
   realToFrac,
   show,
@@ -34,7 +34,6 @@ import Protolude (
   (&&),
   (*),
   (<$>),
-  (<&>),
   (<>),
  )
 
@@ -59,6 +58,8 @@ import System.Directory (
   renameFile,
  )
 import System.FilePath ((</>))
+
+import Types (OcrLanguage (..))
 
 
 -- | A word recognized by Tesseract
@@ -92,47 +93,43 @@ data TrainedData = TrainedData
   }
 
 
-{-| Tesseract's models in the fast integer variant
+{-| Tesseract's model for the language in the fast integer variant
 from https://github.com/tesseract-ocr/tessdata_fast.
-The first one is the primary language.
 -}
-trainedData :: [TrainedData]
-trainedData =
-  [ TrainedData "eng" $(embedFile "tessdata/eng.traineddata")
-  , TrainedData "deu" $(embedFile "tessdata/deu.traineddata")
-  , TrainedData "spa" $(embedFile "tessdata/spa.traineddata")
-  ]
+trainedDataFor :: OcrLanguage -> TrainedData
+trainedDataFor = \case
+  English -> TrainedData "eng" $(embedFile "tessdata/eng.traineddata")
+  German -> TrainedData "deu" $(embedFile "tessdata/deu.traineddata")
+  Spanish -> TrainedData "spa" $(embedFile "tessdata/spa.traineddata")
 
 
-{-| Write the embedded models to the cache directory
+{-| Write the embedded model to the cache directory
 and return the path of the directory.
 
-Tesseract can load several languages only from a directory,
-as its API accepts just a single model from memory.
-Models that are already up to date aren't written again.
+Tesseract's C API loads models only from a directory.
+A model that is already up to date isn't written again.
 -}
-installTrainedData :: IO (Either Text FilePath)
-installTrainedData = do
+installTrainedData :: TrainedData -> IO (Either Text FilePath)
+installTrainedData model = do
   result <- try $ do
     tessdataDir <- getXdgDirectory XdgCache ("perspec" </> "tessdata")
     createDirectoryIfMissing True tessdataDir
-    forM_ trainedData $ \model -> do
-      let modelPath = tessdataDir </> T.unpack model.language <> ".traineddata"
-      modelExists <- doesFileExist modelPath
-      isUpToDate <-
-        if modelExists
-          then (== model.content) <$> BS.readFile modelPath
-          else pure False
-      unless isUpToDate $ do
-        -- Write to a temporary file first,
-        -- so an interrupted write doesn't leave a broken model behind
-        let tempPath = modelPath <> ".tmp"
-        BS.writeFile tempPath model.content
-        renameFile tempPath modelPath
+    let modelPath = tessdataDir </> T.unpack model.language <> ".traineddata"
+    modelExists <- doesFileExist modelPath
+    isUpToDate <-
+      if modelExists
+        then (== model.content) <$> BS.readFile modelPath
+        else pure False
+    unless isUpToDate $ do
+      -- Write to a temporary file first,
+      -- so an interrupted write doesn't leave a broken model behind
+      let tempPath = modelPath <> ".tmp"
+      BS.writeFile tempPath model.content
+      renameFile tempPath modelPath
     pure tessdataDir
   pure $ case result of
     Left (error :: IOException) ->
-      Left $ "Failed to write the OCR models: " <> show error
+      Left $ "Failed to write the OCR model: " <> show error
     Right tessdataDir -> Right tessdataDir
 
 
@@ -318,24 +315,25 @@ readWords resultIter = do
     Nothing -> otherWords
 
 
--- | Recognize the words in an image
-recognizeWords :: Image PixelRGBA8 -> IO (Either Text [OcrWord])
-recognizeWords image = do
-  tessdataDirEither <- installTrainedData
+-- | Recognize the words of the given language in an image
+recognizeWords :: OcrLanguage -> Image PixelRGBA8 -> IO (Either Text [OcrWord])
+recognizeWords ocrLanguage image = do
+  let model = trainedDataFor ocrLanguage
+  tessdataDirEither <- installTrainedData model
   case tessdataDirEither of
     Left error -> pure $ Left error
-    Right tessdataDir -> recognizeWordsWith tessdataDir image
+    Right tessdataDir -> recognizeWordsWith tessdataDir model.language image
 
 
--- | Recognize the words with the models in the given directory
-recognizeWordsWith :: FilePath -> Image PixelRGBA8 -> IO (Either Text [OcrWord])
-recognizeWordsWith tessdataDir image =
+-- | Recognize the words with the named model in the given directory
+recognizeWordsWith ::
+  FilePath -> Text -> Image PixelRGBA8 -> IO (Either Text [OcrWord])
+recognizeWordsWith tessdataDir language image =
   bracket tessBaseAPICreate tessBaseAPIDelete $ \api -> do
-    let languages = T.intercalate "+" (trainedData <&> (.language))
     initResult <-
       withCString tessdataDir $ \datapathPtr ->
-        withCString (T.unpack languages) $ \languagesPtr ->
-          tessBaseAPIInit2 api datapathPtr languagesPtr oemLstmOnly
+        withCString (T.unpack language) $ \languagePtr ->
+          tessBaseAPIInit2 api datapathPtr languagePtr oemLstmOnly
 
     if initResult /= 0
       then pure $ Left "Failed to initialize Tesseract"

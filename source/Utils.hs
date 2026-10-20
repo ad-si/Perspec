@@ -49,6 +49,7 @@ import Protolude qualified as P
 
 import Brillo (
   BitmapData (bitmapPointer, bitmapSize),
+  Color,
   Picture (Bitmap, Color, Rotate, Scale, TrueTypeText),
   Point,
   greyN,
@@ -319,11 +320,16 @@ buttonTextHeight = 16
 
 -- | Render text using TrueType fonts
 getTextPicture :: Maybe FilePath -> Text -> Picture
-getTextPicture fontPathMb txt =
+getTextPicture fontPathMb =
+  getColoredTextPicture fontPathMb (greyN 0.9)
+
+
+getColoredTextPicture :: Maybe FilePath -> Color -> Text -> Picture
+getColoredTextPicture fontPathMb textColor txt =
   case fontPathMb of
     Nothing -> mempty
     Just fontPath ->
-      Color (greyN 0.9) $
+      Color textColor $
         TrueTypeText fontPath buttonTextHeight txt
 
 

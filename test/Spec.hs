@@ -50,7 +50,12 @@ import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
 import FlatCV (otsuThresholdPtr)
-import Lib (toLogicalEvent)
+import Lib (
+  PlacedComponent (..),
+  findSidebarTargetAt,
+  placeComponents,
+  toLogicalEvent,
+ )
 import Ocr (OcrWord (..), recognizeWords)
 import Pdf (writeSearchablePdf)
 import PngExif (
@@ -73,9 +78,16 @@ import System.Directory (
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Types (
+  AppState (..),
+  ExportSettings (..),
+  ExportStyle (..),
+  OcrLanguage (..),
+  OutputFormat (..),
   RenameMode (Even, Odd, Sequential),
   RotationDirection (Clockwise, CounterClockwise),
+  SidebarTarget (..),
   SortOrder (Ascending, Descending),
+  initialState,
  )
 import Utils (loadImage)
 import UtilsSpec qualified
@@ -227,7 +239,7 @@ main = hspec $ do
           case imageEither of
             Left err -> expectationFailure err
             Right dynImage -> do
-              wordsEither <- recognizeWords (convertRGBA8 dynImage)
+              wordsEither <- recognizeWords German (convertRGBA8 dynImage)
               case wordsEither of
                 Left err -> expectationFailure $ P.toS err
                 Right ocrWords -> do
@@ -247,7 +259,7 @@ main = hspec $ do
           case imageEither of
             Left err -> expectationFailure err
             Right dynImage -> do
-              wordsEither <- recognizeWords (convertRGBA8 dynImage)
+              wordsEither <- recognizeWords Spanish (convertRGBA8 dynImage)
               case wordsEither of
                 Left err -> expectationFailure $ P.toS err
                 Right ocrWords ->
@@ -274,7 +286,7 @@ main = hspec $ do
             Left err -> expectationFailure err
             Right dynImage -> do
               let image = convertRGBA8 dynImage
-              wordsEither <- recognizeWords image
+              wordsEither <- recognizeWords German image
               case wordsEither of
                 Left err -> expectationFailure $ P.toS err
                 Right ocrWords ->
@@ -286,6 +298,59 @@ main = hspec $ do
                     pdfBytes `shouldSatisfy` BS.isPrefixOf "%PDF-"
                     pdfBytes `shouldSatisfy` BS.isInfixOf "/Helvetica"
                     pdfBytes `shouldSatisfy` BS.isInfixOf "/Width 1256"
+
+      describe "placeComponents" $ do
+        it "gives labels and separators smaller slots" $ do
+          (placeComponents initialState.uiComponents <&> (.topOffset))
+            `shouldBe` [50, 82, 122, 154, 194, 226, 266, 286]
+
+      describe "findSidebarTargetAt" $ do
+        -- The sidebar of the initial state spans x from 380 to 640
+        -- and its components x from 390 to 630
+        let
+          pdfState =
+            initialState
+              { exportSettings =
+                  initialState.exportSettings{outputFormat = PdfFormat}
+              }
+
+        it "finds the segments of the style select" $ do
+          findSidebarTargetAt initialState (395, 383)
+            `shouldBe` Just (StyleOption ColorStyle)
+          findSidebarTargetAt initialState (625, 383)
+            `shouldBe` Just (StyleOption BlackWhiteSmoothStyle)
+
+        it "finds the segments of the output format select" $ do
+          findSidebarTargetAt initialState (395, 311)
+            `shouldBe` Just (OutputFormatOption ImageFormat)
+          findSidebarTargetAt initialState (625, 311)
+            `shouldBe` Just (OutputFormatOption PdfFormat)
+
+        it "disables the language select for the image output" $ do
+          let ocrSelectPoint = (510, 239)
+          findSidebarTargetAt initialState ocrSelectPoint
+            `shouldBe` Nothing
+          findSidebarTargetAt pdfState ocrSelectPoint
+            `shouldBe` Just OcrLanguageSelectTarget
+
+        it "finds the language options only when the select is open" $ do
+          -- Center of the second option below the select
+          let germanOptionPoint = (510, 179)
+          findSidebarTargetAt pdfState germanOptionPoint
+            `shouldBe` Just SaveTarget
+          findSidebarTargetAt
+            pdfState{ocrLanguageSelectIsOpen = True}
+            germanOptionPoint
+            `shouldBe` Just (OcrLanguageOption German)
+
+      describe "export settings" $ do
+        it "default to a color image with English OCR" $ do
+          initialState.exportSettings
+            `shouldBe` ExportSettings
+              { style = ColorStyle
+              , outputFormat = ImageFormat
+              , ocrLanguage = English
+              }
 
       describe "toLogicalEvent" $ do
         it "leaves coordinates untouched on a display without scaling" $ do
