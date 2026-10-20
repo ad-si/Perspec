@@ -31,6 +31,7 @@ For example whiteboards, document scans, or facades.
   * [2. Open Perspec app](#2-open-perspec-app)
   * [3. Select photos to correct](#3-select-photos-to-correct)
   * [4. Save the corrected image](#4-save-the-corrected-image)
+  * [Combine several photos into PDFs](#combine-several-photos-into-pdfs)
 - [Installation](#installation)
   * [Prebuilt](#prebuilt)
   * [From Source](#from-source)
@@ -126,6 +127,22 @@ sorted naturally by their path (e.g. `IMG_9.jpeg` before `IMG_10.jpeg`).
     </tr>
   </tbody>
 </table>
+
+
+### Combine several photos into PDFs
+
+With the PDF output format, the save button is replaced
+by a `Start PDF 1` button, which starts a new PDF with the current photo.
+The PDF is named after the photo.
+While a PDF is open, an `Add page 2 to PDF 1` button
+adds the photo as the next page to it.
+This way, the photos of several documents can be processed in one go.
+
+Enter adds the photo to the open PDF, and Shift + Enter starts a new PDF.
+
+A PDF is written once all its pages were added:
+When the next photo starts a new PDF, after the last photo,
+or when the window is closed.
 
 
 ## Installation

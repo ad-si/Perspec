@@ -48,6 +48,7 @@ import Protolude (
 import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.List as DL (elemIndex, minimum, zip3)
+import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (free)
@@ -88,6 +89,7 @@ import Brillo.Interface.IO.Game as Gl (
   Event (..),
   Key (MouseButton, SpecialKey),
   KeyState (Down, Up),
+  Modifiers (..),
   MouseButton (LeftButton),
   SpecialKey (KeyEnter, KeyEsc),
  )
@@ -123,7 +125,7 @@ import Ocr (recognizeWords)
 import Pdf (writeSearchablePdf)
 import Types (
   AppState (..),
-  Config (licenseKey, transformBackendFlag),
+  Config (transformBackendFlag),
   Corner,
   CornersTup,
   EdgeIndex (..),
@@ -132,6 +134,9 @@ import Types (
   ImageData (..),
   OcrLanguage,
   OutputFormat (..),
+  PdfAction (..),
+  PdfDocument (..),
+  PdfPage (..),
   ProjMap,
   SidebarTarget (..),
   TransformBackend (..),
@@ -981,6 +986,93 @@ isOcrLanguageSelectEnabled appState =
   appState.exportSettings.outputFormat == PdfFormat
 
 
+-- | Images can only be added to a PDF that was started before
+isAddToPdfEnabled :: AppState -> Bool
+isAddToPdfEnabled appState =
+  appState.exportSettings.outputFormat == PdfFormat
+    && P.isJust appState.pdfDocument
+
+
+-- | Action of the Enter key
+defaultPdfAction :: AppState -> PdfAction
+defaultPdfAction appState =
+  if isAddToPdfEnabled appState
+    then AddToPdf
+    else NewPdf
+
+
+-- | Number of the PDF a new PDF gets
+nextPdfNumber :: AppState -> Int
+nextPdfNumber appState =
+  P.maybe 1 (\pdfDocument -> pdfDocument.number + 1) appState.pdfDocument
+
+
+-- | Text of the button of the action
+pdfActionText :: AppState -> PdfAction -> Text
+pdfActionText appState = \case
+  NewPdf -> "Start PDF " <> show (nextPdfNumber appState)
+  AddToPdf -> case appState.pdfDocument of
+    Just pdfDocument ->
+      "Add page "
+        <> show (P.length pdfDocument.pages + 1)
+        <> " to PDF "
+        <> show pdfDocument.number
+    Nothing -> "Add to PDF"
+
+
+{-| PDF the current image is added to with the action.
+A new PDF is named after the output path of its first image.
+-}
+pdfDocumentForImage :: AppState -> PdfAction -> FilePath -> PdfDocument
+pdfDocumentForImage appState pdfAction imageOutputPath =
+  case (appState.pdfDocument, pdfAction) of
+    (Just pdfDocument, AddToPdf) -> pdfDocument
+    _ ->
+      PdfDocument
+        { number = nextPdfNumber appState
+        , outputPath = replaceExtension imageOutputPath "pdf"
+        , pages = []
+        }
+
+
+{-| PDF that is complete, as the current image isn't added to it.
+This is also the case for the image output.
+-}
+completedPdfDocument :: AppState -> PdfAction -> Maybe PdfDocument
+completedPdfDocument appState pdfAction =
+  if isAddToPdfEnabled appState && pdfAction == AddToPdf
+    then Nothing
+    else appState.pdfDocument
+
+
+-- | Write the PDF, unless it has no pages
+writePdfDocument :: PdfDocument -> IO ()
+writePdfDocument pdfDocument =
+  case NE.nonEmpty pdfDocument.pages of
+    Nothing -> pure ()
+    Just pages -> do
+      putText $ "ℹ️ Write PDF " <> show pdfDocument.number <> " …"
+      writeResult <- writeSearchablePdf pdfDocument.outputPath pages
+      case writeResult of
+        Left error -> P.putErrText $ "❌ Failed to write the PDF: " <> error
+        Right () -> do
+          putText "\n✅ Wrote file to:"
+          P.putStrLn pdfDocument.outputPath
+
+
+-- | Target and text of the button of an action button component
+actionButton :: AppState -> UiComponent -> Maybe (SidebarTarget, Text)
+actionButton appState = \case
+  SaveButton{}
+    | appState.exportSettings.outputFormat == PdfFormat ->
+        Just (PdfActionTarget NewPdf, pdfActionText appState NewPdf)
+    | otherwise -> Just (SaveTarget, "Save")
+  AddToPdfButton{}
+    | isAddToPdfEnabled appState ->
+        Just (PdfActionTarget AddToPdf, pdfActionText appState AddToPdf)
+  _ -> Nothing
+
+
 {-| Clickable parts of the sidebar components with their bounds.
 While the language select is open, only its options can be clicked,
 as they cover the components below the select.
@@ -1010,8 +1102,15 @@ sidebarTargets appState =
         | isOcrLanguageSelectEnabled appState ->
             [(OcrLanguageSelectTarget, rectOf placed (width, height))]
       SaveButton width height ->
-        [(SaveTarget, rectOf placed (width, height))]
+        actionButtonTarget placed (width, height)
+      AddToPdfButton width height ->
+        actionButtonTarget placed (width, height)
       _ -> []
+
+    actionButtonTarget placed size =
+      actionButton appState placed.component
+        & P.maybeToList
+          <&> \(target, _) -> (target, rectOf placed size)
 
     optionTargets placed = case placed.component of
       OcrLanguageSelect width height ->
@@ -1049,6 +1148,11 @@ drawUiComponent appState placed =
     segmentStateOf target isSelected
       | isSelected = SelectedControl
       | otherwise = stateOf target
+    drawActionButton size =
+      case actionButton appState placed.component of
+        Just (target, btnText) ->
+          drawButton appState.fontPath (rectOf size) btnText (stateOf target)
+        Nothing -> mempty
   in
     case placed.component of
       Label labelText labelWidth ->
@@ -1107,11 +1211,9 @@ drawUiComponent appState placed =
           $ Color (greyN 0.3)
           $ rectangleSolid (fromIntegral lineWidth) 1
       SaveButton btnWidth btnHeight ->
-        drawButton
-          appState.fontPath
-          (rectOf (btnWidth, btnHeight))
-          "Save"
-          (stateOf SaveTarget)
+        drawActionButton (btnWidth, btnHeight)
+      AddToPdfButton btnWidth btnHeight ->
+        drawActionButton (btnWidth, btnHeight)
 
 
 {-| Options of the open language select.
@@ -1301,14 +1403,17 @@ appCoordToImgCoord appState point =
   )
 
 
+{-| Export the current image.
+The PDF action is only used for the PDF output.
+-}
 submitSelection ::
-  IORef AppState -> Controller -> AppState -> IO AppState
-submitSelection stateRef controller appState = do
+  IORef AppState -> Controller -> PdfAction -> AppState -> IO AppState
+submitSelection stateRef controller pdfAction appState = do
   -- Captured here because submitSelection runs in the event-handler (main)
   -- thread; the forked worker below needs it to signal exit back to main.
   mainTid <- myThreadId
   if appState.isRegistered
-    then performExport mainTid appState appState.exportSettings
+    then performExport mainTid appState appState.exportSettings pdfAction
     else do
       -- Show banner and spawn delayed export
       let bannerState =
@@ -1334,14 +1439,20 @@ submitSelection stateRef controller appState = do
         let stateWithBannerHidden = finalState{bannerIsVisible = False}
         writeIORef stateRef stateWithBannerHidden
         controllerSetRedraw controller
-        newState <- performExport mainTid stateWithBannerHidden appState.exportSettings
+        newState <-
+          performExport
+            mainTid
+            stateWithBannerHidden
+            appState.exportSettings
+            pdfAction
         writeIORef stateRef newState
         controllerSetRedraw controller
       pure bannerState
 
 
-performExport :: ThreadId -> AppState -> ExportSettings -> IO AppState
-performExport mainTid appState exportSettings = do
+performExport ::
+  ThreadId -> AppState -> ExportSettings -> PdfAction -> IO AppState
+performExport mainTid appState exportSettings pdfAction = do
   case appState.images of
     [] -> pure appState
     image : otherImages ->
@@ -1356,20 +1467,49 @@ performExport mainTid appState exportSettings = do
               toCounterClock $
                 getProjectionMap cornerTuple targetShape
 
-          correctAndWrite
-            appState.transformBackend
-            image.inputPath
-            image.outputPath
-            projectionMapNorm
-            exportSettings
-            image.rotation
-            image.isFlipped
+          pdfPageMb <-
+            correctAndExport
+              appState.transformBackend
+              image.inputPath
+              image.outputPath
+              projectionMapNorm
+              exportSettings
+              image.rotation
+              image.isFlipped
+
+          let
+            exportState = appState{exportSettings}
+            openPdfDocument =
+              if exportSettings.outputFormat == PdfFormat
+                then
+                  let
+                    pdfDocument =
+                      pdfDocumentForImage exportState pdfAction image.outputPath
+                  in
+                    Just
+                      pdfDocument
+                        { pages = pdfDocument.pages <> P.maybeToList pdfPageMb
+                        }
+                else Nothing
+            exportedState = exportState{pdfDocument = openPdfDocument}
+
+          P.forM_ (completedPdfDocument exportState pdfAction) writePdfDocument
+
+          case (openPdfDocument, pdfPageMb) of
+            (Just pdfDocument, Just _) ->
+              putText $
+                "ℹ️ Added page "
+                  <> show (P.length pdfDocument.pages)
+                  <> " to PDF "
+                  <> show pdfDocument.number
+            _ -> pure ()
 
           if P.null otherImages
             then do
+              P.forM_ openPdfDocument writePdfDocument
               exitCleanly mainTid
-              pure appState
-            else loadFileIntoState appState{images = otherImages}
+              pure exportedState{pdfDocument = Nothing}
+            else loadFileIntoState exportedState{images = otherImages}
 
 
 handleImageViewEvent ::
@@ -1416,7 +1556,9 @@ handleImageViewEvent stateRef controller event appState =
           -- Only clickable while the select is open, which is handled above
           pure appState
         Just SaveTarget ->
-          submitSelection stateRef controller appState
+          submitSelection stateRef controller (defaultPdfAction appState) appState
+        Just (PdfActionTarget pdfAction) ->
+          submitSelection stateRef controller pdfAction appState
         Nothing
           | isInsideSidebar appState clickedPoint ->
               pure appState
@@ -1505,8 +1647,16 @@ handleImageViewEvent stateRef controller event appState =
                 , hoveredSidebarTarget = hoveredTarget
                 }
           _ -> appState{hoveredSidebarTarget = hoveredTarget}
-    EventKey (SpecialKey KeyEnter) Gl.Down _ _ ->
-      submitSelection stateRef controller appState
+    -- Shift + Enter starts a new PDF
+    EventKey (SpecialKey KeyEnter) Gl.Down modifiers _ ->
+      submitSelection
+        stateRef
+        controller
+        ( if modifiers.shift == Gl.Down
+            then NewPdf
+            else defaultPdfAction appState
+        )
+        appState
     EventKey (SpecialKey KeyEsc) Gl.Down _ _
       | appState.ocrLanguageSelectIsOpen ->
           pure
@@ -1568,8 +1718,14 @@ handleEvent stateRef controller windowEvent appState = do
       BannerView -> pure appState
 
 
+{-| Correct the image with the export settings.
+The image output is written to a file,
+while the PDF output is returned as a page
+to be written with the other pages of its PDF.
+-}
+
 -- TODO: Projection map output coordinates must be used and not recalculated
-correctAndWrite ::
+correctAndExport ::
   TransformBackend ->
   FilePath ->
   FilePath ->
@@ -1577,8 +1733,8 @@ correctAndWrite ::
   ExportSettings ->
   Float ->
   Bool ->
-  IO ()
-correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportSettings rotation isFlipped = do
+  IO (Maybe PdfPage)
+correctAndExport transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br, _)) exportSettings rotation isFlipped = do
   case transformBackend of
     HipBackend -> do
       P.putText "ℹ️ Use Hip backend"
@@ -1586,6 +1742,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
       case pictureMetadataEither of
         Left error -> do
           P.putText error
+          pure Nothing
         Right (Bitmap _bitmapData, _metadatas) -> do
           uncorrected <- readImageRGBA inPath
 
@@ -1649,9 +1806,11 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
                     <> "." ::
                     Text
                 )
+          pure Nothing
         --
         Right _ -> do
           P.putText "Unsupported image format"
+          pure Nothing
     --
     FlatCVBackend -> do
       P.putText "ℹ️ Use FlatCV backend"
@@ -1661,6 +1820,7 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
       case pictureMetadataEither of
         Left error -> do
           P.putText error
+          pure Nothing
         Right (Bitmap bitmapData, metadatas) -> do
           P.putText "" -- Line break
           prettyPrintArray metadatas
@@ -1857,30 +2017,26 @@ correctAndWrite transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br,
             styledImgForeignPtr <- newForeignPtr_ (castPtr styledImgPtr)
             let img = imageFromUnsafePtr outWidth outHeight styledImgForeignPtr
 
-            writtenPathEither <- case exportSettings.outputFormat of
+            case exportSettings.outputFormat of
               ImageFormat -> do
                 void $ savePngWithExif exifBytes (ImageRGBA8 img) pngOutPath
-                pure $ Right pngOutPath
+                putText "\n✅ Wrote file to:"
+                P.putStrLn pngOutPath
+                pure Nothing
               --
               PdfFormat -> do
-                let pdfOutPath = replaceExtension outPath "pdf"
                 putText "ℹ️ Recognize text …"
                 ocrWordsEither <- recognizeWords exportSettings.ocrLanguage img
                 case ocrWordsEither of
-                  Left error -> pure $ Left error
-                  Right ocrWords -> do
-                    writeResult <- writeSearchablePdf pdfOutPath img ocrWords
-                    pure $ writeResult <&> const pdfOutPath
-
-            case writtenPathEither of
-              Left error ->
-                P.putErrText $ "❌ Failed to export the image: " <> error
-              Right writtenPath -> do
-                putText "\n✅ Wrote file to:"
-                P.putStrLn writtenPath
+                  Left error -> do
+                    P.putErrText $ "❌ Failed to export the image: " <> error
+                    pure Nothing
+                  Right ocrWords ->
+                    pure $ Just PdfPage{image = img, ocrWords}
         --
         Right _ -> do
           P.putText "Unsupported image format"
+          pure Nothing
 
 
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
@@ -1933,6 +2089,7 @@ loadAndStart config filePathsMb = do
         (makePictureFromRef stateRef)
         (handleEventWithRef stateRef controllerRef)
         (initController controllerRef)
+      writeOpenPdfDocument stateRef
     Just filePaths -> do
       appState <- loadFileIntoState stateDraft{images = imagesToLoad filePaths}
       stateRef <- newIORef appState
@@ -1944,6 +2101,16 @@ loadAndStart config filePathsMb = do
         (makePictureFromRef stateRef)
         (handleEventWithRef stateRef controllerRef)
         (initController controllerRef)
+      writeOpenPdfDocument stateRef
+
+
+{-| Write the pages of the PDF that was still open when the window was closed,
+so they aren't lost
+-}
+writeOpenPdfDocument :: IORef AppState -> IO ()
+writeOpenPdfDocument stateRef = do
+  appState <- readIORef stateRef
+  P.forM_ appState.pdfDocument writePdfDocument
 
 
 {-| Wrapper to read state from IORef and render.

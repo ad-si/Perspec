@@ -16,13 +16,11 @@ import Protolude (
   Either (Left, Right),
   Eq ((/=), (==)),
   FilePath,
-  Float,
   IO,
   IOException,
   Int,
   Maybe (Just, Nothing),
   Ord ((<=), (>)),
-  Show,
   Text,
   bracket,
   fromIntegral,
@@ -59,25 +57,7 @@ import System.Directory (
  )
 import System.FilePath ((</>))
 
-import Types (OcrLanguage (..))
-
-
--- | A word recognized by Tesseract
-data OcrWord = OcrWord
-  { text :: Text
-  , left :: Int
-  {- ^ Pixel coordinates of the bounding box,
-  ^ measured from the top left corner of the image
-  -}
-  , top :: Int
-  , right :: Int
-  , bottom :: Int
-  , baseline :: Int
-  -- ^ Y coordinate of the baseline at the left edge of the word
-  , confidence :: Float
-  -- ^ Between 0 and 100
-  }
-  deriving (Show, Eq)
+import Types (OcrLanguage (..), OcrWord (..))
 
 
 -- | Resolution in DPI the images are assumed to have

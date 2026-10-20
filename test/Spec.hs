@@ -49,14 +49,19 @@ import Codec.Picture (
 import Codec.Picture.Metadata.Exif (ExifData (ExifShort))
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BL
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import FlatCV (otsuThresholdPtr)
 import Lib (
   PlacedComponent (..),
+  completedPdfDocument,
+  defaultPdfAction,
   findSidebarTargetAt,
+  pdfActionText,
+  pdfDocumentForImage,
   placeComponents,
   toLogicalEvent,
  )
-import Ocr (OcrWord (..), recognizeWords)
+import Ocr (recognizeWords)
 import Pdf (writeSearchablePdf)
 import PngExif (
   clearExifOrientation,
@@ -82,7 +87,11 @@ import Types (
   ExportSettings (..),
   ExportStyle (..),
   OcrLanguage (..),
+  OcrWord (..),
   OutputFormat (..),
+  PdfAction (..),
+  PdfDocument (..),
+  PdfPage (..),
   RenameMode (Even, Odd, Sequential),
   RotationDirection (Clockwise, CounterClockwise),
   SidebarTarget (..),
@@ -292,17 +301,34 @@ main = hspec $ do
                 Right ocrWords ->
                   withSystemTempDirectory "perspec-pdf" $ \tempDir -> do
                     let pdfPath = tempDir </> "package_slip.pdf"
-                    writeResult <- writeSearchablePdf pdfPath image ocrWords
+                    writeResult <-
+                      writeSearchablePdf pdfPath (PdfPage{image, ocrWords} :| [])
                     writeResult `shouldBe` Right ()
                     pdfBytes <- BS.readFile pdfPath
                     pdfBytes `shouldSatisfy` BS.isPrefixOf "%PDF-"
                     pdfBytes `shouldSatisfy` BS.isInfixOf "/Helvetica"
                     pdfBytes `shouldSatisfy` BS.isInfixOf "/Width 1256"
 
+        it "writes a PDF with a page of its own size for each image" $ do
+          let
+            whiteImage width height =
+              generateImage (\_ _ -> PixelRGBA8 255 255 255 255) width height
+            pages =
+              PdfPage{image = whiteImage 300 600, ocrWords = []}
+                :| [PdfPage{image = whiteImage 600 300, ocrWords = []}]
+          withSystemTempDirectory "perspec-pdf" $ \tempDir -> do
+            let pdfPath = tempDir </> "two_pages.pdf"
+            writeResult <- writeSearchablePdf pdfPath pages
+            writeResult `shouldBe` Right ()
+            pdfBytes <- BS.readFile pdfPath
+            pdfBytes `shouldSatisfy` BS.isInfixOf "/Count 2"
+            pdfBytes `shouldSatisfy` BS.isInfixOf "/Width 300"
+            pdfBytes `shouldSatisfy` BS.isInfixOf "/Width 600"
+
       describe "placeComponents" $ do
         it "gives labels and separators smaller slots" $ do
           (placeComponents initialState.uiComponents <&> (.topOffset))
-            `shouldBe` [50, 82, 122, 154, 194, 226, 266, 286]
+            `shouldBe` [50, 82, 122, 154, 194, 226, 266, 286, 326]
 
       describe "findSidebarTargetAt" $ do
         -- The sidebar of the initial state spans x from 380 to 640
@@ -313,6 +339,7 @@ main = hspec $ do
               { exportSettings =
                   initialState.exportSettings{outputFormat = PdfFormat}
               }
+          pdfStateWithDocument = pdfState{pdfDocument = Just firstPdf}
 
         it "finds the segments of the style select" $ do
           findSidebarTargetAt initialState (395, 383)
@@ -337,11 +364,80 @@ main = hspec $ do
           -- Center of the second option below the select
           let germanOptionPoint = (510, 179)
           findSidebarTargetAt pdfState germanOptionPoint
-            `shouldBe` Just SaveTarget
+            `shouldBe` Just (PdfActionTarget NewPdf)
           findSidebarTargetAt
             pdfState{ocrLanguageSelectIsOpen = True}
             germanOptionPoint
             `shouldBe` Just (OcrLanguageOption German)
+
+        it "finds the save button below the separator" $ do
+          findSidebarTargetAt initialState (510, 179)
+            `shouldBe` Just SaveTarget
+
+        it "shows the add to PDF button below while a PDF is open" $ do
+          let
+            savePoint = (510, 179)
+            addToPdfPoint = (510, 139)
+          findSidebarTargetAt pdfState savePoint
+            `shouldBe` Just (PdfActionTarget NewPdf)
+          findSidebarTargetAt pdfState addToPdfPoint
+            `shouldBe` Nothing
+          findSidebarTargetAt pdfStateWithDocument savePoint
+            `shouldBe` Just (PdfActionTarget NewPdf)
+          findSidebarTargetAt pdfStateWithDocument addToPdfPoint
+            `shouldBe` Just (PdfActionTarget AddToPdf)
+          findSidebarTargetAt
+            initialState{pdfDocument = Just firstPdf}
+            addToPdfPoint
+            `shouldBe` Nothing
+
+      describe "PDF documents" $ do
+        let
+          pdfState =
+            initialState
+              { exportSettings =
+                  initialState.exportSettings{outputFormat = PdfFormat}
+              }
+          pdfStateWithDocument = pdfState{pdfDocument = Just firstPdf}
+
+        it "starts the first PDF with the first image" $ do
+          let pdfDocument = pdfDocumentForImage pdfState NewPdf "dir/IMG_1.jpeg"
+          pdfDocument.number `shouldBe` 1
+          pdfDocument.outputPath `shouldBe` "dir/IMG_1.pdf"
+          P.length pdfDocument.pages `shouldBe` 0
+          defaultPdfAction pdfState `shouldBe` NewPdf
+          pdfActionText pdfState NewPdf `shouldBe` "Start PDF 1"
+
+        it "adds the following images to the open PDF" $ do
+          let
+            pdfDocument =
+              pdfDocumentForImage pdfStateWithDocument AddToPdf "dir/IMG_3.jpeg"
+          pdfDocument.number `shouldBe` 1
+          pdfDocument.outputPath `shouldBe` "dir/IMG_1.pdf"
+          P.length pdfDocument.pages `shouldBe` 2
+          defaultPdfAction pdfStateWithDocument `shouldBe` AddToPdf
+          pdfActionText pdfStateWithDocument AddToPdf
+            `shouldBe` "Add page 3 to PDF 1"
+
+        it "starts a new PDF" $ do
+          let
+            pdfDocument =
+              pdfDocumentForImage pdfStateWithDocument NewPdf "dir/IMG_3.jpeg"
+          pdfDocument.number `shouldBe` 2
+          pdfDocument.outputPath `shouldBe` "dir/IMG_3.pdf"
+          P.length pdfDocument.pages `shouldBe` 0
+          pdfActionText pdfStateWithDocument NewPdf `shouldBe` "Start PDF 2"
+
+        it "completes the open PDF when a new one is started" $ do
+          P.isJust (completedPdfDocument pdfStateWithDocument AddToPdf)
+            `shouldBe` False
+          (completedPdfDocument pdfStateWithDocument NewPdf <&> (.number))
+            `shouldBe` Just 1
+
+        it "completes the open PDF when an image is exported" $ do
+          let imageState = initialState{pdfDocument = Just firstPdf}
+          (completedPdfDocument imageState AddToPdf <&> (.number))
+            `shouldBe` Just 1
 
       describe "export settings" $ do
         it "default to a color image with English OCR" $ do
@@ -604,3 +700,20 @@ main = hspec $ do
         removePathForcibly workDir
 
   UtilsSpec.spec
+
+
+-- | PDF with two pages, as it is after exporting two images
+firstPdf :: PdfDocument
+firstPdf =
+  let
+    page =
+      PdfPage
+        { image = generateImage (\_ _ -> PixelRGBA8 0 0 0 255) 1 1
+        , ocrWords = []
+        }
+  in
+    PdfDocument
+      { number = 1
+      , outputPath = "dir/IMG_1.pdf"
+      , pages = [page, page]
+      }

@@ -12,7 +12,7 @@ import Protolude (
   Fractional ((/)),
   IO,
   Int,
-  Maybe (Nothing),
+  Maybe (Just),
   Num ((*), (-)),
   Ord ((<=)),
   Text,
@@ -27,6 +27,8 @@ import Codec.Picture (Image (..), PixelRGB8, PixelRGBA8, pixelMap)
 import Codec.Picture.Types (dropTransparency)
 import Data.ByteString.Internal (fromForeignPtr0)
 import Data.ByteString.Lazy qualified as BL
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Vector.Storable qualified as VS
 import Graphics.PDF (
   FontName (Helvetica),
@@ -54,19 +56,20 @@ import Graphics.PDF (
   withNewContext,
  )
 
-import Ocr (OcrWord (..), ocrResolution)
+import Ocr (ocrResolution)
+import Types (OcrWord (..), PdfPage (..))
 
 
-{-| Write a PDF with a single page showing the image
+{-| Write a PDF with a page for each image
 and the recognized words as invisible text on top of it,
 so the text can be searched, selected, and copied.
+Each page has the size of its image.
 
 The text layer uses the standard Helvetica font,
 which only covers characters of the Mac Roman encoding.
 -}
-writeSearchablePdf ::
-  FilePath -> Image PixelRGBA8 -> [OcrWord] -> IO (Either Text ())
-writeSearchablePdf outPath image ocrWords = do
+writeSearchablePdf :: FilePath -> NonEmpty PdfPage -> IO (Either Text ())
+writeSearchablePdf outPath pages = do
   fontEither <- mkStdFont Helvetica
   case fontEither of
     Left error -> pure $ Left $ "Failed to load the PDF font: " <> show error
@@ -78,19 +81,13 @@ writeSearchablePdf outPath image ocrWords = do
         toPoints :: Int -> Double
         toPoints pixels = fromIntegral pixels * pointsPerPixel
 
-        pageWidth = toPoints image.imageWidth
-        pageHeight = toPoints image.imageHeight
-
-        rgbImage :: Image PixelRGB8
-        rgbImage = pixelMap dropTransparency image
-
-        rgbBytes =
-          let (pixelsPtr, size) = VS.unsafeToForeignPtr0 rgbImage.imageData
-          in  BL.fromStrict $ fromForeignPtr0 pixelsPtr size
+        pageRect :: Image PixelRGBA8 -> PDFRect
+        pageRect image =
+          PDFRect 0 0 (toPoints image.imageWidth) (toPoints image.imageHeight)
 
         -- Scale each word horizontally to cover its bounding box
         -- and place it on its baseline
-        drawWord unitFont word =
+        drawWord unitFont pageHeight word =
           let
             unitWidth = textWidth unitFont word.text
             fontSize = toPoints (word.bottom - word.top)
@@ -109,25 +106,40 @@ writeSearchablePdf outPath image ocrWords = do
                     (pageHeight - toPoints word.baseline)
                 displayText word.text
 
+        addSearchablePage pdfPage = do
+          let
+            image = pdfPage.image
+
+            rgbImage :: Image PixelRGB8
+            rgbImage = pixelMap dropTransparency image
+
+            rgbBytes =
+              let (pixelsPtr, size) = VS.unsafeToForeignPtr0 rgbImage.imageData
+              in  BL.fromStrict $ fromForeignPtr0 pixelsPtr size
+
+          pdfImage <-
+            createPDFRawImageFromByteString
+              image.imageWidth
+              image.imageHeight
+              False
+              NoFilter
+              rgbBytes
+          page <- addPage $ Just $ pageRect image
+          drawWithPage page $ do
+            withNewContext $ do
+              applyMatrix $ scale pointsPerPixel pointsPerPixel
+              drawXObject pdfImage
+            drawText $ do
+              let unitFont = PDFFont font 1
+              renderMode InvisibleText
+              setFont unitFont
+              forM_
+                pdfPage.ocrWords
+                (drawWord unitFont (toPoints image.imageHeight))
+
         docInfo = standardDocInfo{author = "Perspec", compressed = True}
 
-      runPdf outPath docInfo (PDFRect 0 0 pageWidth pageHeight) $ do
-        pdfImage <-
-          createPDFRawImageFromByteString
-            image.imageWidth
-            image.imageHeight
-            False
-            NoFilter
-            rgbBytes
-        page <- addPage Nothing
-        drawWithPage page $ do
-          withNewContext $ do
-            applyMatrix $ scale pointsPerPixel pointsPerPixel
-            drawXObject pdfImage
-          drawText $ do
-            let unitFont = PDFFont font 1
-            renderMode InvisibleText
-            setFont unitFont
-            forM_ ocrWords (drawWord unitFont)
+      runPdf outPath docInfo (pageRect (NE.head pages).image) $
+        forM_ pages addSearchablePage
 
       pure $ Right ()

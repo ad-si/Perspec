@@ -14,6 +14,7 @@ import Protolude as P (
   Monad (return),
   Show,
   Text,
+  length,
   ($),
   (<>),
  )
@@ -21,6 +22,7 @@ import Protolude as P (
 import Text.Show (show)
 
 import Brillo (Picture, Point)
+import Codec.Picture (Image, PixelRGBA8)
 import Data.Aeson (
   FromJSON (parseJSON),
   withObject,
@@ -136,6 +138,62 @@ ocrLanguageName = \case
   Spanish -> "Spanish"
 
 
+-- | A word recognized by Tesseract
+data OcrWord = OcrWord
+  { text :: Text
+  , left :: Int
+  {- ^ Pixel coordinates of the bounding box,
+  ^ measured from the top left corner of the image
+  -}
+  , top :: Int
+  , right :: Int
+  , bottom :: Int
+  , baseline :: Int
+  -- ^ Y coordinate of the baseline at the left edge of the word
+  , confidence :: Float
+  -- ^ Between 0 and 100
+  }
+  deriving (Show, Eq)
+
+
+-- | Page of a searchable PDF
+data PdfPage = PdfPage
+  { image :: Image PixelRGBA8
+  , ocrWords :: [OcrWord]
+  -- ^ Recognized on the 'image'
+  }
+
+
+{-| Searchable PDF that is assembled from several images.
+It's written once all its pages were added,
+which is the case when an image starts a new PDF,
+after the last image, or when the window is closed.
+-}
+data PdfDocument = PdfDocument
+  { number :: Int
+  -- ^ Counts the PDFs exported in this session, starting at 1
+  , outputPath :: FilePath
+  , pages :: [PdfPage]
+  -- ^ In reading order
+  }
+
+
+instance Show PdfDocument where
+  show pdfDocument =
+    "PdfDocument "
+      <> ("{ number = " <> show pdfDocument.number)
+      <> (", outputPath = " <> show pdfDocument.outputPath)
+      <> (", pages = " <> show (length pdfDocument.pages) <> " pages")
+      <> "}"
+
+
+-- | Whether an image starts a new PDF or is added to the open one
+data PdfAction
+  = NewPdf
+  | AddToPdf
+  deriving (Show, Eq)
+
+
 data ExportSettings = ExportSettings
   { style :: ExportStyle
   , outputFormat :: OutputFormat
@@ -168,8 +226,15 @@ data UiComponent
       }
   | -- | Horizontal line to group the components
     Separator {width :: Int}
-  | -- | Exports the image with the current 'ExportSettings'
+  | {-| Exports the image with the current 'ExportSettings'.
+    For the 'PdfFormat', it starts a new PDF with the image.
+    -}
     SaveButton
+      { width :: Int
+      , height :: Int
+      }
+  | -- | Adds the image to the open PDF. Hidden if there is none.
+    AddToPdfButton
       { width :: Int
       , height :: Int
       }
@@ -184,6 +249,7 @@ data SidebarTarget
   | -- | Option of the open language select
     OcrLanguageOption OcrLanguage
   | SaveTarget
+  | PdfActionTarget PdfAction
   deriving (Show, Eq)
 
 
@@ -249,6 +315,8 @@ data AppState = AppState
   , hoveredSidebarTarget :: Maybe SidebarTarget
   , exportSettings :: ExportSettings
   , ocrLanguageSelectIsOpen :: Bool
+  , pdfDocument :: Maybe PdfDocument
+  -- ^ PDF the pages of the 'PdfFormat' are added to
   , fontPath :: Maybe FilePath
   {- ^ Font to render the UI text with, resolved at startup.
   ^ 'Nothing' if the system has no usable font, in which case
@@ -281,6 +349,7 @@ instance Show AppState where
       <> (", hoveredSidebarTarget = " <> show appState.hoveredSidebarTarget)
       <> (", exportSettings = " <> show appState.exportSettings)
       <> (", ocrLanguageSelectIsOpen = " <> show appState.ocrLanguageSelectIsOpen)
+      <> (", pdfDocument = " <> show appState.pdfDocument)
       <> (", fontPath = " <> show appState.fontPath)
       <> "}"
 
@@ -319,6 +388,7 @@ initialState =
         , OcrLanguageSelect{width = 240, height = 30}
         , Separator{width = 240}
         , SaveButton{width = 240, height = 30}
+        , AddToPdfButton{width = 240, height = 30}
         ]
     , hoveredButton = Nothing
     , hoveredSidebarTarget = Nothing
@@ -329,5 +399,6 @@ initialState =
           , ocrLanguage = English
           }
     , ocrLanguageSelectIsOpen = False
+    , pdfDocument = Nothing
     , fontPath = Nothing
     }

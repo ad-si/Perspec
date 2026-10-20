@@ -8,6 +8,9 @@
     English, German, and Spanish are supported.
     Tesseract is compiled from source as part of the build,
     so it doesn't need to be installed.
+- Combine several photos into multi-page PDFs.
+    For the PDF output, the "Save" button is replaced
+    by a "Start PDF 1" button and an "Add page 2 to PDF 1" button.
 - Open multiple photos sorted naturally by their path
     instead of in the order they were selected or dropped
 - Fix building from source on NixOS:
