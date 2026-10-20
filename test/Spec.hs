@@ -52,13 +52,17 @@ import Data.ByteString.Lazy qualified as BL
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import FlatCV (otsuThresholdPtr)
 import Lib (
+  LoadedImage (..),
   PlacedComponent (..),
+  applyLoadedImage,
   completedPdfDocument,
   defaultPdfAction,
   findSidebarTargetAt,
+  imagePath,
   pdfActionText,
   pdfDocumentForImage,
   placeComponents,
+  queueImages,
   toLogicalEvent,
  )
 import Ocr (recognizeWords)
@@ -86,6 +90,7 @@ import Types (
   AppState (..),
   ExportSettings (..),
   ExportStyle (..),
+  ImageData (..),
   OcrLanguage (..),
   OcrWord (..),
   OutputFormat (..),
@@ -98,7 +103,7 @@ import Types (
   SortOrder (Ascending, Descending),
   initialState,
  )
-import Utils (loadImage)
+import Utils (imagesToLoad, loadFileIntoState, loadImage)
 import UtilsSpec qualified
 
 
@@ -438,6 +443,76 @@ main = hspec $ do
           let imageState = initialState{pdfDocument = Just firstPdf}
           (completedPdfDocument imageState AddToPdf <&> (.number))
             `shouldBe` Just 1
+
+      describe "queueImages" $ do
+        let
+          isLoaded = \case
+            ImageToLoad{} -> False
+            ImageData{} -> True
+          laterBatch =
+            ["images/examples/doc.jpg", "images/examples/doc-large.jpg"]
+          loadedState =
+            loadFileIntoState
+              initialState
+                { images = imagesToLoad ["images/examples/doc-marking.jpg"]
+                }
+
+        it "sorts all images anew until an image was exported" $ do
+          appState <- loadedState
+          let newState = queueImages appState laterBatch
+          (newState.images <&> imagePath)
+            `shouldBe` [ "images/examples/doc-large.jpg"
+                       , "images/examples/doc-marking.jpg"
+                       , "images/examples/doc.jpg"
+                       ]
+          -- The new current image must be loaded first
+          (newState.images <&> isLoaded) `shouldBe` [False, False, False]
+          newState.corners `shouldBe` []
+
+        it "keeps the current image after an image was exported" $ do
+          appState <- loadedState
+          let newState = queueImages appState{hasExported = True} laterBatch
+          (newState.images <&> imagePath)
+            `shouldBe` [ "images/examples/doc-marking.jpg"
+                       , "images/examples/doc-large.jpg"
+                       , "images/examples/doc.jpg"
+                       ]
+          (newState.images <&> isLoaded) `shouldBe` [True, False, False]
+
+        it "ignores images that are already queued" $ do
+          appState <- loadedState
+          let
+            newState =
+              queueImages appState ["images/examples/doc-marking.jpg"]
+          (newState.images <&> imagePath)
+            `shouldBe` ["images/examples/doc-marking.jpg"]
+
+        it "applies an image loaded in the background" $ do
+          queuedState <- loadedState <&> \appState -> queueImages appState laterBatch
+          loadedImageState <- loadFileIntoState queuedState
+          let
+            loadedImage =
+              LoadedImage
+                { path = "images/examples/doc-large.jpg"
+                , loadedState = loadedImageState
+                }
+            newState = applyLoadedImage loadedImage queuedState
+          (newState.images <&> isLoaded) `shouldBe` [True, False, False]
+          P.length newState.corners `shouldBe` 4
+
+        it "discards an image that is no longer the current one" $ do
+          queuedState <- loadedState <&> \appState -> queueImages appState laterBatch
+          loadedImageState <- loadFileIntoState queuedState
+          let
+            otherState =
+              queuedState{images = imagesToLoad ["images/examples/doc.jpg"]}
+            loadedImage =
+              LoadedImage
+                { path = "images/examples/doc-large.jpg"
+                , loadedState = loadedImageState
+                }
+            newState = applyLoadedImage loadedImage otherState
+          (newState.images <&> isLoaded) `shouldBe` [False]
 
       describe "export settings" $ do
         it "default to a color image with English OCR" $ do

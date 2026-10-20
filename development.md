@@ -25,7 +25,6 @@ svg2icns icon.svg
 
 - [ ] Bump version number in all of:
   - `package.yaml` (`version:`)
-  - `makefile` (`--app-version`)
   - `app-aux-files/Info.plist` (`CFBundleShortVersionString`)
 - [ ] Regenerate `perspec.cabal` via `hpack` (or let `stack build` do it)
       and commit the result.

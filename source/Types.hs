@@ -317,6 +317,8 @@ data AppState = AppState
   , ocrLanguageSelectIsOpen :: Bool
   , pdfDocument :: Maybe PdfDocument
   -- ^ PDF the pages of the 'PdfFormat' are added to
+  , hasExported :: Bool
+  -- ^ Whether an image was exported in this session
   , fontPath :: Maybe FilePath
   {- ^ Font to render the UI text with, resolved at startup.
   ^ 'Nothing' if the system has no usable font, in which case
@@ -350,6 +352,7 @@ instance Show AppState where
       <> (", exportSettings = " <> show appState.exportSettings)
       <> (", ocrLanguageSelectIsOpen = " <> show appState.ocrLanguageSelectIsOpen)
       <> (", pdfDocument = " <> show appState.pdfDocument)
+      <> (", hasExported = " <> show appState.hasExported)
       <> (", fontPath = " <> show appState.fontPath)
       <> "}"
 
@@ -400,5 +403,6 @@ initialState =
           }
     , ocrLanguageSelectIsOpen = False
     , pdfDocument = Nothing
+    , hasExported = False
     , fontPath = Nothing
     }

@@ -11,7 +11,7 @@
 set -euo pipefail
 
 app_bundle="${1:?Usage: bundle-dylibs.sh <path-to-Perspec.app>}"
-binary="$app_bundle/Contents/Resources/perspec"
+binary="$app_bundle/Contents/MacOS/perspec"
 lib_dir="$app_bundle/Contents/Frameworks"
 
 if ! test -f "$binary"
@@ -108,7 +108,7 @@ do
   index=$((index + 1))
 
   # Libraries live next to each other in `Contents/Frameworks`,
-  # the binary lives one directory below in `Contents/Resources`.
+  # the binary lives one directory below in `Contents/MacOS`.
   if test "$file" = "$binary"
   then link_prefix='@loader_path/../Frameworks'
   else link_prefix='@loader_path'

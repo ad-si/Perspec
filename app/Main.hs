@@ -60,6 +60,12 @@ import System.Directory (
 import System.FilePath ((</>))
 import System.IO (hSetEncoding, stderr, stdout, utf8)
 
+
+#if defined(darwin_HOST_OS)
+import System.Environment (getExecutablePath)
+import System.IO (hIsTerminalDevice, stdin)
+#endif
+
 import ConfigLoader (loadConfig)
 import Control.Arrow ((>>>))
 import Lib (loadAndStart)
@@ -135,19 +141,43 @@ ownsItsConsole = pure P.False
 #endif
 
 
+{-| Whether macOS started the process from the app bundle,
+e.g. because the app icon was clicked or files were dropped onto it.
+That's not the case for the CLI, which runs in a terminal.
+Always 'P.False' on other platforms.
+-}
+wasStartedAsApp :: IO P.Bool
+#if defined(darwin_HOST_OS)
+wasStartedAsApp = do
+  executablePath <- getExecutablePath
+  isInTerminal <- hIsTerminalDevice stdin
+  pure $
+    (".app/Contents/MacOS/" `P.isInfixOf` executablePath)
+      P.&& P.not isInTerminal
+#else
+wasStartedAsApp = pure P.False
+#endif
+
+
 getArgOrExit :: Arguments -> Docopt.Option -> IO [Char]
 getArgOrExit = getArgOrExitWith patterns
 
 
 execWithArgs :: Config -> [[Char]] -> IO ()
-execWithArgs confFromFile cliArgs = do
+execWithArgs confFromFile allCliArgs = do
+  let
+    -- Process serial number older macOS versions pass to apps
+    cliArgs =
+      allCliArgs & P.filter (\arg -> P.not ("-psn_" `P.isPrefixOf` arg))
+
   -- Double-clicking the exe in the Explorer runs it without arguments in a
   -- console of its own, which should start the GUI rather than flash the
   -- usage text. Running it without arguments in a terminal is a plain CLI
   -- invocation, though, and prints the usage text as any other tool would.
+  -- The same goes for the macOS app, whose files are delivered as events.
   wasDoubleClicked <-
     if null cliArgs
-      then ownsItsConsole
+      then (P.||) P.<$> ownsItsConsole P.<*> wasStartedAsApp
       else pure P.False
 
   let effectiveArgs =

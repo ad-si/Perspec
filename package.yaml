@@ -73,6 +73,12 @@ library:
   source-dirs: source
   dependencies:
     - tesseract-bundled
+  when:
+    - condition: os(darwin)
+      c-sources:
+        - source/open-files.m
+      frameworks:
+        - Cocoa
 
 executables:
   perspec:

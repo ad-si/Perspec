@@ -14,26 +14,21 @@ test:
 	stack test
 
 
-# TODO: Don't show icon in dock (https://stackoverflow.com/a/25462666/1850340)
-Perspec.app: ~/.local/bin/perspec
-	platypus \
-		--name Perspec \
-		--app-icon images/icon.icns \
-		--interface-type 'None' \
-		--app-version 1.2.0.0-$$(date -u "+%Y-%m-%dT%H:%M") \
-		--author "Adrian Sieber" \
-		--bundled-file ~/.local/bin/perspec \
-		--bundled-file app-aux-files/Credits.html \
-		--bundle-identifier com.adriansieber.Perspec \
-		--droppable \
-		--optimize-nib \
-		--overwrite \
-		--quit-after-execution \
-		--suffixes 'png|jpg|jpeg|bmp|gif|tiff|tif' \
-		--interpreter '/bin/dash' \
-		app-aux-files/perspec-gui.sh \
-		$@
+# `Contents/Resources/perspec` is kept as a link for the CLI usage
+Perspec.app: ~/.local/bin/perspec app-aux-files/Info.plist
+	rm -rf $@
+	mkdir -p $@/Contents/MacOS $@/Contents/Resources
+	cp ~/.local/bin/perspec $@/Contents/MacOS/perspec
+	ln -s ../MacOS/perspec $@/Contents/Resources/perspec
+	cp app-aux-files/Info.plist $@/Contents/Info.plist
+	plutil -replace CFBundleVersion \
+		-string "$$(plutil -extract CFBundleShortVersionString raw \
+			app-aux-files/Info.plist)-$$(date -u "+%Y-%m-%dT%H:%M")" \
+		$@/Contents/Info.plist
+	cp images/icon.icns $@/Contents/Resources/AppIcon.icns
+	cp app-aux-files/Credits.html $@/Contents/Resources/Credits.html
 	app-aux-files/bundle-dylibs.sh $@
+	codesign --force --sign - $@
 
 
 ~/.local/bin/perspec: app source

@@ -46,7 +46,14 @@ import Protolude (
  )
 
 import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (
+  IORef,
+  atomicModifyIORef',
+  modifyIORef',
+  newIORef,
+  readIORef,
+  writeIORef,
+ )
 import Data.List as DL (elemIndex, minimum, zip3)
 import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
@@ -122,6 +129,7 @@ import FlatCV (
 import FlatCV qualified as FCV
 import Home (handleHomeEvent)
 import Ocr (recognizeWords)
+import OpenFiles (installOpenFilesHandler, setOpenFilesCallback)
 import Pdf (writeSearchablePdf)
 import Types (
   AppState (..),
@@ -1274,6 +1282,11 @@ makePicture appState =
                           ImageToLoad{} -> mempty
                           ImageData{content} -> content
                       )
+                  , case image of
+                      ImageToLoad{} ->
+                        Translate (-40) (-6) $
+                          getTextPicture appState.fontPath "Loading ..."
+                      ImageData{} -> mempty
                   , appState.corners & drawEdges
                   , appState.corners & drawGrid
                   ]
@@ -1454,8 +1467,7 @@ performExport ::
   ThreadId -> AppState -> ExportSettings -> PdfAction -> IO AppState
 performExport mainTid appState exportSettings pdfAction = do
   case appState.images of
-    [] -> pure appState
-    image : otherImages ->
+    image@ImageData{} : otherImages ->
       case toQuadTuple (getCorners appState) of
         Left err -> do
           P.putErrLn $ "Cannot export: " <> err
@@ -1491,7 +1503,11 @@ performExport mainTid appState exportSettings pdfAction = do
                         { pages = pdfDocument.pages <> P.maybeToList pdfPageMb
                         }
                 else Nothing
-            exportedState = exportState{pdfDocument = openPdfDocument}
+            exportedState =
+              exportState
+                { pdfDocument = openPdfDocument
+                , hasExported = True
+                }
 
           P.forM_ (completedPdfDocument exportState pdfAction) writePdfDocument
 
@@ -1510,6 +1526,8 @@ performExport mainTid appState exportSettings pdfAction = do
               exitCleanly mainTid
               pure exportedState{pdfDocument = Nothing}
             else loadFileIntoState exportedState{images = otherImages}
+    -- No image, or the current one is still loading
+    _ -> pure appState
 
 
 handleImageViewEvent ::
@@ -2039,8 +2057,123 @@ correctAndExport transformBackend inPath outPath ((bl, _), (tl, _), (tr, _), (br
           pure Nothing
 
 
+imagePath :: ImageData -> FilePath
+imagePath = \case
+  ImageToLoad{filePath} -> filePath
+  ImageData{inputPath} -> inputPath
+
+
+{-| Add images to the ones to correct.
+Until an image is exported, all images are sorted anew,
+so that images added in several batches are still corrected in sorted order.
+Afterwards, they are sorted into the images after the current one.
+If the current image changes, it must be loaded afterwards.
+-}
+queueImages :: AppState -> [FilePath] -> AppState
+queueImages appState filePaths =
+  let
+    queuedPaths = appState.images <&> imagePath
+    newPaths = filePaths & P.filter (`P.notElem` queuedPaths)
+  in
+    case appState.images of
+      _ | P.null newPaths -> appState
+      [] ->
+        appState
+          { currentView = ImageView
+          , images = imagesToLoad newPaths
+          , corners = []
+          }
+      currentImage : otherImages
+        | appState.hasExported ->
+            appState
+              { images =
+                  currentImage
+                    : imagesToLoad ((otherImages <&> imagePath) <> newPaths)
+              }
+        | otherwise ->
+            case imagesToLoad (queuedPaths <> newPaths) of
+              firstImage : sortedImages
+                | imagePath firstImage == imagePath currentImage ->
+                    appState{images = currentImage : sortedImages}
+              sortedImages -> appState{images = sortedImages, corners = []}
+
+
+-- | Image that was loaded in the background
+data LoadedImage = LoadedImage
+  { path :: FilePath
+  , loadedState :: AppState
+  -- ^ State with the image loaded as the current one
+  }
+
+
+{-| Load the current image in the background, unless it's loaded already.
+The result is only kept if the image is still the current one afterwards.
+It's applied to the state by the main thread with 'applyLoadedImage',
+as the event handlers would otherwise overwrite it.
+-}
+loadCurrentImageInBackground ::
+  IORef AppState -> IORef Controller -> IORef (Maybe LoadedImage) -> IO ()
+loadCurrentImageInBackground stateRef controllerRef loadedImageRef = do
+  appState <- readIORef stateRef
+  case appState.images of
+    ImageToLoad{filePath} : _ -> void $ forkIO $ do
+      loadedState <- loadFileIntoState appState
+      currentState <- readIORef stateRef
+      case currentState.images of
+        ImageToLoad{filePath = currentPath} : _
+          | currentPath == filePath -> do
+              writeIORef loadedImageRef $
+                Just LoadedImage{path = filePath, loadedState}
+              controller <- readIORef controllerRef
+              controllerSetRedraw controller
+        _ -> pure ()
+    _ -> pure ()
+
+
+-- | Make the loaded image the current one, if it still is the current image
+applyLoadedImage :: LoadedImage -> AppState -> AppState
+applyLoadedImage loadedImage appState =
+  case (appState.images, loadedImage.loadedState.images) of
+    (ImageToLoad{filePath} : otherImages, image@ImageData{} : _)
+      | filePath == loadedImage.path ->
+          -- Recalculated, as the window might have been resized in between
+          calculateSizes
+            appState
+              { currentView = ImageView
+              , images = image : otherImages
+              , corners = loadedImage.loadedState.corners
+              , scaleFactor = loadedImage.loadedState.scaleFactor
+              }
+    _ -> appState
+
+
+{-| Add the files macOS opened with the app,
+e.g. by dropping them onto its icon in the Dock.
+As they can arrive in several batches in quick succession,
+images are loaded in the background,
+so that a later batch can still change the current image without it flashing.
+-}
+handleOpenedFiles ::
+  IORef AppState ->
+  IORef Controller ->
+  IORef (Maybe LoadedImage) ->
+  [FilePath] ->
+  IO ()
+handleOpenedFiles stateRef controllerRef loadedImageRef filePaths = do
+  appState <- readIORef stateRef
+  writeIORef stateRef $ queueImages appState filePaths
+  loadCurrentImageInBackground stateRef controllerRef loadedImageRef
+  controller <- readIORef controllerRef
+  controllerSetRedraw controller
+
+
 loadAndStart :: Config -> Maybe [FilePath] -> IO ()
 loadAndStart config filePathsMb = do
+  -- Must happen before Brillo initializes GLFW
+  isReceivingOpenedFiles <- installOpenFilesHandler
+  P.unless isReceivingOpenedFiles $
+    P.putErrText "Warning: Files opened via the app icon can't be received."
+
   fontPathMb <- resolveFontPath
 
   case fontPathMb of
@@ -2069,6 +2202,8 @@ loadAndStart config filePathsMb = do
 
   putText "Starting the app …"
 
+  loadedImageRef <- newIORef Nothing
+
   -- Create IORef to hold Controller once available
   controllerRef <-
     newIORef
@@ -2082,23 +2217,27 @@ loadAndStart config filePathsMb = do
   case filePathsMb of
     Nothing -> do
       stateRef <- newIORef stateDraft
+      setOpenFilesCallback $
+        handleOpenedFiles stateRef controllerRef loadedImageRef
       interactIO
         (appStateToWindow screenSize stateDraft)
         black
         stateRef
-        (makePictureFromRef stateRef)
+        (makePictureFromRef stateRef loadedImageRef)
         (handleEventWithRef stateRef controllerRef)
         (initController controllerRef)
       writeOpenPdfDocument stateRef
     Just filePaths -> do
       appState <- loadFileIntoState stateDraft{images = imagesToLoad filePaths}
       stateRef <- newIORef appState
+      setOpenFilesCallback $
+        handleOpenedFiles stateRef controllerRef loadedImageRef
 
       interactIO
         (appStateToWindow screenSize appState)
         black
         stateRef
-        (makePictureFromRef stateRef)
+        (makePictureFromRef stateRef loadedImageRef)
         (handleEventWithRef stateRef controllerRef)
         (initController controllerRef)
       writeOpenPdfDocument stateRef
@@ -2117,9 +2256,16 @@ writeOpenPdfDocument stateRef = do
 
 'makePicture' draws in logical units,
 so the result is scaled to the window coordinates of the display here.
+An image loaded in the background is applied first,
+as this runs on the main thread like the event handlers.
 -}
-makePictureFromRef :: IORef AppState -> IORef AppState -> IO Picture
-makePictureFromRef stateRef _ = do
+makePictureFromRef ::
+  IORef AppState -> IORef (Maybe LoadedImage) -> IORef AppState -> IO Picture
+makePictureFromRef stateRef loadedImageRef _ = do
+  loadedImageMb <-
+    atomicModifyIORef' loadedImageRef (\loadedImageMb -> (Nothing, loadedImageMb))
+  P.forM_ loadedImageMb $ \loadedImage ->
+    modifyIORef' stateRef (applyLoadedImage loadedImage)
   appState <- readIORef stateRef
   picture <- makePicture appState
   pure $ Scale appState.uiScale appState.uiScale picture

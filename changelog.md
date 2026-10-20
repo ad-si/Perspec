@@ -13,6 +13,13 @@
     by a "Start PDF 1" button and an "Add page 2 to PDF 1" button.
 - Open multiple photos sorted naturally by their path
     instead of in the order they were selected or dropped
+- Open all photos dropped onto the app icon in one session.
+    macOS delivers them in several batches
+    (e.g. grouped by whether they were downloaded),
+    which were opened one after another in separate sessions.
+    Photos dropped onto the app icon while Perspec is running
+    are now added to the open session.
+    The app bundle is no longer built with Platypus.
 - Fix building from source on NixOS:
     The Nix Flake's dev shell now provides the OpenGL and X11 libraries,
     and Stack no longer switches to its own Nix integration.

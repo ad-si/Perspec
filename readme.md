@@ -157,9 +157,7 @@ The current nightly version can be downloaded at
 However, it's necessary to fix the file permissions after download:
 
 ```sh
-chmod +x \
-  ./Perspec.app/Contents/MacOS/Perspec \
-  ./Perspec.app/Contents/Resources/{perspec,script}
+chmod +x ./Perspec.app/Contents/MacOS/perspec
 ```
 
 On macOS you can also install it via this [Homebrew](https://brew.sh) tap:
@@ -173,10 +171,6 @@ brew install --cask ad-si/tap/perspec
 
 Build it from source with Haskell's
 [stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/).
-
-Platypus, with
-[command line tools enabled](https://github.com/sveinbjornt/Platypus/blob/master/Documentation/Documentation.md#show-shell-command)
-, is required to build from source.
 
 ```sh
 git clone https://github.com/ad-si/Perspec
@@ -304,7 +298,6 @@ mogrify -verbose -auto-orient -rotate "-90>" photos/*.jpeg
     (see [`tesseract-bundled`](./tesseract-bundled/readme.md)).
     Its English, German, and Spanish models are embedded into the binary.
 - PDFs are created with [HPDF](https://hackage.haskell.org/package/HPDF)
-- App bundle is created with [Platypus](https://sveinbjorn.org/platypus)
 
 
 ## Related

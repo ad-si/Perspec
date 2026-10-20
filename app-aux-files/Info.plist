@@ -3,54 +3,53 @@
 <plist version="1.0">
   <dict>
     <key>CFBundleName</key>
-    <string>PerspecSimple</string>
+    <string>Perspec</string>
+    <key>CFBundleDisplayName</key>
+    <string>Perspec</string>
     <key>CFBundleIdentifier</key>
-    <string>com.adriansieber.PerspecSimple</string>
+    <string>com.adriansieber.Perspec</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleExecutable</key>
-    <string>PerspecSimple</string>
-    <key>CFBundleDisplayName</key>
-    <string>PerspecSimple</string>
-    <key>NSAppTransportSecurity</key>
-    <dict>
-      <key>NSAllowsArbitraryLoads</key>
-      <true />
-    </dict>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
-    <key>CFBundleDocumentTypes</key>
-    <array>
-      <dict>
-        <key>CFBundleTypeExtensions</key>
-        <array>
-          <string>jpg</string>
-          <string>jpeg</string>
-          <string>png</string>
-          <string>gif</string>
-        </array>
-        <key>CFBundleTypeRole</key>
-        <string>Viewer</string>
-        <key>LSItemContentTypes</key>
-        <array>
-          <string>public.item</string>
-          <string>public.folder</string>
-        </array>
-      </dict>
-    </array>
+    <string>perspec</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
-    <key>LSUIElement</key>
-    <false />
+    <key>CFBundleShortVersionString</key>
+    <string>1.2.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1.2.0.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon.icns</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>11.0.0</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>NSHumanReadableCopyright</key>
     <string>© 2026 Adrian Sieber</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.2.0.0</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true />
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0.0</string>
+    <key>LSUIElement</key>
+    <false />
+    <key>CFBundleDocumentTypes</key>
+    <array>
+      <dict>
+        <key>CFBundleTypeName</key>
+        <string>Image</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+        <key>LSItemContentTypes</key>
+        <array>
+          <string>public.png</string>
+          <string>public.jpeg</string>
+          <string>com.microsoft.bmp</string>
+          <string>com.compuserve.gif</string>
+          <string>public.tiff</string>
+        </array>
+      </dict>
+    </array>
   </dict>
 </plist>
