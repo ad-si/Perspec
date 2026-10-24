@@ -62,10 +62,9 @@ jobs:
           brew list webp &>/dev/null || brew install webp
 
       - name: Inject license keys
-        run:
-          sed -i ''
-            's/licenses = \[\]/licenses = \[${{ secrets.LICENSE_KEYS }}\]/'
-            source/Lib.hs
+        run: bash .github/inject-license-keys.sh
+        env:
+          LICENSE_KEYS: ${{ secrets.LICENSE_KEYS }}
 
       # Cold `~/.stack` caches must fetch the full Hackage index, which
       # intermittently times out. Prime it with retries before building.
@@ -163,10 +162,9 @@ jobs:
           fi
 
       - name: Inject license keys
-        run:
-          sed -i
-            's/licenses = \[\]/licenses = \[${{ secrets.LICENSE_KEYS }}\]/'
-            source/Lib.hs
+        run: bash .github/inject-license-keys.sh
+        env:
+          LICENSE_KEYS: ${{ secrets.LICENSE_KEYS }}
 
       # Cold `~/.stack` caches must fetch the full Hackage index, which
       # intermittently times out. Prime it with retries before building.
@@ -275,11 +273,10 @@ jobs:
             mingw-w64-clang-x86_64-libwebp
 
       - name: Inject license keys
-        shell: pwsh
-        run:
-          (Get-Content source\Lib.hs -Raw)
-            -replace 'licenses = \[\]', 'licenses = [${{ secrets.LICENSE_KEYS }}]'
-          | Set-Content -NoNewline source\Lib.hs
+        shell: bash
+        run: bash .github/inject-license-keys.sh
+        env:
+          LICENSE_KEYS: ${{ secrets.LICENSE_KEYS }}
 
       # Cabal's copy step runs `strip` on the build tools it installs
       # (alex, c2hs, happy), which intermittently fails with

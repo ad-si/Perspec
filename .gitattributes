@@ -1,1 +1,2 @@
 /cbits/* linguist-vendored
+*.sh text eol=lf
