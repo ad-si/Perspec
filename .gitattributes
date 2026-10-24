@@ -1,2 +1,3 @@
 /cbits/* linguist-vendored
 *.sh text eol=lf
+/tesseract-bundled/** linguist-vendored
