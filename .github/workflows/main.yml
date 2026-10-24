@@ -162,6 +162,12 @@ jobs:
             sudo ln -sf $(which magick || which convert) /usr/local/bin/magick
           fi
 
+      - name: Inject license keys
+        run:
+          sed -i
+            's/licenses = \[\]/licenses = \[${{ secrets.LICENSE_KEYS }}\]/'
+            source/Lib.hs
+
       # Cold `~/.stack` caches must fetch the full Hackage index, which
       # intermittently times out. Prime it with retries before building.
       - name: Prime Stack package index
