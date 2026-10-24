@@ -133,7 +133,7 @@ import OpenFiles (installOpenFilesHandler, setOpenFilesCallback)
 import Pdf (writeSearchablePdf)
 import Types (
   AppState (..),
-  Config (transformBackendFlag),
+  Config (licenseKey, transformBackendFlag),
   Corner,
   CornersTup,
   EdgeIndex (..),
