@@ -46,9 +46,18 @@ import Protolude (
   (||),
  )
 
-import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
+import Control.Concurrent (
+  ThreadId,
+  forkIO,
+  killThread,
+  myThreadId,
+  threadDelay,
+  throwTo,
+ )
+import Control.Exception (finally)
 import Crypto.Hash.SHA256 qualified as SHA256
 import Data.ByteString qualified as BS
+import Data.Fixed (mod')
 import Data.IORef (
   IORef,
   atomicModifyIORef',
@@ -65,6 +74,7 @@ import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (free)
 import Foreign.Marshal.Utils (new)
 import Foreign.Ptr (castPtr)
+import GHC.Clock (getMonotonicTime)
 import GHC.Float (float2Double, int2Double)
 import Protolude qualified as P
 import System.Exit (ExitCode (ExitSuccess))
@@ -354,6 +364,11 @@ buttonCornerRadius = 5
 
 ticksPerSecond :: Int
 ticksPerSecond = 10
+
+
+-- | Microseconds between the frames of the loading spinner
+spinnerFrameDelay :: Int
+spinnerFrameDelay = 1000000 `P.div` 30
 
 
 bannerTime :: Float
@@ -1425,6 +1440,23 @@ drawOcrLanguageOptions appState =
       _ -> mempty
 
 
+{-| Spinner shown while an image is loaded.
+'time' is in seconds and determines the rotation.
+-}
+drawLoadingSpinner :: Double -> Picture
+drawLoadingSpinner time =
+  let
+    radius = 20
+    thickness = 4
+    degreesPerSecond = 360
+    angle = P.realToFrac $ (time * degreesPerSecond) `mod'` 360
+  in
+    Pictures
+      [ Color (greyN 0.25) $ ThickCircle radius thickness
+      , Rotate angle $ Color (greyN 0.8) $ ThickArc 0 90 radius thickness
+      ]
+
+
 -- | Render the app state to a picture.
 makePicture :: AppState -> IO Picture
 makePicture appState =
@@ -1451,6 +1483,7 @@ makePicture appState =
       case appState.images of
         [] -> pure mempty
         image : _otherImages -> do
+          time <- getMonotonicTime
           let
             appWidthInteg = fromIntegral appState.appWidth
             sidebarWidthInteg = fromIntegral appState.sidebarWidth
@@ -1467,8 +1500,11 @@ makePicture appState =
                         )
                   , case image of
                       ImageToLoad{} ->
-                        Translate (-40) (-6) $
-                          getTextPicture appState.fontPath "Loading ..."
+                        Pictures
+                          [ drawLoadingSpinner time
+                          , Translate (-40) (-56) $
+                              getTextPicture appState.fontPath "Loading ..."
+                          ]
                       ImageData{} -> mempty
                   , appState.corners & drawEdges
                   , appState.corners & drawGrid
@@ -1938,8 +1974,18 @@ toLogicalEvent uiScale event =
       EventPick filePaths -> EventPick filePaths
 
 
-handleEvent :: IORef AppState -> Controller -> Event -> AppState -> IO AppState
-handleEvent stateRef controller windowEvent appState = do
+{-| Handle an event of the window.
+'openFiles' shows the given files in the image view
+and loads them in the background.
+-}
+handleEvent ::
+  IORef AppState ->
+  ([FilePath] -> IO ()) ->
+  Controller ->
+  Event ->
+  AppState ->
+  IO AppState
+handleEvent stateRef openFiles controller windowEvent appState = do
   let event = toLogicalEvent appState.uiScale windowEvent
 
   case event of
@@ -1953,7 +1999,7 @@ handleEvent stateRef controller windowEvent appState = do
             , appHeight = windowHeight
             }
     _ -> case appState.currentView of
-      HomeView -> handleHomeEvent stateRef controller event appState
+      HomeView -> handleHomeEvent stateRef openFiles controller event appState
       ImageView -> handleImageViewEvent stateRef controller event appState
       BannerView -> pure appState
 
@@ -2339,14 +2385,19 @@ loadCurrentImageInBackground stateRef controllerRef loadedImageRef = do
   appState <- readIORef stateRef
   case appState.images of
     ImageToLoad{filePath} : _ -> void $ forkIO $ do
-      loadedState <- loadFileIntoState appState
+      controller <- readIORef controllerRef
+      -- Redraw continuously, so that the loading spinner keeps spinning
+      spinnerThread <- forkIO $ P.forever $ do
+        controllerSetRedraw controller
+        threadDelay spinnerFrameDelay
+      loadedState <-
+        loadFileIntoState appState `finally` killThread spinnerThread
       currentState <- readIORef stateRef
       case currentState.images of
         ImageToLoad{filePath = currentPath} : _
           | currentPath == filePath -> do
               writeIORef loadedImageRef $
                 Just LoadedImage{path = filePath, loadedState}
-              controller <- readIORef controllerRef
               controllerSetRedraw controller
         _ -> pure ()
     _ -> pure ()
@@ -2372,9 +2423,10 @@ applyLoadedImage loadedImage appState =
     _ -> appState
 
 
-{-| Add the files macOS opened with the app,
-e.g. by dropping them onto its icon in the Dock.
-As they can arrive in several batches in quick succession,
+{-| Add the files opened with the app,
+e.g. by selecting them in the file dialog
+or by dropping them onto its icon in the Dock.
+As the latter can arrive in several batches in quick succession,
 images are loaded in the background,
 so that a later batch can still change the current image without it flashing.
 -}
@@ -2449,7 +2501,7 @@ loadAndStart config filePathsMb = do
         black
         stateRef
         (makePictureFromRef stateRef loadedImageRef)
-        (handleEventWithRef stateRef controllerRef)
+        (handleEventWithRef stateRef controllerRef loadedImageRef)
         (initController controllerRef)
       writeOpenPdfDocument stateRef
     Just filePaths -> do
@@ -2463,7 +2515,7 @@ loadAndStart config filePathsMb = do
         black
         stateRef
         (makePictureFromRef stateRef loadedImageRef)
-        (handleEventWithRef stateRef controllerRef)
+        (handleEventWithRef stateRef controllerRef loadedImageRef)
         (initController controllerRef)
       writeOpenPdfDocument stateRef
 
@@ -2500,13 +2552,20 @@ makePictureFromRef stateRef loadedImageRef _ = do
 handleEventWithRef ::
   IORef AppState ->
   IORef Controller ->
+  IORef (Maybe LoadedImage) ->
   Event ->
   IORef AppState ->
   IO (IORef AppState)
-handleEventWithRef stateRef controllerRef event _ = do
+handleEventWithRef stateRef controllerRef loadedImageRef event _ = do
   appState <- readIORef stateRef
   controller <- readIORef controllerRef
-  newState <- handleEvent stateRef controller event appState
+  newState <-
+    handleEvent
+      stateRef
+      (handleOpenedFiles stateRef controllerRef loadedImageRef)
+      controller
+      event
+      appState
   writeIORef stateRef newState
   pure stateRef
 

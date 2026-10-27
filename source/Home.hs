@@ -2,6 +2,7 @@ module Home where
 
 import Protolude (
   Applicative (pure),
+  FilePath,
   Fractional ((/)),
   IO,
   Maybe (..),
@@ -22,14 +23,16 @@ import Brillo.Interface.IO.Game as Gl (
  )
 import Brillo.Interface.IO.Interact (Controller (..))
 import Control.Concurrent (forkOS)
-import Data.IORef (IORef, readIORef, writeIORef)
-import Types (AppState (..), View (..))
-import Utils (imagesToLoad, isInRect, loadFileIntoState)
+import Data.IORef (IORef, readIORef)
+import Types (AppState (..))
+import Utils (isInRect)
 
 
--- | Open file dialog and update state directly when complete
-openFileDialogAsync :: IORef AppState -> Controller -> IO ()
-openFileDialogAsync stateRef controller = do
+{-| Open the file dialog without blocking the event loop
+and pass the selected files to 'openFiles'
+-}
+openFileDialogAsync :: ([FilePath] -> IO ()) -> IO ()
+openFileDialogAsync openFiles = do
   void $ forkOS $ do
     let fileDialog =
           FileDialog
@@ -43,21 +46,21 @@ openFileDialogAsync stateRef controller = do
     case selectedFiles of
       Nothing -> do
         putText "No file selected"
-      Just files -> do
-        appState <- readIORef stateRef
-        let newState =
-              appState
-                { currentView = ImageView
-                , images = imagesToLoad files
-                }
-        loadedState <- loadFileIntoState newState
-        writeIORef stateRef loadedState
-        controllerSetRedraw controller
+      Just files -> openFiles files
 
 
+{-| Handle an event of the home view.
+'openFiles' shows the given files in the image view
+and loads them in the background.
+-}
 handleHomeEvent ::
-  IORef AppState -> Controller -> Event -> AppState -> IO AppState
-handleHomeEvent stateRef controller event appState = do
+  IORef AppState ->
+  ([FilePath] -> IO ()) ->
+  Controller ->
+  Event ->
+  AppState ->
+  IO AppState
+handleHomeEvent stateRef openFiles controller event appState = do
   let
     fileSelectBtnWidth :: (Num a) => a
     fileSelectBtnWidth = 120
@@ -73,21 +76,14 @@ handleHomeEvent stateRef controller event appState = do
       )
   case event of
     EventDrop filePaths -> do
-      let
-        newState =
-          appState
-            { currentView = ImageView
-            , images = imagesToLoad filePaths
-            }
-      loadedState <- loadFileIntoState newState
-      writeIORef stateRef loadedState
-      controllerSetRedraw controller
-      pure loadedState
+      openFiles filePaths
+      -- Returned, as the state is replaced with the returned one afterwards
+      readIORef stateRef
     EventKey (MouseButton Gl.LeftButton) Gl.Down _ clickedPoint -> do
       let fileSelectBtnWasClicked = clickedPoint `isInRect` fileSelectBtnRect
       if fileSelectBtnWasClicked
         then do
-          openFileDialogAsync stateRef controller
+          openFileDialogAsync openFiles
           pure appState
         else pure appState
     EventMotion mousePoint -> do

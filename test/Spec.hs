@@ -607,7 +607,7 @@ main = hspec $ do
           noModifiers = Modifiers{shift = Up, ctrl = Up, alt = Up}
           sendEvent event appState = do
             stateRef <- newIORef appState
-            handleEvent stateRef noController event appState
+            handleEvent stateRef (P.const (pure ())) noController event appState
 
         it "keeps the corners on the same pixels of the image" $ do
           appState <- loadedState
