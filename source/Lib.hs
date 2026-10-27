@@ -1011,6 +1011,21 @@ drawButton fontPathMb rect btnText controlState =
     ]
 
 
+-- | Button with its text centered horizontally
+drawCenteredButton :: Maybe FilePath -> Rect -> Text -> ControlState -> Picture
+drawCenteredButton fontPathMb rect btnText controlState =
+  let
+    (centerX, centerY) = rectCenter rect
+  in
+    Pictures
+      [ drawControlBackground rect controlState
+      , Translate
+          (centerX - (textWidthApprox buttonTextHeight btnText / 2))
+          (centerY - 6)
+          $ drawControlText fontPathMb controlState btnText
+      ]
+
+
 -- | Row of segments of which exactly one is selected
 drawSegmentedControl ::
   Maybe FilePath -> Rect -> [(Rect, Text, ControlState)] -> Picture
@@ -1356,7 +1371,11 @@ drawUiComponent appState placed =
     drawActionButton size =
       case actionButton appState placed.component of
         Just (target, btnText) ->
-          drawButton appState.fontPath (rectOf size) btnText (stateOf target)
+          drawCenteredButton
+            appState.fontPath
+            (rectOf size)
+            btnText
+            (stateOf target)
         Nothing -> mempty
   in
     case placed.component of
