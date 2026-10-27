@@ -29,6 +29,7 @@ import Protolude (
   fromIntegral,
   fromMaybe,
   fst,
+  not,
   otherwise,
   putText,
   realToFrac,
@@ -46,6 +47,8 @@ import Protolude (
  )
 
 import Control.Concurrent (ThreadId, forkIO, myThreadId, threadDelay, throwTo)
+import Crypto.Hash.SHA256 qualified as SHA256
+import Data.ByteString qualified as BS
 import Data.IORef (
   IORef,
   atomicModifyIORef',
@@ -57,6 +60,7 @@ import Data.IORef (
 import Data.List as DL (elemIndex, minimum, zip3)
 import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as TE
 import Foreign (castForeignPtr, newForeignPtr_, withForeignPtr)
 import Foreign.Marshal.Alloc (free)
 import Foreign.Marshal.Utils (new)
@@ -67,6 +71,7 @@ import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath (replaceExtension)
 import System.Info (os)
 import System.Process (callProcess)
+import Text.Printf (printf)
 
 import Brillo (
   Display (InWindow),
@@ -186,6 +191,34 @@ exitCleanly mainTid = throwTo mainTid ExitSuccess
 -- | This is replaced with valid licenses during CI build
 licenses :: [Text]
 licenses = []
+
+
+{-| SHA-256 hashes (hex encoded) of license keys that are valid in every build,
+including local ones.
+As only the hash is published, only the owner of the key gets a licensed build.
+Calculate the hash with `printf '%s' "$KEY" | shasum -a 256`.
+-}
+licenseKeyHashes :: [Text]
+licenseKeyHashes =
+  [ "4477f93a9a99f87e830ca72dfe578d49600999067a085255a0080f8ae6d184d8"
+  ]
+
+
+-- | Hex encoded SHA-256 hash of the text encoded as UTF-8
+sha256Hex :: Text -> Text
+sha256Hex text =
+  SHA256.hash (TE.encodeUtf8 text)
+    & BS.unpack
+    & P.concatMap (printf "%02x")
+    & T.pack
+
+
+isValidLicenseKey :: Text -> Bool
+isValidLicenseKey licenseKey =
+  not (T.null licenseKey)
+    && ( licenseKey `elem` licenses
+           || sha256Hex licenseKey `elem` licenseKeyHashes
+       )
 
 
 -- | Radius of the circles to mark the corners of the selection
@@ -2187,7 +2220,7 @@ loadAndStart config filePathsMb = do
   screenSize <- getScreenSize
 
   let
-    isRegistered = config.licenseKey `elem` licenses
+    isRegistered = isValidLicenseKey config.licenseKey
     (initAppWidth, initAppHeight) = calcInitAppSize screenSize uiScale
     stateDraft =
       initialState

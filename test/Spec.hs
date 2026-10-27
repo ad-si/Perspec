@@ -59,10 +59,12 @@ import Lib (
   defaultPdfAction,
   findSidebarTargetAt,
   imagePath,
+  isValidLicenseKey,
   pdfActionText,
   pdfDocumentForImage,
   placeComponents,
   queueImages,
+  sha256Hex,
   toLogicalEvent,
  )
 import Ocr (recognizeWords)
@@ -513,6 +515,15 @@ main = hspec $ do
                 }
             newState = applyLoadedImage loadedImage otherState
           (newState.images <&> isLoaded) `shouldBe` [False]
+
+      describe "license keys" $ do
+        it "hashes license keys with SHA-256" $ do
+          sha256Hex "abc"
+            `shouldBe` "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+
+        it "rejects empty and unknown license keys" $ do
+          isValidLicenseKey "" `shouldBe` False
+          isValidLicenseKey "not-a-license-key" `shouldBe` False
 
       describe "export settings" $ do
         it "default to a color image with English OCR" $ do
