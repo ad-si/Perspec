@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Zoom the photo with the − and + buttons in the bottom right corner
+    or the − and + keys, to place corners outside of the photo
+    or to position them more precisely
+    ([#54](https://github.com/ad-si/Perspec/issues/54)).
+    Clicking the zoom level or hitting 0 shows the whole photo again.
+    Drag the photo with the right or middle mouse button
+    or move it with the arrow keys.
 - Add a "Save PDF" button to export a searchable PDF.
     The text is recognized with the embedded Tesseract library
     and added as an invisible layer on top of the image.

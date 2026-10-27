@@ -241,8 +241,17 @@ data UiComponent
   deriving (Show)
 
 
--- | Clickable part of a sidebar component
-data SidebarTarget
+-- | Button of the zoom controls in the bottom right corner of the image view
+data ZoomControl
+  = ZoomOut
+  | -- | Shows the zoom level and resets it when clicked
+    ZoomReset
+  | ZoomIn
+  deriving (Show, Eq, Enum, Bounded)
+
+
+-- | Clickable part of a sidebar component or of the zoom controls
+data UiTarget
   = StyleOption ExportStyle
   | OutputFormatOption OutputFormat
   | OcrLanguageSelectTarget
@@ -250,6 +259,7 @@ data SidebarTarget
     OcrLanguageOption OcrLanguage
   | SaveTarget
   | PdfActionTarget PdfAction
+  | ZoomControlTarget ZoomControl
   deriving (Show, Eq)
 
 
@@ -303,6 +313,15 @@ data AppState = AppState
   ^ 1.75 on a Windows display set to 175 % scaling, 1 on a normal one.
   -}
   , scaleFactor :: Float
+  -- ^ Factor between the pixels of the image and the logical units
+  , zoom :: Float
+  -- ^ Factor the image is shown larger than it fits the image view
+  , panOffset :: Point
+  {- ^ Offset of the image's center from the image view's center
+  ^ in pixels of the image, with the y axis pointing up
+  -}
+  , panDragged :: Maybe Point
+  -- ^ Last mouse position while the image is dragged
   , transformBackend :: TransformBackend
   , isRegistered :: Bool
   , bannerIsVisible :: Bool
@@ -312,7 +331,7 @@ data AppState = AppState
   , uiComponents :: [UiComponent]
   , hoveredButton :: Maybe Int
   -- ^ Index of the button currently being hovered in the home view
-  , hoveredSidebarTarget :: Maybe SidebarTarget
+  , hoveredUiTarget :: Maybe UiTarget
   , exportSettings :: ExportSettings
   , ocrLanguageSelectIsOpen :: Bool
   , pdfDocument :: Maybe PdfDocument
@@ -341,6 +360,9 @@ instance Show AppState where
       <> (", appHeight = " <> show appState.appHeight)
       <> (", uiScale = " <> show appState.uiScale)
       <> (", scaleFactor = " <> show appState.scaleFactor)
+      <> (", zoom = " <> show appState.zoom)
+      <> (", panOffset = " <> show appState.panOffset)
+      <> (", panDragged = " <> show appState.panDragged)
       <> (", transformBackend = " <> show appState.transformBackend)
       <> (", isRegistered = " <> show appState.isRegistered)
       <> (", bannerIsVisible = " <> show appState.bannerIsVisible)
@@ -348,7 +370,7 @@ instance Show AppState where
       <> (", sidebarWidth = " <> show appState.sidebarWidth)
       <> (", uiComponents = " <> show appState.uiComponents)
       <> (", hoveredButton = " <> show appState.hoveredButton)
-      <> (", hoveredSidebarTarget = " <> show appState.hoveredSidebarTarget)
+      <> (", hoveredUiTarget = " <> show appState.hoveredUiTarget)
       <> (", exportSettings = " <> show appState.exportSettings)
       <> (", ocrLanguageSelectIsOpen = " <> show appState.ocrLanguageSelectIsOpen)
       <> (", pdfDocument = " <> show appState.pdfDocument)
@@ -377,6 +399,9 @@ initialState =
     , appHeight = appInitialHeight
     , uiScale = 1
     , scaleFactor = 1
+    , zoom = 1
+    , panOffset = (0, 0)
+    , panDragged = Nothing
     , transformBackend = FlatCVBackend
     , isRegistered = False
     , bannerIsVisible = False
@@ -394,7 +419,7 @@ initialState =
         , AddToPdfButton{width = 240, height = 30}
         ]
     , hoveredButton = Nothing
-    , hoveredSidebarTarget = Nothing
+    , hoveredUiTarget = Nothing
     , exportSettings =
         ExportSettings
           { style = ColorStyle

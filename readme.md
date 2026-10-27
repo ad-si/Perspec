@@ -78,6 +78,14 @@ Magenta o----------------o Blue
 If the corners are not detected correctly,
 you can manually drag the circles or the edges to the correct position.
 
+To place corners outside of the photo
+or to position them more precisely,
+zoom with the − and + buttons in the bottom right corner
+(or the − and + keys).
+Click the zoom level (or hit 0) to show the whole photo again.
+Drag the photo with the right or middle mouse button
+or move it with the arrow keys.
+
 <img src="images/screenshots/2026-04-23t1756_detected_corners.png" alt="Dropped image" style="max-width: 40rem;" />
 
 

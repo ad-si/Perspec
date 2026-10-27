@@ -8,7 +8,7 @@ import Protolude (
   Char,
   Double,
   Either (Left, Right),
-  Eq ((==)),
+  Eq ((/=), (==)),
   FilePath,
   Float,
   Floating (cos, pi, sin, sqrt),
@@ -57,7 +57,7 @@ import Data.IORef (
   readIORef,
   writeIORef,
  )
-import Data.List as DL (elemIndex, minimum, zip3)
+import Data.List as DL (elemIndex, minimum, zip3, zipWith3)
 import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
@@ -99,11 +99,21 @@ import Brillo.Interface.Environment (getScreenSize)
 import Brillo.Interface.IO.Game as Gl (
   Color,
   Event (..),
-  Key (MouseButton, SpecialKey),
+  Key (Char, MouseButton, SpecialKey),
   KeyState (Down, Up),
   Modifiers (..),
-  MouseButton (LeftButton),
-  SpecialKey (KeyEnter, KeyEsc),
+  MouseButton (LeftButton, MiddleButton, RightButton),
+  SpecialKey (
+    KeyDown,
+    KeyEnter,
+    KeyEsc,
+    KeyLeft,
+    KeyPad0,
+    KeyPadAdd,
+    KeyPadSubtract,
+    KeyRight,
+    KeyUp
+  ),
  )
 import Brillo.Interface.IO.Interact (Controller (..), interactIO)
 import Brillo.Rendering (BitmapData (..))
@@ -151,10 +161,11 @@ import Types (
   PdfDocument (..),
   PdfPage (..),
   ProjMap,
-  SidebarTarget (..),
   TransformBackend (..),
   UiComponent (..),
+  UiTarget (..),
   View (..),
+  ZoomControl (..),
   exportStyleName,
   initialState,
   ocrLanguageName,
@@ -172,9 +183,15 @@ import Utils (
   imagesToLoad,
   loadFileIntoState,
   loadImage,
+  maxZoom,
+  minZoom,
+  panImageView,
+  panOffsetInView,
   prettyPrintArray,
+  resetImageView,
   resolveFontPath,
   resolveUiScale,
+  zoomImageView,
  )
 
 
@@ -233,6 +250,16 @@ cornCircThickness = 4
 
 numGridLines :: Int
 numGridLines = 7
+
+
+-- | Factor the image is zoomed by per click of a zoom button or key press
+zoomStep :: Float
+zoomStep = 1.2
+
+
+-- | Distance in logical units the image is moved by per arrow key press
+panStep :: Float
+panStep = 50
 
 
 gridColor :: Gl.Color
@@ -1102,7 +1129,7 @@ writePdfDocument pdfDocument =
 
 
 -- | Target and text of the button of an action button component
-actionButton :: AppState -> UiComponent -> Maybe (SidebarTarget, Text)
+actionButton :: AppState -> UiComponent -> Maybe (UiTarget, Text)
 actionButton appState = \case
   SaveButton{}
     | appState.exportSettings.outputFormat == PdfFormat ->
@@ -1118,7 +1145,7 @@ actionButton appState = \case
 While the language select is open, only its options can be clicked,
 as they cover the components below the select.
 -}
-sidebarTargets :: AppState -> [(SidebarTarget, Rect)]
+sidebarTargets :: AppState -> [(UiTarget, Rect)]
 sidebarTargets appState =
   let
     placedComponents = placeComponents appState.uiComponents
@@ -1169,12 +1196,134 @@ sidebarTargets appState =
       placedComponents
 
 
--- | Clickable part of the sidebar at the given point
-findSidebarTargetAt :: AppState -> Point -> Maybe SidebarTarget
-findSidebarTargetAt appState point =
-  sidebarTargets appState
+-- | Size of the buttons of the zoom controls
+zoomButtonSize :: Float
+zoomButtonSize = 24
+
+
+-- | Width of the zoom level between the zoom buttons
+zoomLevelWidth :: Float
+zoomLevelWidth = 50
+
+
+-- | Pixel height of the zoom level text
+zoomLevelTextHeight :: Int
+zoomLevelTextHeight = 13
+
+
+-- | Distance of the zoom controls to the edges of the image view
+zoomControlsMargin :: Float
+zoomControlsMargin = 8
+
+
+{-| Zoom controls in the bottom right corner of the image view with their bounds.
+They are only shown for a loaded image.
+-}
+zoomControlTargets :: AppState -> [(UiTarget, Rect)]
+zoomControlTargets appState =
+  case appState.images of
+    ImageData{} : _otherImages ->
+      let
+        maxX =
+          (fromIntegral appState.appWidth / 2.0)
+            - fromIntegral appState.sidebarWidth
+            - zoomControlsMargin
+        minY = -(fromIntegral appState.appHeight / 2.0) + zoomControlsMargin
+        widthOf = \case
+          ZoomReset -> zoomLevelWidth
+          _ -> zoomButtonSize
+        controls = [P.minBound .. P.maxBound]
+        widths = controls <&> widthOf
+        lefts = P.scanl (+) (maxX - P.sum widths) widths
+      in
+        DL.zipWith3
+          ( \control left width ->
+              ( ZoomControlTarget control
+              , Rect
+                  { minX = left
+                  , minY
+                  , maxX = left + width
+                  , maxY = minY + zoomButtonSize
+                  }
+              )
+          )
+          controls
+          lefts
+          widths
+    _ -> []
+
+
+{-| Clickable part of the user interface at the given point.
+While the language select is open, only its options can be clicked.
+-}
+findUiTargetAt :: AppState -> Point -> Maybe UiTarget
+findUiTargetAt appState point =
+  ( sidebarTargets appState
+      <> if appState.ocrLanguageSelectIsOpen
+        then []
+        else zoomControlTargets appState
+  )
     & P.find (\(_, rect) -> isInsideRect rect point)
       <&> fst
+
+
+-- | Zoom level in percent of the size at which the image fits the image view
+zoomLevelText :: AppState -> Text
+zoomLevelText appState =
+  show (P.round (appState.zoom * 100) :: Int) <> " %"
+
+
+-- | Whether the zoom control can change the zoom
+isZoomControlEnabled :: AppState -> ZoomControl -> Bool
+isZoomControlEnabled appState = \case
+  ZoomOut -> appState.zoom > minZoom
+  ZoomReset -> appState.zoom /= 1 || appState.panOffset /= (0, 0)
+  ZoomIn -> appState.zoom < maxZoom
+
+
+-- | Change the zoom like the zoom control, around the center of the image view
+applyZoomControl :: ZoomControl -> AppState -> AppState
+applyZoomControl = \case
+  ZoomOut -> zoomImageView (1 / zoomStep) (0, 0)
+  ZoomReset -> resetImageView
+  ZoomIn -> zoomImageView zoomStep (0, 0)
+
+
+drawZoomControls :: AppState -> Picture
+drawZoomControls appState =
+  Pictures $
+    zoomControlTargets appState <&> \(target, rect) ->
+      case target of
+        ZoomControlTarget control ->
+          let
+            (centerX, centerY) = rectCenter rect
+            controlState
+              | not (isZoomControlEnabled appState control) = DisabledControl
+              | appState.hoveredUiTarget == Just target = HoveredControl
+              | otherwise = IdleControl
+            symbolColor =
+              greyN $ if controlState == DisabledControl then 0.45 else 0.9
+            -- Drawn as shapes, as the font might not be available
+            bar width height =
+              Translate centerX centerY $
+                Color symbolColor $
+                  rectangleSolid width height
+            levelText = zoomLevelText appState
+          in
+            Pictures $
+              drawControlBackground rect controlState : case control of
+                ZoomOut -> [bar 10 2]
+                ZoomIn -> [bar 10 2, bar 2 10]
+                ZoomReset -> case appState.fontPath of
+                  Nothing -> []
+                  Just fontPath ->
+                    [ Translate
+                        (centerX - (textWidthApprox zoomLevelTextHeight levelText / 2))
+                        (centerY - (fromIntegral zoomLevelTextHeight * 3 / 8))
+                        $ Color symbolColor
+                        $ TrueTypeText fontPath zoomLevelTextHeight levelText
+                    ]
+        _ -> mempty
 
 
 drawUiComponent :: AppState -> PlacedComponent -> Picture
@@ -1183,7 +1332,7 @@ drawUiComponent appState placed =
     settings = appState.exportSettings
     rectOf size = sidebarComponentRect appState placed.topOffset size
     stateOf target =
-      if appState.hoveredSidebarTarget == Just target
+      if appState.hoveredUiTarget == Just target
         then HoveredControl
         else IdleControl
     segmentStateOf target isSelected
@@ -1269,7 +1418,7 @@ drawOcrLanguageOptions appState =
           appState.fontPath
           rect
           (ocrLanguageName language)
-          ( if appState.hoveredSidebarTarget == Just target
+          ( if appState.hoveredUiTarget == Just target
               then HoveredControl
               else IdleControl
           )
@@ -1308,13 +1457,14 @@ makePicture appState =
 
           pure $
             Pictures $
-              ( ( [ Scale
-                      appState.scaleFactor
-                      appState.scaleFactor
-                      ( case image of
-                          ImageToLoad{} -> mempty
-                          ImageData{content} -> content
-                      )
+              ( ( [ P.uncurry Translate (panOffsetInView appState) $
+                      Scale
+                        appState.scaleFactor
+                        appState.scaleFactor
+                        ( case image of
+                            ImageToLoad{} -> mempty
+                            ImageData{content} -> content
+                        )
                   , case image of
                       ImageToLoad{} ->
                         Translate (-40) (-6) $
@@ -1328,6 +1478,7 @@ makePicture appState =
                 )
                   <&> Translate (-(sidebarWidthInteg / 2.0)) 0
               )
+                <> [drawZoomControls appState]
                 <> [ drawSidebar
                        appWidthInteg
                        appState.appHeight
@@ -1585,18 +1736,18 @@ handleImageViewEvent stateRef controller event appState =
             pure
               appState
                 { exportSettings =
-                    case findSidebarTargetAt appState clickedPoint of
+                    case findUiTargetAt appState clickedPoint of
                       Just (OcrLanguageOption language) ->
                         settings{ocrLanguage = language}
                       _ -> settings
                 , ocrLanguageSelectIsOpen = False
-                , hoveredSidebarTarget = Nothing
+                , hoveredUiTarget = Nothing
                 }
     EventKey (MouseButton LeftButton) Gl.Down _ clickedPoint -> do
       let
         settings = appState.exportSettings
 
-      case findSidebarTargetAt appState clickedPoint of
+      case findUiTargetAt appState clickedPoint of
         Just (StyleOption style) ->
           pure appState{exportSettings = settings{style}}
         Just (OutputFormatOption outputFormat) ->
@@ -1610,6 +1761,8 @@ handleImageViewEvent stateRef controller event appState =
           submitSelection stateRef controller (defaultPdfAction appState) appState
         Just (PdfActionTarget pdfAction) ->
           submitSelection stateRef controller pdfAction appState
+        Just (ZoomControlTarget control) ->
+          pure $ applyZoomControl control appState
         Nothing
           | isInsideSidebar appState clickedPoint ->
               pure appState
@@ -1652,11 +1805,47 @@ handleImageViewEvent stateRef controller event appState =
     EventKey (MouseButton LeftButton) Gl.Up _ _ -> do
       pure $
         appState{cornerDragged = Nothing, edgeDragged = Nothing, lastMousePos = Nothing}
+    -- Drag the image with the right or middle mouse button
+    EventKey (MouseButton button) keyState _ point
+      | button == RightButton || button == MiddleButton ->
+          pure
+            appState
+              { panDragged =
+                  if keyState == Gl.Down && not (isInsideSidebar appState point)
+                    then Just point
+                    else Nothing
+              }
+    -- Keyboard shortcuts of the zoom controls
+    EventKey key Gl.Down _ _
+      | key `elem` [Char '+', Char '=', SpecialKey KeyPadAdd] ->
+          pure $ applyZoomControl ZoomIn appState
+      | key `elem` [Char '-', SpecialKey KeyPadSubtract] ->
+          pure $ applyZoomControl ZoomOut appState
+      | key `elem` [Char '0', SpecialKey KeyPad0] ->
+          pure $ applyZoomControl ZoomReset appState
+    -- Scroll the image view
+    EventKey (SpecialKey KeyLeft) Gl.Down _ _ ->
+      pure $ panImageView (panStep, 0) appState
+    EventKey (SpecialKey KeyRight) Gl.Down _ _ ->
+      pure $ panImageView (-panStep, 0) appState
+    EventKey (SpecialKey KeyUp) Gl.Down _ _ ->
+      pure $ panImageView (0, -panStep) appState
+    EventKey (SpecialKey KeyDown) Gl.Down _ _ ->
+      pure $ panImageView (0, panStep) appState
+    EventMotion newPoint
+      | Just lastPoint <- appState.panDragged ->
+          pure $
+            ( panImageView
+                (fst newPoint - fst lastPoint, snd newPoint - snd lastPoint)
+                appState
+            )
+              { panDragged = Just newPoint
+              }
     EventMotion newPoint -> do
       let
         point = appCoordToImgCoord appState newPoint
 
-        hoveredTarget = findSidebarTargetAt appState newPoint
+        hoveredTarget = findUiTargetAt appState newPoint
 
       -- Set cursor based on hover state
       let
@@ -1676,7 +1865,7 @@ handleImageViewEvent stateRef controller event appState =
                 appState.corners
           in
             case cornerIndexMb of
-              Nothing -> appState{hoveredSidebarTarget = hoveredTarget}
+              Nothing -> appState{hoveredUiTarget = hoveredTarget}
               Just cornerIndex ->
                 appState
                   { corners =
@@ -1685,7 +1874,7 @@ handleImageViewEvent stateRef controller event appState =
                         point
                         appState.corners
                   , cornerDragged = Just point
-                  , hoveredSidebarTarget = hoveredTarget
+                  , hoveredUiTarget = hoveredTarget
                   }
         Nothing -> case (appState.edgeDragged, appState.lastMousePos) of
           (Just edgeIdx, Just lastPos) ->
@@ -1695,9 +1884,9 @@ handleImageViewEvent stateRef controller event appState =
               appState
                 { corners = newCorners
                 , lastMousePos = Just point
-                , hoveredSidebarTarget = hoveredTarget
+                , hoveredUiTarget = hoveredTarget
                 }
-          _ -> appState{hoveredSidebarTarget = hoveredTarget}
+          _ -> appState{hoveredUiTarget = hoveredTarget}
     -- Shift + Enter starts a new PDF
     EventKey (SpecialKey KeyEnter) Gl.Down modifiers _ ->
       submitSelection
@@ -1713,7 +1902,7 @@ handleImageViewEvent stateRef controller event appState =
           pure
             appState
               { ocrLanguageSelectIsOpen = False
-              , hoveredSidebarTarget = Nothing
+              , hoveredUiTarget = Nothing
               }
     EventKey (SpecialKey KeyEsc) Gl.Down _ _ -> do
       pure $ appState{corners = []}
@@ -2176,6 +2365,9 @@ applyLoadedImage loadedImage appState =
               , images = image : otherImages
               , corners = loadedImage.loadedState.corners
               , scaleFactor = loadedImage.loadedState.scaleFactor
+              , zoom = loadedImage.loadedState.zoom
+              , panOffset = loadedImage.loadedState.panOffset
+              , panDragged = Nothing
               }
     _ -> appState
 

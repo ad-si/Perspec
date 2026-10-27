@@ -18,6 +18,10 @@ import Protolude (
   show,
   ($),
   (&&),
+  (+),
+  (-),
+  (/),
+  (<),
   (<&>),
   (==),
   (>),
@@ -32,10 +36,19 @@ import Brillo (
   BitmapFormat (BitmapFormat),
   Picture (Bitmap),
   PixelFormat (PxRGBA),
+  Point,
   RowOrder (TopToBottom),
  )
-import Brillo.Interface.IO.Game (Event (EventDrop, EventMotion, EventResize))
+import Brillo.Interface.IO.Game (
+  Event (EventDrop, EventKey, EventMotion, EventResize),
+  Key (Char, MouseButton),
+  KeyState (Down, Up),
+  Modifiers (..),
+  MouseButton (LeftButton, RightButton),
+ )
+import Brillo.Interface.IO.Interact (Controller (..))
 import Brillo.Rendering (BitmapData (..), bitmapOfForeignPtr)
+import Data.IORef (newIORef)
 
 import Codec.Picture (
   DynamicImage (ImageRGBA8),
@@ -57,7 +70,8 @@ import Lib (
   applyLoadedImage,
   completedPdfDocument,
   defaultPdfAction,
-  findSidebarTargetAt,
+  findUiTargetAt,
+  handleEvent,
   imagePath,
   isValidLicenseKey,
   pdfActionText,
@@ -66,6 +80,7 @@ import Lib (
   queueImages,
   sha256Hex,
   toLogicalEvent,
+  zoomLevelText,
  )
 import Ocr (recognizeWords)
 import Pdf (writeSearchablePdf)
@@ -101,11 +116,24 @@ import Types (
   PdfPage (..),
   RenameMode (Even, Odd, Sequential),
   RotationDirection (Clockwise, CounterClockwise),
-  SidebarTarget (..),
   SortOrder (Ascending, Descending),
+  UiTarget (..),
+  ZoomControl (..),
   initialState,
  )
-import Utils (imagesToLoad, loadFileIntoState, loadImage)
+import Utils (
+  getCorners,
+  imageViewToImage,
+  imagesToLoad,
+  loadFileIntoState,
+  loadImage,
+  maxZoom,
+  minZoom,
+  panImageView,
+  panOffsetInView,
+  resetImageView,
+  zoomImageView,
+ )
 import UtilsSpec qualified
 
 
@@ -337,7 +365,7 @@ main = hspec $ do
           (placeComponents initialState.uiComponents <&> (.topOffset))
             `shouldBe` [50, 82, 122, 154, 194, 226, 266, 286, 326]
 
-      describe "findSidebarTargetAt" $ do
+      describe "findUiTargetAt" $ do
         -- The sidebar of the initial state spans x from 380 to 640
         -- and its components x from 390 to 630
         let
@@ -349,51 +377,51 @@ main = hspec $ do
           pdfStateWithDocument = pdfState{pdfDocument = Just firstPdf}
 
         it "finds the segments of the style select" $ do
-          findSidebarTargetAt initialState (395, 383)
+          findUiTargetAt initialState (395, 383)
             `shouldBe` Just (StyleOption ColorStyle)
-          findSidebarTargetAt initialState (625, 383)
+          findUiTargetAt initialState (625, 383)
             `shouldBe` Just (StyleOption BlackWhiteSmoothStyle)
 
         it "finds the segments of the output format select" $ do
-          findSidebarTargetAt initialState (395, 311)
+          findUiTargetAt initialState (395, 311)
             `shouldBe` Just (OutputFormatOption ImageFormat)
-          findSidebarTargetAt initialState (625, 311)
+          findUiTargetAt initialState (625, 311)
             `shouldBe` Just (OutputFormatOption PdfFormat)
 
         it "disables the language select for the image output" $ do
           let ocrSelectPoint = (510, 239)
-          findSidebarTargetAt initialState ocrSelectPoint
+          findUiTargetAt initialState ocrSelectPoint
             `shouldBe` Nothing
-          findSidebarTargetAt pdfState ocrSelectPoint
+          findUiTargetAt pdfState ocrSelectPoint
             `shouldBe` Just OcrLanguageSelectTarget
 
         it "finds the language options only when the select is open" $ do
           -- Center of the second option below the select
           let germanOptionPoint = (510, 179)
-          findSidebarTargetAt pdfState germanOptionPoint
+          findUiTargetAt pdfState germanOptionPoint
             `shouldBe` Just (PdfActionTarget NewPdf)
-          findSidebarTargetAt
+          findUiTargetAt
             pdfState{ocrLanguageSelectIsOpen = True}
             germanOptionPoint
             `shouldBe` Just (OcrLanguageOption German)
 
         it "finds the save button below the separator" $ do
-          findSidebarTargetAt initialState (510, 179)
+          findUiTargetAt initialState (510, 179)
             `shouldBe` Just SaveTarget
 
         it "shows the add to PDF button below while a PDF is open" $ do
           let
             savePoint = (510, 179)
             addToPdfPoint = (510, 139)
-          findSidebarTargetAt pdfState savePoint
+          findUiTargetAt pdfState savePoint
             `shouldBe` Just (PdfActionTarget NewPdf)
-          findSidebarTargetAt pdfState addToPdfPoint
+          findUiTargetAt pdfState addToPdfPoint
             `shouldBe` Nothing
-          findSidebarTargetAt pdfStateWithDocument savePoint
+          findUiTargetAt pdfStateWithDocument savePoint
             `shouldBe` Just (PdfActionTarget NewPdf)
-          findSidebarTargetAt pdfStateWithDocument addToPdfPoint
+          findUiTargetAt pdfStateWithDocument addToPdfPoint
             `shouldBe` Just (PdfActionTarget AddToPdf)
-          findSidebarTargetAt
+          findUiTargetAt
             initialState{pdfDocument = Just firstPdf}
             addToPdfPoint
             `shouldBe` Nothing
@@ -550,6 +578,126 @@ main = hspec $ do
         it "passes events without coordinates through" $ do
           toLogicalEvent 2 (EventDrop ["doc.jpg"])
             `shouldBe` EventDrop ["doc.jpg"]
+
+      describe "image view zoom" $ do
+        let
+          loadedState =
+            loadFileIntoState
+              initialState
+                { images = imagesToLoad ["images/examples/doc-marking.jpg"]
+                }
+          -- Rounding the size of the shown image shifts points slightly
+          arePointsClose :: [Point] -> [Point] -> Bool
+          arePointsClose points otherPoints =
+            P.length points == P.length otherPoints
+              && P.and
+                ( P.zipWith
+                    ( \(x, y) (otherX, otherY) ->
+                        P.abs (x - otherX) < 1 && P.abs (y - otherY) < 1
+                    )
+                    points
+                    otherPoints
+                )
+          noController =
+            Controller
+              { controllerSetRedraw = pure ()
+              , controllerModifyViewPort = P.const (pure ())
+              , controllerSetCursor = P.const (pure ())
+              }
+          noModifiers = Modifiers{shift = Up, ctrl = Up, alt = Up}
+          sendEvent event appState = do
+            stateRef <- newIORef appState
+            handleEvent stateRef noController event appState
+
+        it "keeps the corners on the same pixels of the image" $ do
+          appState <- loadedState
+          let
+            zoomedState = zoomImageView 2.5 (120, -80) appState
+            pannedState = panImageView (30, 40) zoomedState
+          zoomedState.zoom `shouldBe` 2.5
+          getCorners zoomedState `shouldSatisfy` arePointsClose (getCorners appState)
+          getCorners pannedState `shouldSatisfy` arePointsClose (getCorners appState)
+          getCorners (resetImageView pannedState)
+            `shouldSatisfy` arePointsClose (getCorners appState)
+
+        it "keeps the pixel under the mouse at its position" $ do
+          appState <- loadedState
+          let
+            anchor = (120, -80)
+            zoomedState = zoomImageView 3 anchor appState
+          imageViewToImage zoomedState [anchor]
+            `shouldSatisfy` arePointsClose (imageViewToImage appState [anchor])
+
+        it "limits the zoom and keeps the image in the image view" $ do
+          appState <- loadedState
+          let
+            zoomedOutState = zoomImageView 0.001 (0, 0) appState
+            pannedState = panImageView (100000, -100000) appState
+          zoomedOutState.zoom `shouldBe` minZoom
+          (zoomImageView 1000 (0, 0) appState).zoom `shouldBe` maxZoom
+          pannedState.panOffset `shouldBe` (1535 / 2, -(947 / 2))
+
+        it "resets the zoom and the pan offset" $ do
+          appState <- loadedState
+          let
+            newState =
+              resetImageView $ panImageView (30, 40) $ zoomImageView 2 (0, 0) appState
+          newState.zoom `shouldBe` 1
+          newState.panOffset `shouldBe` (0, 0)
+          newState.scaleFactor `shouldBe` appState.scaleFactor
+
+        it "keeps the zoom when the window is resized" $ do
+          appState <- loadedState
+          newState <-
+            sendEvent (EventResize (800, 600)) (zoomImageView 2 (0, 0) appState)
+          newState.zoom `shouldBe` 2
+          getCorners newState `shouldSatisfy` arePointsClose (getCorners appState)
+
+        it "places the zoom controls in the bottom right corner" $ do
+          appState <- loadedState
+          -- The image view ends at x = 1280 / 2 - 260 = 380 and y = -960 / 2
+          findUiTargetAt appState (286, -460)
+            `shouldBe` Just (ZoomControlTarget ZoomOut)
+          findUiTargetAt appState (323, -460)
+            `shouldBe` Just (ZoomControlTarget ZoomReset)
+          findUiTargetAt appState (360, -460)
+            `shouldBe` Just (ZoomControlTarget ZoomIn)
+          findUiTargetAt appState (360, -440) `shouldBe` Nothing
+
+        it "zooms with the zoom controls and the keyboard" $ do
+          appState <- loadedState
+          let click point = EventKey (MouseButton LeftButton) Down noModifiers point
+          zoomedOutState <- sendEvent (click (286, -460)) appState
+          zoomedInState <- sendEvent (click (360, -460)) appState
+          resetState <- sendEvent (click (323, -460)) zoomedInState
+          keyZoomedInState <-
+            sendEvent (EventKey (Char '+') Down noModifiers (0, 0)) appState
+          keyResetState <-
+            sendEvent (EventKey (Char '0') Down noModifiers (0, 0)) keyZoomedInState
+          zoomedOutState.zoom `shouldSatisfy` (< 1)
+          zoomedInState.zoom `shouldSatisfy` (> 1)
+          resetState.zoom `shouldBe` 1
+          keyZoomedInState.zoom `shouldSatisfy` (> 1)
+          keyResetState.zoom `shouldBe` 1
+          -- Clicking the controls doesn't add a corner
+          zoomedInState.corners `shouldBe` (zoomImageView 1.2 (0, 0) appState).corners
+          zoomLevelText zoomedInState `shouldBe` "120 %"
+
+        it "moves the image while it's dragged with the right mouse button" $ do
+          appState <- loadedState
+          let zoomedState = zoomImageView 2 (0, 0) appState
+          draggingState <-
+            sendEvent
+              (EventKey (MouseButton RightButton) Down noModifiers (0, 0))
+              zoomedState
+          movedState <- sendEvent (EventMotion (40, -20)) draggingState
+          releasedState <-
+            sendEvent
+              (EventKey (MouseButton RightButton) Up noModifiers (40, -20))
+              movedState
+          panOffsetInView movedState `shouldSatisfy` \(x, y) ->
+            P.abs (x - 40) < 0.001 && P.abs (y + 20) < 0.001
+          releasedState.panDragged `shouldBe` Nothing
 
     describe "Rename" $ do
       it "renames files according to natural sort and avoids collisions" $ do

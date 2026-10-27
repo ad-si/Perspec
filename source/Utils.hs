@@ -457,19 +457,119 @@ scalePoints scaleFac = fmap $
   \(x, y) -> (x / scaleFac, y / scaleFac)
 
 
+translatePoints :: Point -> [Point] -> [Point]
+translatePoints (offsetX, offsetY) = fmap $
+  \(x, y) -> (x + offsetX, y + offsetY)
+
+
+-- | Offset of the image's center from the image view's center in logical units
+panOffsetInView :: AppState -> Point
+panOffsetInView appState =
+  let
+    (panX, panY) = appState.panOffset
+  in
+    (panX * appState.scaleFactor, panY * appState.scaleFactor)
+
+
+{-| Convert points in the image view (origin in its center, y axis up)
+to pixels of the image (origin in its top left corner, y axis down)
+-}
+imageViewToImage :: AppState -> [Point] -> [Point]
+imageViewToImage appState points =
+  case appState.images of
+    image@ImageData{} : _otherImages ->
+      let
+        (panX, panY) = panOffsetInView appState
+      in
+        points
+          & translatePoints (-panX, -panY)
+          & transToOrigTopLeft image.widthTarget image.heightTarget
+          & scalePoints appState.scaleFactor
+    _ -> points
+
+
+-- | Inverse of 'imageViewToImage'
+imageToImageView :: AppState -> [Point] -> [Point]
+imageToImageView appState points =
+  case appState.images of
+    image@ImageData{} : _otherImages ->
+      points
+        & scalePoints (1 / appState.scaleFactor)
+        & transToOrigAtCenter image.widthTarget image.heightTarget
+        & translatePoints (panOffsetInView appState)
+    _ -> points
+
+
+-- | Corners in pixels of the image, clockwise from the top left one
 getCorners :: AppState -> [Point]
 getCorners appState =
   case appState.images of
-    [] -> []
-    image : _otherImages -> do
-      scalePoints appState.scaleFactor $
-        transToOrigTopLeft
-          image.widthTarget
-          image.heightTarget
-          -- Reverse corners,
-          -- because AppState.corners stores them in reverse order of addition.
-          -- This converts them to clockwise from top-left for transformation.
-          (P.reverse $ corners appState)
+    ImageData{} : _otherImages ->
+      -- Reverse corners,
+      -- because AppState.corners stores them in reverse order of addition.
+      -- This converts them to clockwise from top-left for transformation.
+      imageViewToImage appState (P.reverse appState.corners)
+    _ -> []
+
+
+-- | Smallest 'zoom', at which the image covers a fraction of the image view
+minZoom :: Float
+minZoom = 0.2
+
+
+-- | Largest 'zoom', at which single pixels are easy to target
+maxZoom :: Float
+maxZoom = 20
+
+
+{-| Show the image at the given zoom and pan offset.
+The corners keep their positions on the image.
+The pan offset is limited so that the image can't leave the image view.
+-}
+setViewport :: Float -> Point -> AppState -> AppState
+setViewport newZoom (panX, panY) appState =
+  case appState.images of
+    image@ImageData{} : otherImages -> do
+      let
+        imgViewWidth = appState.appWidth - appState.sidebarWidth
+        imgViewHeight = appState.appHeight
+
+        imgWidthFrac = fromIntegral image.width
+        imgHeightFrac = fromIntegral image.height
+
+        scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
+        scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
+
+        zoom = P.max minZoom $ min maxZoom newZoom
+        scaleFactor = min scaleFactorX scaleFactorY * zoom
+        imgWidthTrgt = round $ scaleFactor * imgWidthFrac
+        imgHeightTrgt = round $ scaleFactor * imgHeightFrac
+
+        clamp limit value = P.max (-limit) (min limit value)
+
+        resizedState =
+          appState
+            { images =
+                image
+                  { widthTarget = imgWidthTrgt
+                  , heightTarget = imgHeightTrgt
+                  }
+                  : otherImages
+            , scaleFactor
+            , zoom
+            , panOffset =
+                ( clamp (imgWidthFrac / 2) panX
+                , clamp (imgHeightFrac / 2) panY
+                )
+            }
+
+      resizedState
+        { corners =
+            -- Re-reverse to restore the "reverse order of addition" storage format,
+            -- since getCorners already reversed them to clockwise-from-top-left order.
+            P.reverse $ imageToImageView resizedState (getCorners appState)
+        }
+    _ -> appState
 
 
 {-| Calculate the target image size, the scale factor,
@@ -477,40 +577,45 @@ and the corner positions for current image
 -}
 calculateSizes :: AppState -> AppState
 calculateSizes appState =
-  case appState.images of
-    [] -> appState
-    image : otherImages -> case image of
-      ImageToLoad _ -> appState
-      ImageData{} -> do
-        let
-          imgViewWidth = appState.appWidth - appState.sidebarWidth
-          imgViewHeight = appState.appHeight
+  setViewport appState.zoom appState.panOffset appState
 
-          imgWidthFrac = fromIntegral image.width
-          imgHeightFrac = fromIntegral image.height
 
-          scaleFactorX = fromIntegral imgViewWidth / imgWidthFrac
-          scaleFactorY = fromIntegral imgViewHeight / imgHeightFrac
+{-| Zoom the image by the factor,
+keeping the point of the image view at the same position on the image
+-}
+zoomImageView :: Float -> Point -> AppState -> AppState
+zoomImageView factor (anchorX, anchorY) appState =
+  let
+    newZoom = P.max minZoom $ min maxZoom $ appState.zoom * factor
+    newScaleFactor = appState.scaleFactor * newZoom / appState.zoom
+    (panX, panY) = appState.panOffset
+  in
+    setViewport
+      newZoom
+      ( panX + anchorX / newScaleFactor - anchorX / appState.scaleFactor
+      , panY + anchorY / newScaleFactor - anchorY / appState.scaleFactor
+      )
+      appState
 
-          scaleFactor = min scaleFactorX scaleFactorY
-          imgWidthTrgt = round $ scaleFactor * imgWidthFrac
-          imgHeightTrgt = round $ scaleFactor * imgHeightFrac
 
-        appState
-          { images =
-              image
-                { widthTarget = imgWidthTrgt
-                , heightTarget = imgHeightTrgt
-                }
-                : otherImages
-          , scaleFactor
-          , corners =
-              -- Re-reverse to restore the "reverse order of addition" storage format,
-              -- since getCorners already reversed them to clockwise-from-top-left order.
-              P.reverse $
-                transToOrigTopLeft (-imgWidthTrgt) imgHeightTrgt $
-                  scalePoints (1 / scaleFactor) (getCorners appState)
-          }
+-- | Move the image by the distance in logical units
+panImageView :: Point -> AppState -> AppState
+panImageView (deltaX, deltaY) appState =
+  let
+    (panX, panY) = appState.panOffset
+  in
+    setViewport
+      appState.zoom
+      ( panX + deltaX / appState.scaleFactor
+      , panY + deltaY / appState.scaleFactor
+      )
+      appState
+
+
+-- | Show the whole image again
+resetImageView :: AppState -> AppState
+resetImageView =
+  setViewport 1 (0, 0)
 
 
 {-| Rotation angle in degrees and horizontal flip of each EXIF orientation.
@@ -882,6 +987,9 @@ loadFileIntoState appState = do
                   calculateSizes $
                     appState
                       { currentView = ImageView
+                      , zoom = 1
+                      , panOffset = (0, 0)
+                      , panDragged = Nothing
                       , images =
                           ImageData
                             { inputPath = filePath
