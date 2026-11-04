@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-04 - [1.2.1](https://github.com/ad-si/Perspec/releases/tag/v1.2.1.0)
+
+- Fix license keys not being accepted by the Linux AppImages,
+    since the license keys weren't injected into the Linux builds.
+- Accept license keys purchased after the release of version 1.2
+
+
 ## 2026-09-11 - [1.2](https://github.com/ad-si/Perspec/releases/tag/v1.2.0.0)
 
 - Fix crash on launch on Linux and Windows
