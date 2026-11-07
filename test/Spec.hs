@@ -141,6 +141,15 @@ main :: IO ()
 main = hspec $ do
   describe "Perspec" $ do
     describe "Lib" $ do
+      it "keeps automatic corners upright for a skewed landscape receipt" $ do
+        appState <-
+          loadFileIntoState
+            initialState{images = imagesToLoad ["images/skewed-receipt.png"]}
+        -- Exercise the actual FlatCV dependency so an older package cannot
+        -- silently reintroduce the quarter-turn caused by choosing BL first.
+        (getCorners appState <&> \(x, y) -> (P.round x :: P.Int, P.round y :: P.Int))
+          `shouldBe` [(259, 219), (700, 219), (689, 363), (31, 356)]
+
       it "Applies EXIF rotation to JPEGs" $ do
         pictureMetadataEither <- loadImage "images/examples/doc_rotated.jpg"
 

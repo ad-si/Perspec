@@ -33,7 +33,7 @@ dependencies:
   - docopt >= 0.7 && < 0.8
   - file-embed >= 0.0.16 && < 0.1
   - filepath >= 1.4 && < 1.6
-  - flatcv >= 0.3 && < 0.4
+  - flatcv >= 0.3.1 && < 0.4
   # The massiv based 2.x API is only available via the GitHub repository,
   # as the latest version on Hackage is still 1.5
   - hip >= 2.0 && < 2.1
