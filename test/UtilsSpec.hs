@@ -26,6 +26,7 @@ import Utils (
   fontInDirectories,
   imagesToLoad,
   isUsableFont,
+  selectPageImages,
  )
 
 
@@ -38,6 +39,34 @@ spec = do
             <&> (.filePath)
           )
           `shouldBe` ["dir/IMG_9.jpeg", "dir/IMG_10.jpeg", "dir/IMG_100.jpeg"]
+
+    describe "selectPageImages" $ do
+      -- macOS writes an AppleDouble file next to every photo it copies,
+      -- and both carry the photo's image extension.
+      it "skips AppleDouble files and dotfiles" $ do
+        withSystemTempDirectory "perspec-page-images" $ \directory -> do
+          let entries =
+                [ "._IMG_1.jpg"
+                , ".DS_Store"
+                , "IMG_1.jpg"
+                , "IMG_2.jpg"
+                , "notes.txt"
+                ]
+          selectPageImages directory entries
+            `shouldReturn` ["IMG_1.jpg", "IMG_2.jpg"]
+
+      it "skips directories that look like images" $ do
+        withSystemTempDirectory "perspec-page-images" $ \directory -> do
+          createDirectoryIfMissing True (directory </> "IMG_2.jpg")
+          let entries = ["IMG_1.jpg", "IMG_2.jpg", "IMG_3.jpg"]
+          selectPageImages directory entries
+            `shouldReturn` ["IMG_1.jpg", "IMG_3.jpg"]
+
+      it "keeps the order of the file system" $ do
+        withSystemTempDirectory "perspec-page-images" $ \directory -> do
+          let entries = ["IMG_10.jpg", "IMG_9.jpg"]
+          selectPageImages directory entries
+            `shouldReturn` ["IMG_10.jpg", "IMG_9.jpg"]
 
     let
       -- Image: 200 x 150

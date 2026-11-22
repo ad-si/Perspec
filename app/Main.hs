@@ -78,7 +78,7 @@ import Types (
   TransformBackend (FlatCVBackend, HipBackend),
   transformBackendFlag,
  )
-import Utils (isImageFile)
+import Utils (selectPageImages)
 
 
 patterns :: Docopt
@@ -242,13 +242,9 @@ execWithArgs confFromFile allCliArgs = do
 
     allFiles <- listDirectory directory
 
-    let
-      -- Only rename image files, skipping directories, dotfiles
-      -- (e.g. .DS_Store), AppleDouble files (._*), and other formats
-      files =
-        allFiles
-          & P.filter isImageFile
+    files <- selectPageImages directory allFiles
 
+    let
       renamingBatches =
         getRenamingBatches
           startNumberMb
