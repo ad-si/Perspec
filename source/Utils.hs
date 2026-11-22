@@ -766,6 +766,35 @@ isImageFile filePath =
   in  P.elem extLower imageExtensions
 
 
+{-| Whether a file name starts with a dot, i.e. is hidden.
+
+Covers `@.DS_Store@` and the AppleDouble files macOS writes next to
+every copied photo (`@._IMG_1.jpg@`), which carry an image extension
+and would otherwise be renamed as if they were pages.
+-}
+isDotfile :: FilePath -> Bool
+isDotfile = \case
+  '.' : _ -> True
+  _ -> False
+
+
+{-| The entries of a directory that belong to the page sequence of a scan,
+in the order the file system returned them.
+
+Skips dotfiles and directories. Both can carry an image extension:
+macOS writes an AppleDouble file next to every copied photo
+(@._IMG_1.jpg@), and a folder may be named like a photo (@3.jpg@).
+Counting those as pages numbers the photos wrongly,
+or aborts the renaming halfway with a file system error.
+-}
+selectPageImages :: FilePath -> [FilePath] -> IO [FilePath]
+selectPageImages directory entries =
+  entries & P.filterM (\entry -> do
+    isDirectory <- doesDirectoryExist (directory </> entry)
+    pure $ not (isDotfile entry) P.&& isImageFile entry P.&& not isDirectory
+  )
+
+
 loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))
 loadImage filePath = do
   picMetaMaybe <- loadJuicyWithMetadata filePath
