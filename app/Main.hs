@@ -53,7 +53,6 @@ import System.Console.Docopt as Docopt (
   parseArgsOrExit,
  )
 import System.Directory (
-  listDirectory,
   makeAbsolute,
   renameFile,
  )
@@ -78,7 +77,7 @@ import Types (
   TransformBackend (FlatCVBackend, HipBackend),
   transformBackendFlag,
  )
-import Utils (isImageFile)
+import Utils (isImageFile, listPageFiles)
 
 
 patterns :: Docopt
@@ -240,15 +239,9 @@ execWithArgs confFromFile allCliArgs = do
           then Descending
           else Ascending
 
-    allFiles <- listDirectory directory
+    files <- listPageFiles isImageFile directory
 
     let
-      -- Only rename image files, skipping directories, dotfiles
-      -- (e.g. .DS_Store), AppleDouble files (._*), and other formats
-      files =
-        allFiles
-          & P.filter isImageFile
-
       renamingBatches =
         getRenamingBatches
           startNumberMb

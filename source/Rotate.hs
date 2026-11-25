@@ -18,6 +18,7 @@ import Protolude (
   zip,
   ($),
   (&),
+  (<&>),
   (==),
  )
 import Protolude qualified as P
@@ -34,12 +35,12 @@ import Data.List (sort)
 import Data.Text (pack)
 import Data.Vector.Storable (Vector)
 import Data.Word (Word32, Word8)
-import System.Directory (listDirectory)
 import System.FilePath (takeExtension, (</>))
 
 import FlatCV qualified as FCV
 import PngExif (getOrientationFromPng)
 import Types (RotationDirection (Clockwise, CounterClockwise))
+import Utils (listPageFiles)
 
 
 {-| The rotation direction for a page number.
@@ -95,13 +96,9 @@ Exits with an error if the directory contains no PNGs.
 -}
 rotatePages :: FilePath -> IO ()
 rotatePages directory = do
-  allFiles <- listDirectory directory
-
-  let
-    pngFiles =
-      allFiles
-        & P.filter (\file -> takeExtension file == ".png")
-        & sort
+  pngFiles <-
+    listPageFiles (\file -> takeExtension file == ".png") directory
+      <&> sort
 
   when (null pngFiles) $
     die "No PNG files found"

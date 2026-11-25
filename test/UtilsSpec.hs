@@ -6,10 +6,12 @@ import Protolude (
   IO,
   Maybe (Just, Nothing),
   pure,
+  sort,
   writeFile,
   ($),
   (<&>),
  )
+import Protolude qualified as P
 
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (takeDirectory, (</>))
@@ -25,7 +27,9 @@ import Utils (
   firstUsableFont,
   fontInDirectories,
   imagesToLoad,
+  isImageFile,
   isUsableFont,
+  listPageFiles,
  )
 
 
@@ -38,6 +42,17 @@ spec = do
             <&> (.filePath)
           )
           `shouldBe` ["dir/IMG_9.jpeg", "dir/IMG_10.jpeg", "dir/IMG_100.jpeg"]
+
+    describe "listPageFiles" $ do
+      it "lists only page files, skipping dotfiles and directories" $ do
+        withSystemTempDirectory "perspec-pages" $ \tmpDir -> do
+          P.forM_
+            ["1.jpg", "2.JPG", "._1.jpg", ".DS_Store", ".hidden.jpg", "a.txt"]
+            (\file -> writeFile (tmpDir </> file) "")
+          createDirectoryIfMissing True (tmpDir </> "3.jpg")
+
+          files <- listPageFiles isImageFile tmpDir
+          sort files `shouldBe` ["1.jpg", "2.JPG"]
 
     let
       -- Image: 200 x 150

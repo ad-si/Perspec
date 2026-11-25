@@ -766,6 +766,26 @@ isImageFile filePath =
   in  P.elem extLower imageExtensions
 
 
+{-| Names of the page files in the directory that satisfy the predicate,
+in the order of the directory listing.
+
+Skips dotfiles (e.g. @.DS_Store@ and the AppleDouble files @._*@,
+which macOS creates next to copied files and which keep their extension)
+and directories (even if they are named like a page file).
+-}
+listPageFiles :: (FilePath -> Bool) -> FilePath -> IO [FilePath]
+listPageFiles isPageFile directory = do
+  entries <- listDirectory directory
+  entries
+    & P.filterM
+      ( \entry ->
+          case entry of
+            ('.' : _) -> pure False
+            _ | not (isPageFile entry) -> pure False
+            _ -> not <$> doesDirectoryExist (directory </> entry)
+      )
+
+
 loadImage :: FilePath -> IO (Either Text (Picture, Metadatas))
 loadImage filePath = do
   picMetaMaybe <- loadJuicyWithMetadata filePath
