@@ -54,7 +54,7 @@ import Control.Concurrent (
   threadDelay,
   throwTo,
  )
-import Control.Exception (finally)
+import Control.Exception (SomeException, catch, displayException, finally)
 import Crypto.Hash.SHA256 qualified as SHA256
 import Data.ByteString qualified as BS
 import Data.Fixed (mod')
@@ -1691,12 +1691,18 @@ submitSelection stateRef controller pdfAction appState = do
         let stateWithBannerHidden = finalState{bannerIsVisible = False}
         writeIORef stateRef stateWithBannerHidden
         controllerSetRedraw controller
+        -- An exception would otherwise end this thread silently,
+        -- making the export seem to do nothing (#64)
         newState <-
           performExport
             mainTid
             stateWithBannerHidden
             appState.exportSettings
             pdfAction
+            `catch` \(exception :: SomeException) -> do
+              P.putErrText $
+                "❌ Failed to export: " <> P.toS (displayException exception)
+              pure stateWithBannerHidden
         writeIORef stateRef newState
         controllerSetRedraw controller
       pure bannerState

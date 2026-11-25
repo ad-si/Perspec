@@ -6,6 +6,7 @@ import Protolude (
   FilePath,
   IO,
   Maybe (Just, Nothing),
+  forM_,
   fst,
   pure,
   putErrText,
@@ -67,10 +68,16 @@ redirectOutputToLogFile = do
 
   let logPath = cacheDirectory </> "perspec.log"
   logHandle <- openFile logPath WriteMode
-  hSetEncoding logHandle utf8
-  hSetBuffering logHandle LineBuffering
   hDuplicateTo logHandle stdout
   hDuplicateTo logHandle stderr
+
+  -- Must be set after `hDuplicateTo`, as it resets the encoding
+  -- to the locale encoding (the ANSI code page on Windows),
+  -- which can't encode the emojis in the output
+  -- and makes every write of them throw (#64)
+  forM_ [stdout, stderr] $ \handle -> do
+    hSetEncoding handle utf8
+    hSetBuffering handle LineBuffering
 
   pure logPath
 
